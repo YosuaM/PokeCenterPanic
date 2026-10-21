@@ -109,6 +109,23 @@ describe('MapScene', () => {
     })));
     expect(sprite.mock.calls.map((call) => call[2])).toEqual(names.map((name) => `${name}:idle`));
   });
+  it('keeps differently sized PMD frames at native pixel scale', () => {
+    const manifest: SpriteManifest = { source: 'fixture', species: [
+      { name: 'Pikachu', id: '0025', credits: 'Artist', idle: { frameWidth: 40,
+        frameHeight: 56, durations: [4], directions: 8, image: '0025/Idle-Anim.png' } },
+      { name: 'Chansey', id: '0113', credits: 'Artist', idle: { frameWidth: 24,
+        frameHeight: 40, durations: [4], directions: 8, image: '0113/Idle-Anim.png' } },
+    ] };
+    const { scene, sprite } = setup(manifest);
+    scene.setPlayers([{ id: 'staff', name: 'Staff', slot: 0, character: 'Chansey' }], 'staff');
+    scene.setPatients([{ id: 'patient', species: 'Pikachu', requiredTreatments: 1,
+      completedTreatments: 0, initialPatienceMs: 90_000, remainingPatienceMs: 90_000,
+      lifecycle: 'active', location: 'reception', slotIndex: 0, carrierId: '' }]);
+    expect(sprite.mock.calls.map((call) => call[2])).toEqual(['Chansey:idle', 'Pikachu:idle']);
+    for (const result of sprite.mock.results) {
+      expect(result.value.setScale).toHaveBeenCalledWith(1);
+    }
+  });
   it('starts and releases a medicine hold and renders synchronized doses', () => {
     const { scene, keyboardListeners, container } = setup();
     const sendInput = vi.fn();

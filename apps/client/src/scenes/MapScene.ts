@@ -443,7 +443,7 @@ export class MapScene extends Phaser.Scene {
     const animation = this.spriteAnimation(species, 'idle');
     if (!this.spritesReady || !animation || !this.textures.exists(`${species}:idle`)) return undefined;
     const sprite = this.add.sprite(x, y, `${species}:idle`).setOrigin(0.5, 1);
-    sprite.setScale(Math.min(1, 40 / animation.frameWidth, 48 / animation.frameHeight));
+    sprite.setScale(1);
     this.playSprite(sprite, species, 'down', false);
     return sprite;
   }

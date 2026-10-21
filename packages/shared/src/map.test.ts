@@ -1,10 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { isWalkable, moveWithinMap, SPAWN_POINTS } from './map.js';
+import { DISCHARGE_INTERACTION_POINT, HEALING_INTERACTION_POINT, isWalkable,
+  moveWithinMap, RECEPTION_INTERACTION_POINTS, RECOVERY_INTERACTION_POINT,
+  SPAWN_POINTS, WAITING_INTERACTION_POINTS } from './map.js';
+import { MEDICINE_DISPOSAL_POINT, MEDICINE_PREPARATION_POINTS,
+  MEDICINE_SURFACE_POINTS } from './medicine.js';
 
 describe('prototype map collisions', () => {
   it('keeps all spawn points and the route between stations walkable', () => {
     for (const spawn of SPAWN_POINTS) expect(isWalkable(spawn)).toBe(true);
     expect(isWalkable({ x: 329, y: 340 })).toBe(true);
+  });
+
+  it('keeps every station interaction point on walkable ground', () => {
+    const points = [...RECEPTION_INTERACTION_POINTS, ...WAITING_INTERACTION_POINTS,
+      RECOVERY_INTERACTION_POINT, HEALING_INTERACTION_POINT,
+      DISCHARGE_INTERACTION_POINT, ...MEDICINE_PREPARATION_POINTS,
+      MEDICINE_DISPOSAL_POINT, ...MEDICINE_SURFACE_POINTS];
+    for (const point of points) expect(isWalkable(point), JSON.stringify(point)).toBe(true);
   });
 
   it('blocks map edges and solid stations for the whole player body', () => {

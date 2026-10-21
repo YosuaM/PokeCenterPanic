@@ -2,6 +2,8 @@
 
 PokéCenter Panic is a noncommercial cooperative browser game in development. The [functional and technical specification](docs/specification.md) describes the planned MVP.
 
+The [MVP visual asset guide](docs/visual-assets.md) includes the original scene pilot, asset inventory, and scale decisions for the first Pokémon Center.
+
 ## Development
 
 Planned work and progress are tracked on the [PokéCenter Panic Trello board](https://trello.com/b/jnnB9u4p/pokecenter-panic). The [Trello ticket conventions](skills/pokecenter-trello-tickets/SKILL.md) define card content and status changes.
