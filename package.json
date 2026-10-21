@@ -1,0 +1,33 @@
+{
+  "name": "pokecenter-panic",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build -w @pokecenter/shared && concurrently -k -n shared,client,server \"npm run dev -w @pokecenter/shared\" \"npm run dev -w @pokecenter/client\" \"npm run dev -w @pokecenter/server\"",
+    "dev:client": "npm run build -w @pokecenter/shared && npm run dev -w @pokecenter/client",
+    "dev:server": "npm run build -w @pokecenter/shared && npm run dev -w @pokecenter/server",
+    "test": "npm run build -w @pokecenter/shared && vitest run",
+    "typecheck": "npm run build -w @pokecenter/shared && tsc -p apps/client/tsconfig.json --noEmit && tsc -p apps/server/tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "build": "npm run build -w @pokecenter/shared && npm run build -w @pokecenter/client && npm run build -w @pokecenter/server"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/node": "^24.0.0",
+    "concurrently": "^10.0.6",
+    "eslint": "^10.13.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}
