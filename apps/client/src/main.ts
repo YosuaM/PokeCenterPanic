@@ -39,6 +39,10 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
       : 'Connecting players…';
     status.textContent = '';
     mapScene().setPlayers(connectedPlayers, localId);
+    mapScene().setInputSender((direction) => controller.sendInput(direction));
+  },
+  showPositions(positions) {
+    mapScene().setAuthoritativePositions(positions);
   },
   showMenu(message) {
     menu.hidden = false;

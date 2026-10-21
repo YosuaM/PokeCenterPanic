@@ -5,12 +5,15 @@ import { LobbyController, type LobbyGateway, type LobbyView } from './LobbyContr
 
 function setup() {
   let message: ((players: PlayerPresence[]) => void) | undefined;
+  let stateChange: ((state: unknown) => void) | undefined;
   let disconnected: (() => void) | undefined;
   const room = {
     sessionId: 'host-id',
+    state: { players: new Map([['host-id', { x: 456, y: 422 }]]) },
     leave: vi.fn(async () => 1000),
     send: vi.fn(),
     onMessage: vi.fn((_type, listener) => { message = listener; }),
+    onStateChange: vi.fn((listener) => { stateChange = listener; }),
     onLeave: vi.fn((listener) => { disconnected = listener; }),
   } as unknown as Room;
   const gateway: LobbyGateway = {
@@ -20,10 +23,13 @@ function setup() {
   const view: LobbyView = {
     setBusy: vi.fn(),
     showRoom: vi.fn(),
+    showPositions: vi.fn(),
     showMenu: vi.fn(),
   };
   return { controller: new LobbyController(gateway, view), gateway, view, room,
-    players: (roster: PlayerPresence[]) => message?.(roster), disconnect: () => disconnected?.() };
+    players: (roster: PlayerPresence[]) => message?.(roster),
+    state: (positions: Map<string, { x: number; y: number }>) => stateChange?.({ players: positions }),
+    disconnect: () => disconnected?.() };
 }
 
 describe('LobbyController', () => {
@@ -33,10 +39,11 @@ describe('LobbyController', () => {
     expect(gateway.create).toHaveBeenCalledWith('Red');
     expect(view.showRoom).toHaveBeenCalledWith('ABC234', [], 'host-id');
     expect(room.send).toHaveBeenCalledWith('lobby:sync');
-    const roster = [{ id: 'host-id', name: 'Red' }, { id: 'guest-id', name: 'Blue' }];
+    const roster = [{ id: 'host-id', name: 'Red', slot: 0 }, { id: 'guest-id', name: 'Blue', slot: 1 }];
     players(roster);
     expect(view.showRoom).toHaveBeenCalledWith('ABC234', roster, 'host-id');
     expect(view.setBusy).toHaveBeenLastCalledWith(false);
+    expect(view.showPositions).toHaveBeenCalledWith([{ id: 'host-id', x: 456, y: 422 }]);
   });
 
   it('joins by code and returns to the menu when leaving', async () => {
@@ -47,8 +54,25 @@ describe('LobbyController', () => {
     expect(room.leave).toHaveBeenCalled();
     expect(view.showMenu).toHaveBeenCalledWith('You left the room.');
     vi.mocked(view.showRoom).mockClear();
-    players([{ id: 'host-id', name: 'Red' }]);
+    players([{ id: 'host-id', name: 'Red', slot: 0 }]);
     expect(view.showRoom).not.toHaveBeenCalled();
+  });
+
+  it('sends ordered direction-only input and applies server positions to the view', async () => {
+    const { controller, room, view, state } = setup();
+    await controller.create('Red');
+    controller.sendInput('right');
+    controller.sendInput(null);
+    expect(room.send).toHaveBeenCalledWith('player:input', { direction: 'right', sequence: 1, roundId: null });
+    expect(room.send).toHaveBeenCalledWith('player:input', { direction: null, sequence: 2, roundId: null });
+    state(new Map([['host-id', { x: 470, y: 422 }], ['guest-id', { x: 504, y: 422 }]]));
+    expect(view.showPositions).toHaveBeenLastCalledWith([
+      { id: 'host-id', x: 470, y: 422 }, { id: 'guest-id', x: 504, y: 422 },
+    ]);
+    await controller.leave();
+    vi.mocked(room.send).mockClear();
+    controller.sendInput('left');
+    expect(room.send).not.toHaveBeenCalled();
   });
 
   it('shows a server error and clears a disconnected room', async () => {

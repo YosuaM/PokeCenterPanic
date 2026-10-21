@@ -19,7 +19,7 @@ The client opens at `http://127.0.0.1:5173`; Colyseus listens on port `2567` by 
 
 Enter a player name and select **Create room**. Share the displayed six-character code; another player can open the client in a separate browser session, enter the code, and select **Join room**. Codes are case-insensitive. The prototype defaults to two seats; set `ROOM_CAPACITY=3` or `ROOM_CAPACITY=4` before starting the server to test a larger room. Invalid codes and full rooms show distinct errors. Rooms are held in memory and disappear when empty or when the server restarts.
 
-The provisional map shows every connected player. Move your own character with WASD or the arrow keys; the most recently pressed direction wins, with no diagonal movement. Movement stops when the browser loses focus. Positions currently move only in the local client; shared position synchronization and map collisions are the next prototype task.
+The provisional map shows every connected player. Move your own character with WASD or the arrow keys; the most recently pressed direction wins, with no diagonal movement. The server validates movement against map boundaries and solid stations, then synchronizes positions to all players. Movement stops when the browser loses focus or input becomes stale. Players can pass through one another.
 
 Before handing off changes, run:
 

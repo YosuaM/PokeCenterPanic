@@ -1,5 +1,5 @@
 import type { Room } from '@colyseus/sdk';
-import type { PlayerPresence } from '@pokecenter/shared';
+import type { Direction, PlayerPosition, PlayerPresence } from '@pokecenter/shared';
 import type { JoinedRoom } from './RoomGateway.js';
 
 export interface LobbyGateway {
@@ -10,12 +10,14 @@ export interface LobbyGateway {
 export interface LobbyView {
   setBusy(busy: boolean): void;
   showRoom(code: string, players: PlayerPresence[], localId: string): void;
+  showPositions(positions: PlayerPosition[]): void;
   showMenu(message: string): void;
 }
 
 export class LobbyController {
   private room: Room | null = null;
   private busy = false;
+  private nextInputSequence = 0;
 
   constructor(private readonly gateway: LobbyGateway, private readonly view: LobbyView) {}
 
@@ -34,6 +36,15 @@ export class LobbyController {
     this.view.showMenu('You left the room.');
   }
 
+  sendInput(direction: Direction | null): void {
+    if (!this.room) return;
+    this.room.send('player:input', {
+      direction,
+      sequence: ++this.nextInputSequence,
+      roundId: null,
+    });
+  }
+
   private async enter(connect: () => Promise<JoinedRoom>): Promise<void> {
     if (this.busy || this.room) return;
     this.busy = true;
@@ -41,7 +52,15 @@ export class LobbyController {
     try {
       const { code, room } = await connect();
       this.room = room;
+      this.nextInputSequence = 0;
       this.view.showRoom(code, [], room.sessionId);
+      const updatePositions = (state: unknown) => {
+        if (this.room !== room || !state || typeof state !== 'object' || !('players' in state)) return;
+        const players = state.players as Map<string, { x: number; y: number }>;
+        this.view.showPositions([...players].map(([id, player]) => ({ id, x: player.x, y: player.y })));
+      };
+      room.onStateChange(updatePositions);
+      updatePositions(room.state);
       room.onMessage('lobby:players', (players: PlayerPresence[]) => {
         if (this.room === room) this.view.showRoom(code, players, room.sessionId);
       });

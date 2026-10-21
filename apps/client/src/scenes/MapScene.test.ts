@@ -55,7 +55,7 @@ describe('MapScene', () => {
     expect(text).toHaveBeenCalledWith(92, 97, 'RECEPTION  ·  4 SLOTS', expect.any(Object));
     expect(text).toHaveBeenCalledWith(733, 223, 'HEALING 02', expect.any(Object));
 
-    scene.setPlayers([{ id: 'red', name: 'Red' }, { id: 'blue', name: 'Blue' }], 'red');
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }, { id: 'blue', name: 'Blue', slot: 1 }], 'red');
     expect(container).toHaveBeenCalledTimes(2);
     expect(container.mock.calls[0]?.slice(0, 2)).toEqual([456, 422]);
     expect(container.mock.calls[1]?.slice(0, 2)).toEqual([504, 422]);
@@ -63,19 +63,23 @@ describe('MapScene', () => {
     expect(text).toHaveBeenCalledWith(0, -31, 'Blue', expect.any(Object));
   });
 
-  it('moves only the local avatar and clears held input on blur and disconnect', () => {
+  it('sends local input and renders server positions for both avatars', () => {
     const { scene, containers, keyboardListeners, windowListeners } = setup();
-    scene.setPlayers([{ id: 'red', name: 'Red' }, { id: 'blue', name: 'Blue' }], 'red');
+    const sendInput = vi.fn();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }, { id: 'blue', name: 'Blue', slot: 1 }], 'red');
+    scene.setInputSender(sendInput);
     const preventDefault = vi.fn();
     keyboardListeners.get('keydown')?.({ code: 'KeyD', preventDefault } as unknown as KeyboardEvent);
-    scene.update(0, 100);
+    scene.update(0, 16);
     expect(preventDefault).toHaveBeenCalled();
-    expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(470.4, 422);
-    expect(containers[1]?.setPosition).not.toHaveBeenCalled();
+    expect(sendInput).toHaveBeenCalledWith('right');
+    scene.setAuthoritativePositions([{ id: 'red', x: 470, y: 422 }, { id: 'blue', x: 518, y: 422 }]);
+    scene.update(50, 70);
+    expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(470, 422);
+    expect(containers[1]?.setPosition).toHaveBeenLastCalledWith(518, 422);
 
     windowListeners.get('blur')?.();
-    scene.update(0, 100);
-    expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(470.4, 422);
+    expect(sendInput).toHaveBeenLastCalledWith(null);
     scene.clearPlayers();
     expect(containers[0]?.destroy).toHaveBeenCalled();
     expect(containers[1]?.destroy).toHaveBeenCalled();
@@ -83,19 +87,30 @@ describe('MapScene', () => {
 
   it('ignores movement while typing a room code', () => {
     const { scene, containers, keyboardListeners, InputElement } = setup();
-    scene.setPlayers([{ id: 'red', name: 'Red' }], 'red');
+    const sendInput = vi.fn();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setInputSender(sendInput);
     (document as unknown as { activeElement: unknown }).activeElement = new InputElement();
     keyboardListeners.get('keydown')?.({ code: 'ArrowUp', preventDefault: vi.fn() } as unknown as KeyboardEvent);
     scene.update(0, 100);
     expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(456, 422);
+    expect(sendInput).not.toHaveBeenCalled();
   });
 
   it('reuses a vacated avatar slot without duplicating another player badge', () => {
     const { scene, container, text } = setup();
-    scene.setPlayers([{ id: 'red', name: 'Red' }, { id: 'blue', name: 'Blue' }], 'blue');
-    scene.setPlayers([{ id: 'blue', name: 'Blue' }, { id: 'green', name: 'Green' }], 'blue');
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }, { id: 'blue', name: 'Blue', slot: 1 }], 'blue');
+    scene.setPlayers([{ id: 'blue', name: 'Blue', slot: 1 }, { id: 'green', name: 'Green', slot: 0 }], 'blue');
     expect(container.mock.calls[2]?.slice(0, 2)).toEqual([456, 422]);
     expect(text).toHaveBeenCalledWith(0, 0, '1', expect.any(Object));
     expect(text).toHaveBeenCalledWith(0, 0, '2', expect.any(Object));
+  });
+
+  it('uses an authoritative snapshot received before the roster', () => {
+    const { scene, container } = setup();
+    scene.setPlayers([], 'red');
+    scene.setAuthoritativePositions([{ id: 'red', x: 480, y: 422 }]);
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    expect(container.mock.calls[0]?.slice(0, 2)).toEqual([480, 422]);
   });
 });

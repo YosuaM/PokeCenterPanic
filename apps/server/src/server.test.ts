@@ -1,6 +1,6 @@
 import type { AddressInfo } from 'node:net';
 import { Client } from '@colyseus/sdk';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PROJECT_INFO, type PlayerPresence } from '@pokecenter/shared';
 import { createGameServer, resolveCapacity, resolvePort } from './server.js';
 
@@ -72,7 +72,7 @@ describe('private room flow', () => {
 
     const hostRoster = new Promise<PlayerPresence[]>((resolve) => host.onMessage('lobby:players', resolve));
     host.send('lobby:sync');
-    expect(await hostRoster).toEqual([{ id: host.sessionId, name: 'Red' }]);
+    expect(await hostRoster).toEqual([{ id: host.sessionId, name: 'Red', slot: 0 }]);
 
     const joined = await reserve(`/api/rooms/${created.body.code.toLowerCase()}/join`, 'Blue');
     expect(joined.status).toBe(200);
@@ -83,8 +83,8 @@ describe('private room flow', () => {
     const guestRoster = new Promise<PlayerPresence[]>((resolve) => guest.onMessage('lobby:players', resolve));
     guest.send('lobby:sync');
     expect(await guestRoster).toEqual([
-      { id: host.sessionId, name: 'Red' },
-      { id: guest.sessionId, name: 'Blue' },
+      { id: host.sessionId, name: 'Red', slot: 0 },
+      { id: guest.sessionId, name: 'Blue', slot: 1 },
     ]);
 
     const third = await reserve(`/api/rooms/${created.body.code}/join`, 'Green');
@@ -128,7 +128,45 @@ describe('private room flow', () => {
       });
     });
     await guest.leave();
-    expect(await updatedRoster).toEqual([{ id: host.sessionId, name: 'Red' }]);
+    expect(await updatedRoster).toEqual([{ id: host.sessionId, name: 'Red', slot: 0 }]);
+  });
+
+  it('replicates server-validated positions to both clients', async () => {
+    const created = await reserve('/api/rooms', 'Red');
+    const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
+    joinedRooms.push(host);
+    const joined = await reserve(`/api/rooms/${created.body.code}/join`, 'Blue');
+    const guest = await new Client(endpoint).consumeSeatReservation(joined.body.reservation);
+    joinedRooms.push(guest);
+
+    const player = (room: typeof host) => {
+      const state = room.state as { players: Map<string, { x: number; y: number }> };
+      return state.players?.get(host.sessionId);
+    };
+    await vi.waitFor(() => expect(player(host)).toBeDefined(), { timeout: 2000 });
+    await vi.waitFor(() => expect(player(guest)).toBeDefined(), { timeout: 2000 });
+    expect(player(host)).toEqual(expect.objectContaining({ x: 456, y: 422 }));
+    expect(player(guest)).toEqual(expect.objectContaining({ x: 456, y: 422 }));
+    host.send('player:input', { direction: 'right', sequence: 1, roundId: null });
+    await vi.waitFor(() => expect(player(guest)?.x).toBeGreaterThan(456), { timeout: 2000 });
+    await vi.waitFor(() => expect(player(host)?.x).toBe(player(guest)?.x), { timeout: 2000 });
+
+    host.send('player:input', { direction: null, sequence: 2, roundId: null });
+    host.send('player:input', { direction: 'up', sequence: 2, roundId: null });
+    host.send('player:input', { direction: 'up', sequence: 3, roundId: 'forged' });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const stoppedX = player(guest)!.x;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(player(guest)?.x).toBe(stoppedX);
+    expect(player(host)?.x).toBe(stoppedX);
+
+    for (let sequence = 4; sequence <= 24; sequence += 1) {
+      host.send('player:input', { direction: 'up', sequence, roundId: null, y: 100 });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    await vi.waitFor(() => expect(player(guest)?.y).toBeLessThan(422), { timeout: 2000 });
+    expect(player(guest)?.y).toBeGreaterThanOrEqual(322);
+    await vi.waitFor(() => expect(player(host)?.y).toBe(player(guest)?.y), { timeout: 2000 });
   });
 
 });

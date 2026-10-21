@@ -1,27 +1,23 @@
 import Phaser from 'phaser';
-import type { PlayerPresence } from '@pokecenter/shared';
-import { MovementInput, type Point } from './movement.js';
-
-const TILE_SIZE = 48;
-const SPEED = TILE_SIZE * 3;
-const WALK_BOUNDS = { left: 70, right: 890, top: 78, bottom: 468 };
-const SPAWNS: Point[] = [
-  { x: 456, y: 422 }, { x: 504, y: 422 },
-  { x: 408, y: 422 }, { x: 552, y: 422 },
-];
+import { MAP_OBSTACLES, SPAWN_POINTS, TILE_SIZE, type Direction, type MapObstacle, type PlayerPosition, type PlayerPresence, type Point } from '@pokecenter/shared';
+import { MovementInput } from './movement.js';
 const PLAYER_COLORS = [0x4cc9c0, 0xf29c75, 0xb2a0f7, 0xf5ce69];
 
 interface Avatar {
   container: Phaser.GameObjects.Container;
   position: Point;
-  slot: number;
+  target: Point;
 }
 
 export class MapScene extends Phaser.Scene {
   private readonly movement = new MovementInput();
   private readonly avatars = new Map<string, Avatar>();
+  private readonly authoritativePositions = new Map<string, Point>();
   private players: PlayerPresence[] = [];
   private localId = '';
+  private inputSender: ((direction: Direction | null) => void) | null = null;
+  private lastSentAt = -Infinity;
+  private lastSentDirection: Direction | null = null;
 
   constructor() {
     super('map');
@@ -45,22 +41,49 @@ export class MapScene extends Phaser.Scene {
   }
 
   setPlayers(players: PlayerPresence[], localId: string): void {
+    if (this.localId !== localId) {
+      this.movement.clear();
+      this.authoritativePositions.clear();
+      this.lastSentDirection = null;
+      this.lastSentAt = -Infinity;
+    }
     this.players = players;
     this.localId = localId;
-    this.movement.clear();
     if (this.sys.isActive()) this.renderPlayers();
   }
 
   clearPlayers(): void {
     this.setPlayers([], '');
+    this.inputSender = null;
   }
 
-  update(_time: number, delta: number): void {
-    const avatar = this.avatars.get(this.localId);
-    if (!avatar) return;
-    avatar.position = this.movement.move(avatar.position, delta, SPEED, WALK_BOUNDS);
-    avatar.container.setPosition(avatar.position.x, avatar.position.y);
-    avatar.container.setDepth(avatar.position.y);
+  setInputSender(sender: (direction: Direction | null) => void): void {
+    this.inputSender = sender;
+  }
+
+  setAuthoritativePositions(positions: PlayerPosition[]): void {
+    for (const { id, x, y } of positions) {
+      this.authoritativePositions.set(id, { x, y });
+      const avatar = this.avatars.get(id);
+      if (avatar) avatar.target = { x, y };
+    }
+  }
+
+  update(time: number, delta: number): void {
+    const direction = this.movement.direction;
+    if (this.avatars.has(this.localId) && this.inputSender && time - this.lastSentAt >= 50 &&
+      (direction !== this.lastSentDirection || direction !== null)) {
+      this.inputSender(direction);
+      this.lastSentDirection = direction;
+      this.lastSentAt = time;
+    }
+    const blend = Math.min(1, Math.max(0, delta) / 70);
+    for (const avatar of this.avatars.values()) {
+      avatar.position.x += (avatar.target.x - avatar.position.x) * blend;
+      avatar.position.y += (avatar.target.y - avatar.position.y) * blend;
+      avatar.container.setPosition(avatar.position.x, avatar.position.y);
+      avatar.container.setDepth(avatar.position.y);
+    }
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -74,10 +97,14 @@ export class MapScene extends Phaser.Scene {
 
   private readonly clearMovement = (): void => {
     this.movement.clear();
+    if (this.lastSentDirection !== null) {
+      this.inputSender?.(null);
+      this.lastSentDirection = null;
+    }
   };
 
   private readonly onFocusIn = (): void => {
-    if (this.isTyping()) this.movement.clear();
+    if (this.isTyping()) this.clearMovement();
   };
 
   private isTyping(): boolean {
@@ -90,14 +117,16 @@ export class MapScene extends Phaser.Scene {
       if (!this.players.some((player) => player.id === id)) {
         avatar.container.destroy();
         this.avatars.delete(id);
+        this.authoritativePositions.delete(id);
       }
     }
     this.players.forEach((player) => {
       if (this.avatars.has(player.id)) return;
-      const usedSlots = new Set([...this.avatars.values()].map((avatar) => avatar.slot));
-      const slot = SPAWNS.findIndex((_, index) => !usedSlots.has(index));
-      if (slot < 0) return;
-      const position = { ...SPAWNS[slot]! };
+      const slot = player.slot;
+      const spawn = SPAWN_POINTS[slot];
+      if (!spawn) return;
+      const position = { ...(this.authoritativePositions.get(player.id) ?? spawn) };
+      const target = { ...position };
       const color = PLAYER_COLORS[slot]!;
       const shadow = this.add.rectangle(0, 10, 29, 9, 0x0b2733, 0.55);
       const body = this.add.rectangle(0, 0, 26, 32, color).setStrokeStyle(3, 0x163246);
@@ -110,7 +139,7 @@ export class MapScene extends Phaser.Scene {
       }).setOrigin(0.5);
       const container = this.add.container(position.x, position.y, [shadow, body, badge, name])
         .setDepth(position.y);
-      this.avatars.set(player.id, { container, position, slot });
+      this.avatars.set(player.id, { container, position, target });
     });
   }
 
@@ -131,20 +160,20 @@ export class MapScene extends Phaser.Scene {
       color: '#f8eac8', fontFamily: 'monospace', fontSize: '13px',
     });
 
-    this.station(82, 88, 796, 68, 0xd8a67e, 'RECEPTION  ·  4 SLOTS');
+    this.station(MAP_OBSTACLES[0]!, 0xd8a67e, 'RECEPTION  ·  4 SLOTS');
     for (let x = 177; x <= 753; x += 192) this.slot(x, 138, 1 + (x - 177) / 192);
 
-    this.station(82, 214, 155, 117, 0x8abbd4, 'HEALING 01');
-    this.station(723, 214, 155, 117, 0x8abbd4, 'HEALING 02');
-    this.station(342, 204, 276, 102, 0xe3c58a, 'MEDICINE  ·  PREP × 2');
-    this.station(82, 359, 240, 76, 0xafa1c6, 'WAITING  ·  4 SLOTS');
-    this.station(638, 359, 240, 76, 0x9cbda2, 'RECOVERY / DISCHARGE');
+    this.station(MAP_OBSTACLES[1]!, 0x8abbd4, 'HEALING 01');
+    this.station(MAP_OBSTACLES[2]!, 0x8abbd4, 'HEALING 02');
+    this.station(MAP_OBSTACLES[3]!, 0xe3c58a, 'MEDICINE  ·  PREP × 2');
+    this.station(MAP_OBSTACLES[4]!, 0xafa1c6, 'WAITING  ·  4 SLOTS');
+    this.station(MAP_OBSTACLES[5]!, 0x9cbda2, 'RECOVERY / DISCHARGE');
     this.add.text(389, 333, 'MEDICINE SURFACES × 4', {
       color: '#234653', fontFamily: 'monospace', fontSize: '13px', fontStyle: 'bold',
     });
   }
 
-  private station(x: number, y: number, width: number, height: number, color: number, label: string): void {
+  private station({ x, y, width, height }: MapObstacle, color: number, label: string): void {
     this.add.rectangle(x + width / 2, y + height / 2, width, height, color)
       .setStrokeStyle(3, 0x244653);
     this.add.text(x + 10, y + 9, label, {
