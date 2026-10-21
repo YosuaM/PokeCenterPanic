@@ -67,6 +67,15 @@ function setup(manifest?: SpriteManifest) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('MapScene', () => {
+  it('keeps identical species distinguishable by slot badge and player name', () => {
+    const { scene, text } = setup();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0, character: 'Chansey' },
+      { id: 'blue', name: 'Blue', slot: 1, character: 'Chansey' }], 'red');
+    expect(text).toHaveBeenCalledWith(0, 0, '1', expect.any(Object));
+    expect(text).toHaveBeenCalledWith(0, 0, '2', expect.any(Object));
+    expect(text).toHaveBeenCalledWith(0, -31, 'Red', expect.any(Object));
+    expect(text).toHaveBeenCalledWith(0, -31, 'Blue', expect.any(Object));
+  });
   it('does not accept gameplay input before the round and updates a selected character', () => {
     const { scene, container, containers, keyboardListeners } = setup();
     const sendInput = vi.fn();

@@ -19,8 +19,9 @@ describe('resolvePort', () => {
 });
 
 describe('resolveCapacity', () => {
-  it('defaults to two seats and accepts up to four', () => {
-    expect(resolveCapacity(undefined)).toBe(2);
+  it('defaults to four seats and accepts smaller rooms', () => {
+    expect(resolveCapacity(undefined)).toBe(4);
+    expect(resolveCapacity('1')).toBe(1);
     expect(resolveCapacity('3')).toBe(3);
     expect(resolveCapacity('4')).toBe(4);
   });

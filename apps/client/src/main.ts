@@ -32,7 +32,7 @@ let currentPhase: RoomPhaseSnapshot = { phase: 'lobby', hostId: '',
 function renderLobby(): void {
   const self = currentPlayers.find((player) => player.id === currentLocalId);
   players.textContent = currentPlayers.length ? currentPlayers.map((player) =>
-    `${player.name}${player.id === currentLocalId ? ' (you)' : ''} · ${player.character || 'no character'} · ${player.ready ? 'ready' : 'not ready'}`
+    `#${player.slot + 1} ${player.name}${player.id === currentLocalId ? ' (you)' : ''} · ${player.character || 'no character'} · ${player.ready ? 'ready' : 'not ready'}`
   ).join('  |  ') : 'Connecting players…';
   panel.classList.toggle('is-playing', currentPhase.phase === 'running');
   lobbyControls.hidden = currentPhase.phase !== 'lobby';

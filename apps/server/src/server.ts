@@ -6,7 +6,7 @@ import { createPrivateRoomType } from './rooms/PrototypeRoom.js';
 
 const project: ProjectInfo = PROJECT_INFO;
 
-export function createGameServer({ capacity = 2, countdownMs = 3_000 }:
+export function createGameServer({ capacity = 4, countdownMs = 3_000 }:
   { capacity?: number; countdownMs?: number } = {}): Server {
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 4) {
     throw new Error('Room capacity must be an integer between 1 and 4');
@@ -79,7 +79,7 @@ export function resolvePort(value: string | undefined): number {
 }
 
 export function resolveCapacity(value: string | undefined): number {
-  if (value === undefined) return 2;
+  if (value === undefined) return 4;
   if (!/^[1-4]$/.test(value)) {
     throw new Error('ROOM_CAPACITY must be an integer between 1 and 4');
   }
