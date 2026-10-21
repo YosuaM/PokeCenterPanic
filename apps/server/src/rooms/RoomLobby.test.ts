@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { PlayerState, RoomState } from './RoomState.js';
-import { RoomLobby } from './RoomLobby.js';
+import { oldestConnectedMember, RoomLobby } from './RoomLobby.js';
 
-function setup() {
+function setup(ids = ['red', 'blue']) {
   const state = new RoomState();
   const lobby = new RoomLobby(state, 3_000, () => 'round-1');
-  for (const id of ['red', 'blue']) {
+  for (const id of ids) {
     const player = new PlayerState();
     player.name = id;
     player.character = '';
@@ -20,6 +20,53 @@ function setup() {
 }
 
 describe('RoomLobby', () => {
+  it('elects by join order and then ID when orders tie', () => {
+    expect(oldestConnectedMember([
+      { id: 'green', joinOrder: 2 }, { id: 'blue', joinOrder: 1 },
+      { id: 'red', joinOrder: 1 },
+    ])).toBe('blue');
+    expect(oldestConnectedMember([])).toBe('');
+  });
+
+  it('transfers control to the earliest connected member regardless of roster order', () => {
+    const { state, lobby, command } = setup(['red', 'blue', 'green']);
+    const blue = state.players.get('blue')!;
+    state.players.delete('blue');
+    state.players.set('blue', blue);
+    state.players.delete('red');
+    lobby.departed('red');
+    expect(state.hostId).toBe('blue');
+    for (const id of ['blue', 'green']) {
+      expect(lobby.select(id, command({ character: 'Chansey' })).ok).toBe(true);
+      expect(lobby.ready(id, command({ ready: true })).ok).toBe(true);
+    }
+    expect(lobby.start('green', command(), 0).reason).toBe('Only the host can start');
+    expect(lobby.start('blue', command(), 0).ok).toBe(true);
+  });
+
+  it('keeps an incumbent host when a former host returns and elects on an empty room', () => {
+    const { state, lobby, command } = setup();
+    lobby.select('red', command({ character: 'Chansey' }));
+    lobby.ready('red', command({ ready: true }));
+    lobby.departed('red', true);
+    expect(state.hostId).toBe('blue');
+    expect(state.players.get('red')?.ready).toBe(false);
+    lobby.select('blue', command({ character: 'Chansey' }));
+    lobby.ready('blue', command({ ready: true }));
+    expect(lobby.start('blue', command(), 0).reason)
+      .toBe('All players must choose a character and be ready');
+    lobby.joined('red');
+    expect(state.hostId).toBe('blue');
+    lobby.departed('blue', true);
+    expect(state.hostId).toBe('red');
+    lobby.departed('red', true);
+    expect(state.hostId).toBe('');
+    lobby.joined('blue');
+    expect(state.hostId).toBe('blue');
+    lobby.joined('red');
+    expect(state.hostId).toBe('blue');
+  });
+
   it('starts only for a ready roster and the host, then enters running after three seconds', () => {
     const { state, lobby, command } = setup();
     expect(state.phase).toBe('lobby');

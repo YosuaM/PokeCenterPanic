@@ -150,6 +150,41 @@ describe('private room flow', () => {
       .toEqual([{ id: host.sessionId, name: 'Red', slot: 0 }]);
   });
 
+  it('transfers host start authority to the earliest remaining member', async () => {
+    const created = await reserve('/api/rooms', 'Red');
+    const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
+    const guests: Array<Awaited<ReturnType<Client['consumeSeatReservation']>>> = [];
+    for (const name of ['Blue', 'Green']) {
+      const joined = await reserve(`/api/rooms/${created.body.code}/join`, name);
+      const guest = await new Client(endpoint).consumeSeatReservation(joined.body.reservation);
+      joinedRooms.push(guest);
+      guests.push(guest);
+    }
+    const blue = guests[0]!;
+    const green = guests[1]!;
+    await host.leave();
+    await vi.waitFor(() => expect((blue.state as { hostId: string }).hostId)
+      .toBe(blue.sessionId), { timeout: 2000 });
+    expect((green.state as { hostId: string }).hostId).toBe(blue.sessionId);
+    for (const guest of guests) {
+      guest.send('player:select', { character: 'Chansey', sequence: 1, roundId: null });
+      guest.send('player:ready', { ready: true, sequence: 2, roundId: null });
+    }
+    await vi.waitFor(() => expect(guests.every((guest) =>
+      (blue.state as { players: Map<string, { ready: boolean }> }).players.get(guest.sessionId)?.ready))
+      .toBe(true), { timeout: 2000 });
+    const rejected = new Promise<{ ok: boolean; reason: string }>((resolve) =>
+      green.onMessage('lobby:result', (result: { ok: boolean; reason: string }) => {
+        if (!result.ok) resolve(result);
+      }));
+    green.send('game:start', { sequence: 3, roundId: null });
+    expect((await rejected).reason).toBe('Only the host can start');
+    expect((blue.state as { phase: string }).phase).toBe('lobby');
+    blue.send('game:start', { sequence: 3, roundId: null });
+    await vi.waitFor(() => expect((green.state as { phase: string }).phase)
+      .toBe('running'), { timeout: 2000 });
+  });
+
   it('keeps the room in lobby until a valid host start and refuses new members during play', async () => {
     const created = await reserve('/api/rooms', 'Red');
     const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
