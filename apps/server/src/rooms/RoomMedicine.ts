@@ -1,6 +1,7 @@
 import {
-  MEDICINE_DISPOSAL_POINT, MEDICINE_KINDS, MEDICINE_PREPARATION_MS,
-  MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, isInteractionReachable,
+  HEALING_INTERACTION_POINT, MEDICINE_DISPOSAL_POINT, MEDICINE_KINDS, MEDICINE_PREPARATION_MS,
+  MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, RECEPTION_INTERACTION_POINTS,
+  RECOVERY_INTERACTION_POINT, TREATMENT, WAITING_INTERACTION_POINTS, isInteractionReachable,
   type Direction, type MedicineInteractionRequest, type PatientInteractionResult, type Point,
 } from '@pokecenter/shared';
 import { MedicineDoseState, type RoomState } from './RoomState.js';
@@ -59,9 +60,16 @@ export class RoomMedicine {
     if (this.releaseRequired.has(playerId)) return reject('Release E before interacting again');
     const prep = /^medicine:prep:([01])$/.exec(request.targetId);
     const surface = /^medicine:surface:([0-3])$/.exec(request.targetId);
+    const application = /^medicine:apply:(reception|waiting):([0-3])$/.exec(request.targetId);
+    const applicationLocation = application?.[1];
+    const applicationIndex = application ? Number(application[2]) : -1;
     const point = prep ? MEDICINE_PREPARATION_POINTS[Number(prep[1])] : surface ?
-      MEDICINE_SURFACE_POINTS[Number(surface[1])] : request.targetId === 'medicine:disposal' ?
-        MEDICINE_DISPOSAL_POINT : undefined;
+      MEDICINE_SURFACE_POINTS[Number(surface[1])] : applicationLocation === 'reception' ?
+        RECEPTION_INTERACTION_POINTS[applicationIndex] : applicationLocation === 'waiting' ?
+          WAITING_INTERACTION_POINTS[applicationIndex] :
+          request.targetId === 'medicine:apply:recovery' ? RECOVERY_INTERACTION_POINT :
+            request.targetId === 'medicine:apply:healing:0' ? HEALING_INTERACTION_POINT :
+              request.targetId === 'medicine:disposal' ? MEDICINE_DISPOSAL_POINT : undefined;
     if (!point || !isInteractionReachable(position, facing, point)) return reject('Target out of range');
     if (prep) {
       const index = Number(prep[1]);
@@ -107,10 +115,47 @@ export class RoomMedicine {
       this.assertOwnership();
       return success();
     }
+    if (application || request.targetId.startsWith('medicine:apply:')) {
+      return this.apply(playerId, request, applicationLocation, applicationIndex);
+    }
     if (request.expectedOccupantId !== player.carriedMedicineId || !player.carriedMedicineId) {
       return reject('No carried medicine to discard');
     }
     this.state.medicineDoses.delete(player.carriedMedicineId);
+    player.carriedMedicineId = '';
+    this.releaseRequired.add(playerId);
+    this.assertOwnership();
+    return success();
+  }
+
+  private apply(playerId: string, request: MedicineInteractionRequest,
+    location: string | undefined, index: number): PatientInteractionResult {
+    const player = this.state.players.get(playerId)!;
+    if (player.carriedPatientId || !player.carriedMedicineId) return reject('No carried medicine');
+    const dose = this.state.medicineDoses.get(player.carriedMedicineId);
+    if (!dose || dose.location !== 'carrier' || dose.carrierId !== playerId) {
+      return reject('Carried medicine unavailable');
+    }
+    const patientId = location === 'reception' ? this.state.receptionSlots[index] :
+      location === 'waiting' ? this.state.waitingSlots[index] :
+        request.targetId === 'medicine:apply:recovery' ? this.state.recoveryQueue[0] :
+          this.state.healingMachine.patientId;
+    if (!patientId || patientId !== request.expectedOccupantId) return reject('Patient changed or removed');
+    const patient = this.state.patients.get(patientId);
+    const patientLocation = location ?? (request.targetId === 'medicine:apply:recovery' ?
+      'recovery' : 'healingMachine');
+    const patientIndex = location ? index : 0;
+    if (!patient || patient.lifecycle !== 'active' || patient.location !== patientLocation ||
+      patient.slotIndex !== patientIndex || patient.carrierId) return reject('Patient unavailable');
+    if (patientLocation === 'healingMachine' && this.state.healingMachine.status !== 'completed') {
+      return reject('Healing machine unavailable');
+    }
+    const treatment = dose.kind === 'burnHeal' ? TREATMENT.burnHeal :
+      dose.kind === 'antidote' ? TREATMENT.antidote : 0;
+    if (!treatment || !(patient.requiredTreatments & treatment)) return reject('Wrong medicine');
+    if (patient.completedTreatments & treatment) return reject('Treatment already complete');
+    patient.completedTreatments |= treatment;
+    this.state.medicineDoses.delete(dose.id);
     player.carriedMedicineId = '';
     this.releaseRequired.add(playerId);
     this.assertOwnership();

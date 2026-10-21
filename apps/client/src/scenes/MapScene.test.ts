@@ -132,6 +132,24 @@ describe('MapScene', () => {
     expect(container).toHaveBeenCalledTimes(2);
     scene.setMedicines([], ['', '', '', ''], ['', ''], [0, 0]);
   });
+  it('targets a stationary patient for medicine and shows the pending condition', () => {
+    const { scene, keyboardListeners, text } = setup();
+    const interact = vi.fn();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setInteractionSender(interact);
+    scene.setAuthoritativePositions([{ id: 'red', x: 177, y: 194, facing: 'up',
+      carriedPatientId: '', carriedMedicineId: 'dose-1' }]);
+    scene.setMedicines([{ id: 'dose-1', kind: 'burnHeal', location: 'carrier',
+      carrierId: 'red', slotIndex: -1 }], ['', '', '', ''], ['', ''], [0, 0]);
+    scene.setPatients([{ id: 'patient-1', species: 'Pikachu', requiredTreatments: 3,
+      completedTreatments: 0, initialPatienceMs: 90_000, remainingPatienceMs: 90_000,
+      lifecycle: 'active', location: 'reception', slotIndex: 0, carrierId: '' }]);
+    expect(text).toHaveBeenCalledWith(0, 42, 'Pikachu  50/100  BURNED', expect.any(Object));
+    keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false,
+      preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    expect(interact).toHaveBeenCalledWith({ targetId: 'medicine:apply:reception:0',
+      expectedOccupantId: 'patient-1' });
+  });
   it('renders the provisional stations and distinct avatars for the room roster', () => {
     const { scene, text, container } = setup();
     expect(text).toHaveBeenCalledWith(92, 97, 'RECEPTION  ·  4 SLOTS', expect.any(Object));

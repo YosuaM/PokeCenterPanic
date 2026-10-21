@@ -347,7 +347,8 @@ export class MapScene extends Phaser.Scene {
       const body = sprite ?? this.add.rectangle(0, carried ? 0 : -12, carried ? 40 : 28, carried ? 19 : 25,
         carried ? 0xe7e3d3 : 0xf6c76a).setStrokeStyle(2, 0x593a30);
       const label = this.add.text(0, patient.location === 'reception' ? 42 : carried ? -26 : 31,
-        `${patient.species}  ${presentation.hp}/100`, {
+        `${patient.species}  ${presentation.hp}/100  ${presentation.status?.toUpperCase() ??
+          (presentation.readyForDischarge ? 'READY' : '')}`.trim(), {
         color: '#ffffff', backgroundColor: '#10243bcc', fontFamily: 'monospace', fontSize: '11px',
         padding: { x: 3, y: 2 },
       }).setOrigin(0.5);
@@ -463,6 +464,15 @@ export class MapScene extends Phaser.Scene {
     const local = this.authoritativePositions.get(this.localId);
     const targets: InteractionTarget[] = [];
     if (local) {
+      const carriedDose = this.medicineDoses.find((dose) => dose.id === local.carriedMedicineId);
+      const medicineLabel = (patient?: PatientRecord): string => {
+        if (!patient) return 'No patient';
+        const needed = patientPresentation(patient).status;
+        if (!carriedDose) return 'No carried medicine';
+        const matches = needed === (carriedDose.kind === 'burnHeal' ? 'burned' : 'poisoned');
+        return matches ? `Apply ${carriedDose.kind === 'burnHeal' ? 'Burn Heal' : 'Antidote'} to ${patient.species}` :
+          'Medicine does not match';
+      };
       for (let index = 0; index < MEDICINE_PREPARATION_POINTS.length; index += 1) {
         const kind = index === 0 ? 'Burn Heal' : 'Antidote';
         const owner = this.medicineOwners[index];
@@ -488,24 +498,28 @@ export class MapScene extends Phaser.Scene {
       for (let index = 0; index < RECEPTION_INTERACTION_POINTS.length; index += 1) {
         const occupant = this.patients.find((patient) => patient.lifecycle === 'active' &&
           patient.location === 'reception' && patient.slotIndex === index);
-        targets.push({ id: `reception:${index}`, position: RECEPTION_INTERACTION_POINTS[index]!,
+        targets.push({ id: carriedDose ? `medicine:apply:reception:${index}` : `reception:${index}`,
+          position: RECEPTION_INTERACTION_POINTS[index]!,
           expectedOccupantId: occupant?.id ?? '',
-          label: local.carriedPatientId ? 'Cannot place at arrivals' :
+          label: carriedDose ? medicineLabel(occupant) : local.carriedPatientId ? 'Cannot place at arrivals' :
             occupant ? `Pick up ${occupant.species}` : 'No patient' });
       }
       for (let index = 0; index < WAITING_INTERACTION_POINTS.length; index += 1) {
         const occupant = this.patients.find((patient) => patient.lifecycle === 'active' &&
           patient.location === 'waiting' && patient.slotIndex === index);
-        targets.push({ id: `waiting:${index}`, position: WAITING_INTERACTION_POINTS[index]!,
+        targets.push({ id: carriedDose ? `medicine:apply:waiting:${index}` : `waiting:${index}`,
+          position: WAITING_INTERACTION_POINTS[index]!,
           expectedOccupantId: occupant?.id ?? '',
-          label: local.carriedPatientId ? occupant ? 'Slot occupied' : 'Place patient' :
+          label: carriedDose ? medicineLabel(occupant) : local.carriedPatientId ?
+            occupant ? 'Slot occupied' : 'Place patient' :
             occupant ? `Pick up ${occupant.species}` : 'No patient' });
       }
       const front = this.patients.find((patient) => patient.lifecycle === 'active' &&
         patient.location === 'recovery' && patient.slotIndex === 0);
-      targets.push({ id: 'recovery', position: RECOVERY_INTERACTION_POINT,
+      targets.push({ id: carriedDose ? 'medicine:apply:recovery' : 'recovery',
+        position: RECOVERY_INTERACTION_POINT,
         expectedOccupantId: front?.id ?? '',
-        label: local.carriedPatientId ? 'Recovery is pickup only' :
+        label: carriedDose ? medicineLabel(front) : local.carriedPatientId ? 'Recovery is pickup only' :
           front ? `Pick up ${front.species}` : 'Recovery empty' });
       const carried = this.patients.find((patient) => patient.id === local.carriedPatientId);
       const machinePatient = this.patients.find((patient) => patient.id === this.healingMachine.patientId);
@@ -514,8 +528,11 @@ export class MapScene extends Phaser.Scene {
           !(carried.completedTreatments & TREATMENT.healing) ? 'Place in healing machine' : 'Healing not needed' :
         this.healingMachine.status === 'completed' && machinePatient ? `Pick up ${machinePatient.species}` :
           this.healingMachine.status === 'treating' ? 'Treatment in progress' : 'Machine empty';
-      targets.push({ id: 'healing:0', position: HEALING_INTERACTION_POINT,
-        expectedOccupantId: this.healingMachine.patientId, label: machineLabel });
+      targets.push({ id: carriedDose ? 'medicine:apply:healing:0' : 'healing:0',
+        position: HEALING_INTERACTION_POINT,
+        expectedOccupantId: this.healingMachine.patientId,
+        label: carriedDose ? this.healingMachine.status === 'completed' ?
+          medicineLabel(machinePatient) : 'Healing machine unavailable' : machineLabel });
       targets.push({ id: 'discharge', position: DISCHARGE_INTERACTION_POINT,
         expectedOccupantId: carried?.id ?? '',
         label: carried ? patientPresentation(carried).readyForDischarge ? 'Discharge patient' :
