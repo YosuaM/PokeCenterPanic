@@ -6,10 +6,25 @@ const reservation = { name: 'prototype', roomId: 'room-1', sessionId: 'seat-1' }
 
 describe('RoomGateway', () => {
   const consumeSeatReservation = vi.fn();
-  const client = { consumeSeatReservation } as unknown as Pick<Client, 'consumeSeatReservation'>;
+  const reconnect = vi.fn();
+  const client = { consumeSeatReservation, reconnect } as unknown as
+    Pick<Client, 'consumeSeatReservation' | 'reconnect'>;
 
   beforeEach(() => {
     consumeSeatReservation.mockReset().mockResolvedValue({ roomId: 'room-1' });
+    reconnect.mockReset().mockResolvedValue({ roomId: 'room-1', sessionId: 'seat-1' });
+  });
+
+  it('reconnects only with the opaque token and reports invalid or closed reservations', async () => {
+    const gateway = new RoomGateway('http://127.0.0.1:2567', fetch, client);
+    await expect(gateway.reconnect('room-1:secret', 'ABC234')).resolves.toEqual({
+      code: 'ABC234', room: { roomId: 'room-1', sessionId: 'seat-1' },
+    });
+    expect(reconnect).toHaveBeenCalledWith('room-1:secret');
+    reconnect.mockRejectedValueOnce(new Error('reconnection token invalid or expired'));
+    await expect(gateway.reconnect('room-1:wrong', 'ABC234')).rejects.toThrow('reservation has expired');
+    reconnect.mockRejectedValueOnce(new Error('room disposed'));
+    await expect(gateway.reconnect('room-1:secret', 'ABC234')).rejects.toThrow('room has closed');
   });
 
   it('creates and consumes a server-reserved seat', async () => {

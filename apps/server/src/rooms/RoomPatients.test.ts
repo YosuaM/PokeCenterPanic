@@ -15,6 +15,16 @@ function addPlayer(state: RoomState, id: string): void {
 }
 
 describe('RoomPatients', () => {
+  it('clears abandoned patient state before the room returns to lobby', () => {
+    const state = new RoomState();
+    const patients = new RoomPatients(state);
+    patients.admit('Pikachu', TREATMENT.healing, 0);
+    patients.reset();
+    expect(state.patients.size).toBe(0);
+    expect([...state.receptionSlots]).toEqual(['', '', '', '']);
+    expect(state.healingMachine.status).toBe('empty');
+    expect(patients.admit('Pikachu', TREATMENT.healing, 0)?.id).toBe('patient-1');
+  });
   it('admits one controlled patient into a reception slot with consistent ownership', () => {
     const state = new RoomState();
     const patients = new RoomPatients(state);

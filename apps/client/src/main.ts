@@ -29,10 +29,17 @@ let currentLocalId = '';
 let currentPhase: RoomPhaseSnapshot = { phase: 'lobby', hostId: '',
   countdownRemainingMs: 0, roundId: '' };
 
+function playerStatus(player: PlayerPresence): string {
+  if (player.connected === false) {
+    return `reconnecting (${Math.ceil((player.reconnectRemainingMs ?? 0) / 1000)}s)`;
+  }
+  return player.ready ? 'ready' : 'not ready';
+}
+
 function renderLobby(): void {
   const self = currentPlayers.find((player) => player.id === currentLocalId);
   players.textContent = currentPlayers.length ? currentPlayers.map((player) =>
-    `#${player.slot + 1} ${player.name}${player.id === currentLocalId ? ' (you)' : ''} · ${player.character || 'no character'} · ${player.ready ? 'ready' : 'not ready'}`
+    `#${player.slot + 1} ${player.name}${player.id === currentLocalId ? ' (you)' : ''} · ${player.character || 'no character'} · ${playerStatus(player)}`
   ).join('  |  ') : 'Connecting players…';
   panel.classList.toggle('is-playing', currentPhase.phase === 'running');
   lobbyControls.hidden = currentPhase.phase !== 'lobby';
@@ -43,7 +50,8 @@ function renderLobby(): void {
   readyButton.textContent = self?.ready ? 'Not ready' : 'Ready';
   readyButton.disabled = !self?.character;
   startButton.hidden = currentPhase.hostId !== currentLocalId;
-  startButton.disabled = !currentPlayers.length || currentPlayers.some((player) => !player.ready);
+  startButton.disabled = !currentPlayers.length || currentPlayers.some((player) => !player.ready ||
+    player.connected === false);
 }
 
 function mapScene(): MapScene {
@@ -65,7 +73,7 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
     currentLocalId = localId;
     renderLobby();
     status.textContent = '';
-    mapScene().setPlayers(connectedPlayers, localId);
+    mapScene().setPlayers(connectedPlayers.filter((player) => player.connected !== false), localId);
     mapScene().setGameplayActive(currentPhase.phase === 'running');
     mapScene().setInputSender((direction) => controller.sendInput(direction));
     mapScene().setInteractionSender((request) => controller.sendInteraction(request));
@@ -103,7 +111,9 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
     status.textContent = message;
     mapScene().clearPlayers();
   },
-});
+}, sessionStorage);
+
+void controller.restore();
 
 createForm.addEventListener('submit', (event) => {
   event.preventDefault();

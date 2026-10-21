@@ -6,8 +6,9 @@ import { createPrivateRoomType } from './rooms/PrototypeRoom.js';
 
 const project: ProjectInfo = PROJECT_INFO;
 
-export function createGameServer({ capacity = 4, countdownMs = 3_000 }:
-  { capacity?: number; countdownMs?: number } = {}): Server {
+export function createGameServer({ capacity = 4, countdownMs = 3_000,
+  reconnectMs = 30_000, emptyRoomMs = 60_000 }:
+  { capacity?: number; countdownMs?: number; reconnectMs?: number; emptyRoomMs?: number } = {}): Server {
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 4) {
     throw new Error('Room capacity must be an integer between 1 and 4');
   }
@@ -15,7 +16,12 @@ export function createGameServer({ capacity = 4, countdownMs = 3_000 }:
   const directory = new RoomDirectory();
   const creationSecret = randomUUID();
   if (!Number.isFinite(countdownMs) || countdownMs <= 0) throw new Error('Invalid countdown duration');
-  const RoomType = createPrivateRoomType(directory, capacity, creationSecret, countdownMs);
+  if (!Number.isFinite(reconnectMs) || reconnectMs <= 0 ||
+    !Number.isFinite(emptyRoomMs) || emptyRoomMs <= reconnectMs) {
+    throw new Error('Invalid room lifetime');
+  }
+  const RoomType = createPrivateRoomType(directory, capacity, creationSecret,
+    countdownMs, reconnectMs, emptyRoomMs);
 
   const createRoom = createEndpoint('/api/rooms', { method: 'POST' }, async (ctx) => {
     const name = validatePlayerName(ctx.body?.name);

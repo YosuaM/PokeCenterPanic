@@ -112,6 +112,17 @@ export class RoomLobby {
 
   phase(): RoomPhase { return this.state.phase as RoomPhase; }
 
+  lastSequence(playerId: string): number { return this.sequences.get(playerId) ?? 0; }
+
+  resetEmpty(): void {
+    if (this.state.players.size || this.connected.size) return;
+    this.state.phase = 'lobby';
+    this.state.hostId = '';
+    this.state.roundId = '';
+    this.state.countdownRemainingMs = 0;
+    this.countdownEndsAt = 0;
+  }
+
   private consume(playerId: string, value: unknown): boolean {
     if (!this.state.players.has(playerId) || typeof value !== 'object' || value === null) return false;
     const command = value as { sequence?: unknown; roundId?: unknown };

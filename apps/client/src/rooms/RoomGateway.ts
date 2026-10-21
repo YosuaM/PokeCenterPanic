@@ -14,7 +14,7 @@ export class RoomGateway {
   constructor(
     private readonly endpoint: string,
     private readonly request: typeof fetch = fetch,
-    private readonly client: Pick<Client, 'consumeSeatReservation'> = new Client(endpoint),
+    private readonly client: Pick<Client, 'consumeSeatReservation' | 'reconnect'> = new Client(endpoint),
   ) {}
 
   create(name: string): Promise<JoinedRoom> {
@@ -23,6 +23,19 @@ export class RoomGateway {
 
   join(code: string, name: string): Promise<JoinedRoom> {
     return this.reserve(`/api/rooms/${encodeURIComponent(code.trim())}/join`, name);
+  }
+
+  async reconnect(token: string, code: string): Promise<JoinedRoom> {
+    try {
+      return { code, room: await this.client.reconnect(token) };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (/expired|invalid reconnection token/i.test(message)) {
+        throw new Error('Your reconnect reservation has expired. Join again from the lobby.', { cause: error });
+      }
+      if (/disposed|not found/i.test(message)) throw new Error('The room has closed.', { cause: error });
+      throw new Error('Server unavailable. Check your connection and try again.', { cause: error });
+    }
   }
 
   private async reserve(path: string, name: string): Promise<JoinedRoom> {

@@ -34,6 +34,23 @@ export class RoomPatients {
     }
   }
 
+  reset(): void {
+    this.state.patients.clear();
+    for (let index = 0; index < this.state.receptionSlots.length; index += 1) {
+      this.state.receptionSlots[index] = '';
+    }
+    for (let index = 0; index < this.state.waitingSlots.length; index += 1) {
+      this.state.waitingSlots[index] = '';
+    }
+    this.state.recoveryQueue.splice(0);
+    this.state.healingMachine.patientId = '';
+    this.state.healingMachine.status = 'empty';
+    this.state.healingMachine.remainingMs = 0;
+    this.state.dischargedCount = 0;
+    this.recoveryEnteredAt.clear();
+    this.nextId = 1;
+  }
+
   admit(species: PatientSpecies, requiredTreatments: number, slotIndex: number): PatientState | null {
     if (!PATIENT_SPECIES.includes(species) || !isValidTreatmentSet(requiredTreatments) ||
       !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= this.state.receptionSlots.length ||

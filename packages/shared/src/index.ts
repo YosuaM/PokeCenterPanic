@@ -9,6 +9,8 @@ export interface PlayerPresence {
   slot: number;
   character?: PlayerCharacter;
   ready?: boolean;
+  connected?: boolean;
+  reconnectRemainingMs?: number;
 }
 
 export const PLAYER_CHARACTERS = ['Chansey', 'Audino', 'Machoke', 'Meowth'] as const;

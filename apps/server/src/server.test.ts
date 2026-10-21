@@ -312,4 +312,8 @@ describe('capacity configuration', () => {
   it.each([0, 5, 1.5])('rejects invalid capacity %s', (capacity) => {
     expect(() => createGameServer({ capacity })).toThrow('Room capacity must be an integer between 1 and 4');
   });
+  it.each([{ reconnectMs: 0 }, { reconnectMs: Number.NaN },
+    { reconnectMs: 1_000, emptyRoomMs: 1_000 }])('rejects invalid room lifetime %j', (options) => {
+    expect(() => createGameServer(options)).toThrow('Invalid room lifetime');
+  });
 });

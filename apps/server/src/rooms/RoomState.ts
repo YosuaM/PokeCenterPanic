@@ -9,6 +9,7 @@ export const PlayerState = schema({
   carriedPatientId: t.string(),
   character: t.string(),
   ready: t.boolean(),
+  connected: t.boolean(),
 }, 'PrototypePlayerState');
 export type PlayerState = SchemaType<typeof PlayerState>;
 

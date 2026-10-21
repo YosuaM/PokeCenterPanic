@@ -6,6 +6,7 @@ import {
 interface TrackedPlayer {
   position: Point;
   slot: number;
+  connected: boolean;
   direction: Direction | null;
   facing: Direction;
   lastInputAt: number;
@@ -20,8 +21,27 @@ export class RoomMovement {
     const slot = SPAWN_POINTS.findIndex((_, index) => !usedSlots.has(index));
     if (slot < 0 || this.players.has(id)) throw new Error('No available player spawn');
     const position = { ...SPAWN_POINTS[slot]! };
-    this.players.set(id, { position, slot, direction: null, facing: 'up', lastInputAt: 0, sequence: 0 });
+    this.players.set(id, { position, slot, connected: true, direction: null, facing: 'up',
+      lastInputAt: 0, sequence: 0 });
     return { position, slot };
+  }
+
+  suspend(id: string): void {
+    const player = this.players.get(id);
+    if (!player) return;
+    player.connected = false;
+    player.direction = null;
+  }
+
+  resume(id: string): Point | undefined {
+    const player = this.players.get(id);
+    if (!player) return undefined;
+    player.position = { ...SPAWN_POINTS[player.slot]! };
+    player.connected = true;
+    player.direction = null;
+    player.facing = 'up';
+    player.lastInputAt = 0;
+    return player.position;
   }
 
   remove(id: string): void {
@@ -30,7 +50,7 @@ export class RoomMovement {
 
   accept(id: string, value: unknown, now: number, roundId: string | null = null): boolean {
     const player = this.players.get(id);
-    if (!player || !isPlayerInput(value) || value.roundId !== roundId ||
+    if (!player?.connected || !isPlayerInput(value) || value.roundId !== roundId ||
       value.sequence <= player.sequence) return false;
     player.sequence = value.sequence;
     player.direction = value.direction;
@@ -42,18 +62,23 @@ export class RoomMovement {
   advance(elapsedMs: number, now: number): void {
     const distance = PLAYER_SPEED * Math.min(Math.max(elapsedMs, 0), 100) / 1000;
     for (const player of this.players.values()) {
+      if (!player.connected) continue;
       if (player.direction && now - player.lastInputAt >= 250) player.direction = null;
       if (player.direction) player.position = moveWithinMap(player.position, player.direction, distance);
     }
   }
 
   position(id: string): Point | undefined {
-    return this.players.get(id)?.position;
+    const player = this.players.get(id);
+    return player?.connected ? player.position : undefined;
   }
 
   facing(id: string): Direction | undefined {
-    return this.players.get(id)?.facing;
+    const player = this.players.get(id);
+    return player?.connected ? player.facing : undefined;
   }
+
+  lastSequence(id: string): number { return this.players.get(id)?.sequence ?? 0; }
 }
 
 function isPlayerInput(value: unknown): value is PlayerInput {

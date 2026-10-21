@@ -3,12 +3,16 @@ import type { PatientRecord, PlayerPresence } from '@pokecenter/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { LobbyController, type LobbyGateway, type LobbyView } from './LobbyController.js';
 
-function setup() {
+function setup(storage?: Storage) {
   const messages = new Map<string, (value: never) => void>();
   let stateChange: ((state: unknown) => void) | undefined;
   let disconnected: (() => void) | undefined;
+  let dropped: (() => void) | undefined;
+  let reconnected: (() => void) | undefined;
   const room = {
     sessionId: 'host-id',
+    reconnectionToken: 'room-1:secret',
+    reconnection: { minUptime: 5000 },
     state: { players: new Map([['host-id', { x: 456, y: 422, facing: 'up', carriedPatientId: '' }]]),
       phase: 'lobby', hostId: 'host-id', countdownRemainingMs: 0, roundId: '' },
     leave: vi.fn(async () => 1000),
@@ -16,10 +20,13 @@ function setup() {
     onMessage: vi.fn((type, listener) => { messages.set(type, listener); }),
     onStateChange: vi.fn((listener) => { stateChange = listener; }),
     onLeave: vi.fn((listener) => { disconnected = listener; }),
+    onDrop: vi.fn((listener) => { dropped = listener; }),
+    onReconnect: vi.fn((listener) => { reconnected = listener; }),
   } as unknown as Room;
   const gateway: LobbyGateway = {
     create: vi.fn(async () => ({ code: 'ABC234', room })),
     join: vi.fn(async () => ({ code: 'ABC234', room })),
+    reconnect: vi.fn(async () => ({ code: 'ABC234', room })),
   };
   const view: LobbyView = {
     setBusy: vi.fn(),
@@ -33,8 +40,9 @@ function setup() {
     showLobbyResult: vi.fn(),
     showMenu: vi.fn(),
   };
-  return { controller: new LobbyController(gateway, view), gateway, view, room,
+  return { controller: new LobbyController(gateway, view, storage), gateway, view, room,
     players: (roster: PlayerPresence[]) => messages.get('lobby:players')?.(roster as never),
+    resume: (lastSequence: number) => messages.get('room:resume')?.({ lastSequence } as never),
     result: (result: { ok: boolean; reason: string }) => messages.get('patient:result')?.(result as never),
     state: (positions: Map<string, { x: number; y: number; facing: 'up' | 'down' | 'left' | 'right';
       carriedPatientId: string }>, patients = new Map<string, PatientRecord>()) =>
@@ -42,10 +50,40 @@ function setup() {
         healingMachine: { patientId: 'patient-1', status: 'treating', remainingMs: 3000 },
         dischargedCount: 1, phase: 'running', hostId: 'host-id',
         countdownRemainingMs: 0, roundId: 'round-1' }),
-    disconnect: () => disconnected?.() };
+    disconnect: () => disconnected?.(), drop: () => dropped?.(),
+    reconnect: () => reconnected?.() };
 }
 
 describe('LobbyController', () => {
+  it('stores the reconnect token and sequence, pauses on drop, and restores a reloaded session', async () => {
+    const saved = new Map<string, string>();
+    const storage = { getItem: (key: string) => saved.get(key) ?? null,
+      setItem: (key: string, value: string) => { saved.set(key, value); },
+      removeItem: (key: string) => { saved.delete(key); } } as Storage;
+    const { controller, gateway, view, room, drop, reconnect, resume } = setup(storage);
+    await controller.create('Red');
+    controller.selectCharacter('Chansey');
+    expect(JSON.parse(saved.get('pokecenter:room')!)).toEqual({
+      token: 'room-1:secret', code: 'ABC234', sequence: 1,
+    });
+    drop();
+    controller.setReady(true);
+    expect(room.send).not.toHaveBeenCalledWith('player:ready', expect.anything());
+    expect(view.showLobbyResult).toHaveBeenCalledWith('Reconnecting to the room…');
+    room.reconnectionToken = 'room-1:new-secret';
+    reconnect();
+    expect(JSON.parse(saved.get('pokecenter:room')!).token).toBe('room-1:new-secret');
+    const restored = new LobbyController(gateway, view, storage);
+    await restored.restore();
+    expect(gateway.reconnect).toHaveBeenCalledWith('room-1:new-secret', 'ABC234');
+    resume(9);
+    restored.setReady(true);
+    expect(room.send).toHaveBeenCalledWith('player:ready', {
+      ready: true, sequence: 10, roundId: null,
+    });
+    await restored.leave();
+    expect(saved.has('pokecenter:room')).toBe(false);
+  });
   it('creates a room, shows its code, and updates the connected player list', async () => {
     const { controller, gateway, view, room, players } = setup();
     await controller.create('Red');

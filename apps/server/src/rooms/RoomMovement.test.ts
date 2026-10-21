@@ -64,4 +64,19 @@ describe('RoomMovement', () => {
     movement.remove('red');
     expect(movement.add('green').slot).toBe(0);
   });
+
+  it('reserves the original slot, stops dropped input, and resumes empty-handed at the entry point', () => {
+    const movement = new RoomMovement();
+    expect(movement.add('red').slot).toBe(0);
+    movement.accept('red', { direction: 'right', sequence: 4, roundId: null }, 0);
+    movement.advance(50, 50);
+    movement.suspend('red');
+    expect(movement.position('red')).toBeUndefined();
+    expect(movement.accept('red', { direction: 'left', sequence: 5, roundId: null }, 60)).toBe(false);
+    expect(movement.add('blue').slot).toBe(1);
+    expect(movement.resume('red')).toEqual({ x: 456, y: 422 });
+    expect(movement.lastSequence('red')).toBe(4);
+    expect(movement.accept('red', { direction: 'left', sequence: 4, roundId: null }, 70)).toBe(false);
+    expect(movement.accept('red', { direction: 'left', sequence: 5, roundId: null }, 70)).toBe(true);
+  });
 });
