@@ -13,6 +13,7 @@ export const TREATMENT = {
 } as const;
 
 export const HEALING_DURATION_MS = 4_000;
+export const REPAIR_DURATION_MS = 2_000;
 
 export interface PatientRecord {
   id: string;
@@ -46,8 +47,10 @@ export interface PatientInteractionResult {
 
 export interface HealingMachineSnapshot {
   patientId: string;
-  status: 'empty' | 'treating' | 'completed';
+  status: 'empty' | 'treating' | 'completed' | 'broken';
   remainingMs: number;
+  repairOwnerId?: string;
+  repairRemainingMs?: number;
 }
 
 export function isValidTreatmentSet(required: number): boolean {

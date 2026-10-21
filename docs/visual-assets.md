@@ -16,6 +16,8 @@ The original HUD icons represent injury healing, burn, poison, completed treatme
 
 On macOS, run `npm run assets:original` after editing the SVGs. The exporter uses the marked floor and fixture sections in `center-map.svg` to regenerate both runtime layers and the composite preview. The asset test checks that every tracked PNG matches its source.
 
+For local visual QA, the development client accepts `?artFixture=` with `heal`, `burn`, `poison`, `ready`, `rejected`, `healing`, `outage`, `repair`, `preparing`, or `roster`. These synthetic states render the real map and UI at browser size, using the ignored local PMD cache when available. They do not alter the server or appear in production builds. The outage and repair fixtures preview graphics for the incident gameplay specified in section 6.1; that gameplay is not yet implemented in the prototype server.
+
 PMD frame sizes in the locally generated manifest are not uniform:
 
 | Species | Idle frame | Walk frame |

@@ -30,14 +30,14 @@ function setup(manifest?: SpriteManifest, mapArt = true, equipmentArt = true,
   }
   const text = vi.fn((x: number, y: number, content: string, style: unknown) => ({
     x, y, content, style, setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(),
-    setY: vi.fn().mockReturnThis(),
-    setText: vi.fn().mockReturnThis() }));
+    setY: vi.fn().mockReturnThis(), setVisible: vi.fn().mockReturnThis(),
+    setStyle: vi.fn().mockReturnThis(), setText: vi.fn().mockReturnThis() }));
   const rectangle = vi.fn((x: number, y: number, width: number, height: number,
     color: number, alpha?: number) => ({ x, y, width, height, color, alpha,
     setOrigin: vi.fn().mockReturnThis(), setDisplaySize: vi.fn().mockReturnThis(),
     setFillStyle: vi.fn().mockReturnThis(), setStrokeStyle: vi.fn().mockReturnThis(),
     setVisible: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(),
-    setPosition: vi.fn().mockReturnThis() }));
+    setPosition: vi.fn().mockReturnThis(), setAlpha: vi.fn().mockReturnThis() }));
   const image = vi.fn((x: number, y: number, key: string) => ({ x, y, key,
     setDepth: vi.fn().mockReturnThis(),
     setVisible: vi.fn().mockReturnThis(), setAlpha: vi.fn().mockReturnThis(),
@@ -124,6 +124,23 @@ describe('MapScene', () => {
     })));
     expect(sprite.mock.calls.map((call) => call[2])).toEqual(names.map((name) => `${name}:idle`));
   });
+  it('keeps adjacent waiting labels compact and marks pending and completed care with icons', () => {
+    const { scene, text, image } = setup();
+    scene.setPatients([
+      { id: 'one', species: 'Bulbasaur', requiredTreatments: TREATMENT.healing | TREATMENT.antidote,
+        completedTreatments: 0, initialPatienceMs: 90_000, remainingPatienceMs: 60_000,
+        lifecycle: 'active', location: 'waiting', slotIndex: 0, carrierId: '' },
+      { id: 'two', species: 'Psyduck', requiredTreatments: TREATMENT.antidote,
+        completedTreatments: TREATMENT.antidote, initialPatienceMs: 90_000,
+        remainingPatienceMs: 60_000, lifecycle: 'active', location: 'waiting', slotIndex: 1,
+        carrierId: '' },
+    ]);
+    expect(text).toHaveBeenCalledWith(0, 31, 'Bulbasaur', expect.objectContaining({ fontSize: '9px' }));
+    expect(text).toHaveBeenCalledWith(0, 31, 'Psyduck', expect.objectContaining({ fontSize: '9px' }));
+    expect(image).toHaveBeenCalledWith(-8.5, -36, 'icon-heal');
+    expect(image).toHaveBeenCalledWith(8.5, -36, 'icon-poison');
+    expect(image).toHaveBeenCalledWith(0, -36, 'icon-ready');
+  });
   it('keeps differently sized PMD frames at native pixel scale', () => {
     const manifest: SpriteManifest = { source: 'fixture', species: [
       { name: 'Pikachu', id: '0025', credits: 'Artist', idle: { frameWidth: 40,
@@ -183,6 +200,73 @@ describe('MapScene', () => {
     expect(healingFill?.setVisible).toHaveBeenLastCalledWith(false);
     expect(preparationFill?.setVisible).toHaveBeenLastCalledWith(false);
   });
+  it('shows a pulsing outage and repair progress without showing healing as active', () => {
+    const { scene, rectangle, text } = setup();
+    const healingTrack = rectangle.mock.results.find((result) => result.value.x === 94 &&
+      result.value.y === 314 && result.value.color === 0x355362)?.value;
+    const healingFill = rectangle.mock.results.find((result) => result.value.x === 94 &&
+      result.value.y === 314 && result.value.color === 0xb6db9d)?.value;
+    const warning = rectangle.mock.results.find((result) => result.value.x === 159 &&
+      result.value.y === 272)?.value;
+    const repairFill = rectangle.mock.results.find((result) => result.value.color === 0xffdf6e &&
+      result.value.y === 314)?.value;
+    const repairText = text.mock.results.find((result) => result.value.x === 94 &&
+      result.value.y === 330)?.value;
+    const statusText = text.mock.results.find((result) => result.value.x === 94 &&
+      result.value.y === 252)?.value;
+    scene.setHealingMachine({ patientId: 'patient', status: 'broken', remainingMs: 3_000,
+      repairOwnerId: 'red', repairRemainingMs: 1_000 });
+    expect(statusText?.setText).toHaveBeenLastCalledWith('PAUSED 3s');
+    expect(warning?.setVisible).toHaveBeenLastCalledWith(true);
+    expect(healingTrack?.setVisible).toHaveBeenLastCalledWith(false);
+    expect(healingFill?.setVisible).toHaveBeenLastCalledWith(false);
+    expect(repairFill?.setDisplaySize).toHaveBeenLastCalledWith(62.5, 6);
+    expect(repairText?.setText).toHaveBeenLastCalledWith('OUTAGE · REPAIR 1s');
+    scene.update(500, 16);
+    expect(warning?.setAlpha).toHaveBeenCalled();
+    scene.setHealingMachine({ patientId: 'patient', status: 'treating', remainingMs: 3_000 });
+    expect(warning?.setVisible).toHaveBeenLastCalledWith(false);
+    expect(repairFill?.setVisible).toHaveBeenLastCalledWith(false);
+    scene.setHealingMachine({ patientId: 'patient', status: 'broken', remainingMs: 3_000 });
+    scene.clearPlayers();
+    expect(warning?.setVisible).toHaveBeenLastCalledWith(false);
+  });
+  it('renders a browser QA fixture through the real scene in development', () => {
+    vi.stubGlobal('location', { search: '?artFixture=repair' });
+    const { rectangle, text, container } = setup();
+    expect(container).toHaveBeenCalledWith(160, 273, expect.any(Array));
+    const warning = rectangle.mock.results.find((result) => result.value.x === 159 &&
+      result.value.y === 272)?.value;
+    const repairText = text.mock.results.find((result) => result.value.x === 94 &&
+      result.value.y === 330)?.value;
+    expect(warning?.setVisible).toHaveBeenLastCalledWith(true);
+    expect(repairText?.setText).toHaveBeenLastCalledWith('OUTAGE · REPAIR 1s');
+  });
+  it('explains why a player carrying a patient cannot repair an outage', () => {
+    const { scene, text } = setup();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setAuthoritativePositions([{ id: 'red', x: 280, y: 273, facing: 'left',
+      carriedPatientId: 'patient' }]);
+    scene.setHealingMachine({ patientId: '', status: 'broken', remainingMs: 0 });
+    const hint = text.mock.results.find((result) => result.value.x === 26 &&
+      result.value.y === 477)?.value;
+    expect(hint?.setText).toHaveBeenLastCalledWith('E: Empty hands to repair outage');
+  });
+  it('labels rejected interactions and clears the rejection when target changes', () => {
+    const { scene, text } = setup();
+    const hint = text.mock.results.find((result) => result.value.x === 26 &&
+      result.value.y === 477)?.value;
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setAuthoritativePositions([{ id: 'red', x: 177, y: 194, facing: 'up',
+      carriedPatientId: '' }]);
+    scene.setInteractionResult({ ok: false, reason: 'Patient already claimed or removed' });
+    expect(hint?.setText).toHaveBeenLastCalledWith('REJECTED: Patient already claimed or removed');
+    expect(hint?.setStyle).toHaveBeenLastCalledWith({ backgroundColor: '#8a2222', color: '#ffffff' });
+    scene.setAuthoritativePositions([{ id: 'red', x: 456, y: 422, facing: 'up',
+      carriedPatientId: '' }]);
+    expect(hint?.setText).not.toHaveBeenLastCalledWith('REJECTED: Patient already claimed or removed');
+    expect(hint?.setStyle).toHaveBeenLastCalledWith({ backgroundColor: '#10243bcc', color: '#ffffff' });
+  });
   it('targets a stationary patient for medicine and shows the pending condition', () => {
     const { scene, keyboardListeners, text } = setup();
     const interact = vi.fn();
@@ -195,7 +279,7 @@ describe('MapScene', () => {
     scene.setPatients([{ id: 'patient-1', species: 'Pikachu', requiredTreatments: 3,
       completedTreatments: 0, initialPatienceMs: 90_000, remainingPatienceMs: 90_000,
       lifecycle: 'active', location: 'reception', slotIndex: 0, carrierId: '' }]);
-    expect(text).toHaveBeenCalledWith(0, 42, 'Pikachu  50/100  BURNED', expect.any(Object));
+    expect(text).toHaveBeenCalledWith(0, -37, 'Pikachu  50/100  BURNED', expect.any(Object));
     keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false,
       preventDefault: vi.fn() } as unknown as KeyboardEvent);
     expect(interact).toHaveBeenCalledWith({ targetId: 'medicine:apply:reception:0',
@@ -208,7 +292,7 @@ describe('MapScene', () => {
     expect(image.mock.results[0]?.value.setDepth).toHaveBeenCalledWith(-2);
     expect(image.mock.results[1]?.value.setDepth).toHaveBeenCalledWith(-1);
     expect(text).toHaveBeenCalledWith(26, 16, 'POKÉCENTER PANIC  /  CENTER 01', expect.any(Object));
-    expect(text).toHaveBeenCalledWith(92, 97, 'RECEPTION  ·  4 SLOTS', expect.any(Object));
+    expect(text).toHaveBeenCalledWith(92, 70, 'RECEPTION  ·  4 SLOTS', expect.any(Object));
     expect(text).toHaveBeenCalledWith(733, 223, 'HEALING 02', expect.any(Object));
 
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }, { id: 'blue', name: 'Blue', slot: 1 }], 'red');
@@ -295,7 +379,7 @@ describe('MapScene', () => {
       location: 'reception', slotIndex: 0, carrierId: '',
     }]);
     expect(container).toHaveBeenCalledWith(177, 138, expect.any(Array));
-    expect(text).toHaveBeenCalledWith(0, 42, 'Pikachu  50/100', expect.any(Object));
+    expect(text).toHaveBeenCalledWith(0, -37, 'Pikachu  50/100', expect.any(Object));
     scene.setPatients([]);
     expect(containers[0]?.destroy).toHaveBeenCalledOnce();
   });

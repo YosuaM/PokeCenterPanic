@@ -3,6 +3,7 @@ import { GAME_CONFIG } from './gameConfig.js';
 import { LobbyController } from './rooms/LobbyController.js';
 import { RoomGateway } from './rooms/RoomGateway.js';
 import { MapScene } from './scenes/MapScene.js';
+import { visualFixture } from './scenes/visualFixtures.js';
 import { PLAYER_CHARACTERS, type PlayerCharacter, type PlayerPresence,
   type RoomPhaseSnapshot } from '@pokecenter/shared';
 
@@ -116,7 +117,11 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
   },
 }, sessionStorage);
 
-void controller.restore();
+if (import.meta.env.DEV && visualFixture(new URLSearchParams(location.search).get('artFixture'))) {
+  panel.hidden = true;
+} else {
+  void controller.restore();
+}
 
 createForm.addEventListener('submit', (event) => {
   event.preventDefault();
