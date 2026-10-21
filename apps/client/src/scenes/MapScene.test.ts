@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TREATMENT } from '@pokecenter/shared';
 
 vi.mock('phaser', () => ({ default: { Scene: class {} } }));
 
@@ -6,7 +7,7 @@ import { MapScene } from './MapScene.js';
 import type { SpriteManifest } from '../sprites/pmd.js';
 
 function setup(manifest?: SpriteManifest, mapArt = true, equipmentArt = true,
-  fixtureArt = mapArt) {
+  fixtureArt = mapArt, iconArt = true) {
   const keyboardListeners = new Map<string, (event: KeyboardEvent) => void>();
   const windowListeners = new Map<string, () => void>();
   const documentListeners = new Map<string, () => void>();
@@ -27,14 +28,19 @@ function setup(manifest?: SpriteManifest, mapArt = true, equipmentArt = true,
   for (const method of ['fillStyle', 'fillRect', 'lineStyle', 'lineBetween']) {
     graphics[method] = vi.fn(() => graphics);
   }
-  const text = vi.fn(() => ({ setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(),
+  const text = vi.fn((x: number, y: number, content: string, style: unknown) => ({
+    x, y, content, style, setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(),
     setY: vi.fn().mockReturnThis(),
     setText: vi.fn().mockReturnThis() }));
-  const rectangle = vi.fn(() => ({ setStrokeStyle: vi.fn().mockReturnThis(),
+  const rectangle = vi.fn((x: number, y: number, width: number, height: number,
+    color: number, alpha?: number) => ({ x, y, width, height, color, alpha,
+    setOrigin: vi.fn().mockReturnThis(), setDisplaySize: vi.fn().mockReturnThis(),
+    setFillStyle: vi.fn().mockReturnThis(), setStrokeStyle: vi.fn().mockReturnThis(),
     setVisible: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(),
     setPosition: vi.fn().mockReturnThis() }));
   const image = vi.fn((x: number, y: number, key: string) => ({ x, y, key,
     setDepth: vi.fn().mockReturnThis(),
+    setVisible: vi.fn().mockReturnThis(), setAlpha: vi.fn().mockReturnThis(),
   }));
   const sprite = vi.fn((x: number, y: number, key: string) => ({ x, y, key,
     setOrigin: vi.fn().mockReturnThis(),
@@ -57,7 +63,8 @@ function setup(manifest?: SpriteManifest, mapArt = true, equipmentArt = true,
     }), start: vi.fn(() => onLoadComplete()) },
     textures: { exists: vi.fn((key: string) => key === 'center-floor' ? mapArt :
       key === 'center-fixtures' ? fixtureArt :
-      key === 'stretcher' || key === 'medicine-bottle' ? equipmentArt : true) },
+      key === 'stretcher' || key === 'medicine-bottle' ? equipmentArt :
+        key.startsWith('icon-') ? iconArt : true) },
     anims: { create: vi.fn(), exists: vi.fn(() => true) },
     input: { keyboard: {
       on: vi.fn((type: string, listener: (event: KeyboardEvent) => void) => keyboardListeners.set(type, listener)),
@@ -194,7 +201,8 @@ describe('MapScene', () => {
   });
   it('uses the provisional geometry if the original map texture is unavailable', () => {
     const { image, graphics, text } = setup(undefined, false);
-    expect(image).not.toHaveBeenCalled();
+    expect(image).not.toHaveBeenCalledWith(480, 270, 'center-floor');
+    expect(image).not.toHaveBeenCalledWith(480, 270, 'center-fixtures');
     expect(graphics.fillRect).toHaveBeenCalledWith(0, 0, 960, 540);
     expect(text).toHaveBeenCalledWith(26, 16, 'POKÉCENTER PANIC  /  PROTOTYPE MAP',
       expect.any(Object));
@@ -289,6 +297,60 @@ describe('MapScene', () => {
     expect(containers[1]?.setPosition).toHaveBeenLastCalledWith(470, 382);
     const playerName = text.mock.results.find((result) => result.value.setY.mock.calls.length);
     expect(playerName?.value.setY).toHaveBeenLastCalledWith(-77);
+    const patientInfo = text.mock.results.find((result) => result.value.y === 521)?.value;
+    expect(patientInfo?.setText).toHaveBeenLastCalledWith('PIKACHU  ·  ANY ORDER  ·  HEAL TODO');
+  });
+
+  it('clears the treatment checklist when its patient leaves the scene', () => {
+    const { scene, image, rectangle, text } = setup();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setAuthoritativePositions([{ id: 'red', x: 177, y: 194, facing: 'up',
+      carriedPatientId: '' }]);
+    scene.setPatients([{ id: 'patient', species: 'Pikachu', requiredTreatments: 3,
+      completedTreatments: TREATMENT.burnHeal, initialPatienceMs: 90_000,
+      remainingPatienceMs: 22_500, lifecycle: 'active', location: 'reception',
+      slotIndex: 0, carrierId: '' }]);
+    const patientInfo = text.mock.results.find((result) => result.value.y === 521)?.value;
+    expect(patientInfo?.setText).toHaveBeenLastCalledWith(
+      'PIKACHU  ·  ANY ORDER  ·  HEAL TODO  ·  BURN DONE');
+    const patienceText = text.mock.results.find((result) => result.value.x === 687)?.value;
+    const patienceFill = rectangle.mock.results.find((result) => result.value.x === 824 &&
+      result.value.color === 0xeab166)?.value;
+    expect(patienceText?.setText).toHaveBeenLastCalledWith('PATIENCE 25%');
+    expect(patienceFill?.setDisplaySize).toHaveBeenLastCalledWith(25, 8);
+    expect(patienceFill?.setFillStyle).toHaveBeenLastCalledWith(0xe87970);
+    const healIcon = image.mock.results.find((result) => result.value.key === 'icon-heal')?.value;
+    const burnIcon = image.mock.results.find((result) => result.value.key === 'icon-burn')?.value;
+    const readyIcon = image.mock.results.find((result) => result.value.key === 'icon-ready')?.value;
+    expect(healIcon?.setVisible).toHaveBeenLastCalledWith(true);
+    expect(healIcon?.setAlpha).toHaveBeenLastCalledWith(1);
+    expect(burnIcon?.setVisible).toHaveBeenLastCalledWith(true);
+    expect(burnIcon?.setAlpha).toHaveBeenLastCalledWith(0.55);
+    expect(readyIcon?.setVisible).toHaveBeenLastCalledWith(false);
+    scene.setPatients([{ id: 'patient', species: 'Pikachu', requiredTreatments: 3,
+      completedTreatments: 3, initialPatienceMs: 90_000, remainingPatienceMs: 90_000,
+      lifecycle: 'active', location: 'reception', slotIndex: 0, carrierId: '' }]);
+    expect(readyIcon?.setVisible).toHaveBeenLastCalledWith(true);
+    const healComplete = image.mock.results.find((result) => result.value.key === 'icon-complete')?.value;
+    expect(healComplete?.setVisible).toHaveBeenLastCalledWith(true);
+    scene.setPatients([]);
+    expect(patientInfo?.setText).toHaveBeenLastCalledWith('');
+    expect(healIcon?.setVisible).toHaveBeenLastCalledWith(false);
+    expect(patienceText?.setText).toHaveBeenLastCalledWith('');
+    expect(patienceFill?.setVisible).toHaveBeenLastCalledWith(false);
+  });
+
+  it('keeps the treatment checklist readable when icon textures are unavailable', () => {
+    const { scene, image, text } = setup(undefined, true, true, true, false);
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setAuthoritativePositions([{ id: 'red', x: 177, y: 194, facing: 'up',
+      carriedPatientId: '' }]);
+    scene.setPatients([{ id: 'patient', species: 'Pikachu', requiredTreatments: TREATMENT.healing,
+      completedTreatments: 0, initialPatienceMs: 90_000, remainingPatienceMs: 90_000,
+      lifecycle: 'active', location: 'reception', slotIndex: 0, carrierId: '' }]);
+    expect(image.mock.calls.some((call) => call[2].startsWith('icon-'))).toBe(false);
+    const patientInfo = text.mock.results.find((result) => result.value.y === 521)?.value;
+    expect(patientInfo?.setText).toHaveBeenLastCalledWith('PIKACHU  ·  ANY ORDER  ·  HEAL TODO');
   });
 
   it('uses one original bottle with a readable condition mark for each dose', () => {

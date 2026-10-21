@@ -19,6 +19,10 @@ describe('original center environment art', () => {
     const asset = (name: string) => readFileSync(new URL(`../../public/assets/original/${name}.png`, import.meta.url));
     expect(pngDimensions(asset('stretcher'))).toEqual({ width: 48, height: 24 });
     expect(pngDimensions(asset('medicine-bottle'))).toEqual({ width: 20, height: 28 });
+    for (const name of ['heal', 'burn', 'poison', 'ready']) {
+      expect(pngDimensions(asset(`icon-${name}`))).toEqual({ width: 16, height: 16 });
+    }
+    expect(pngDimensions(asset('icon-complete'))).toEqual({ width: 8, height: 8 });
   });
 
   it('keeps station art bounds aligned with the server collision geometry', () => {

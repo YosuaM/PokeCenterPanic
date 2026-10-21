@@ -8,6 +8,7 @@ import { DISCHARGE_INTERACTION_POINT, DISCHARGE_POSITION, HEALING_INTERACTION_PO
   type InteractionTarget, type MapObstacle, type PatientInteractionRequest,
   type PatientInteractionResult, type PatientRecord, type PlayerPosition, type PlayerPresence, type Point } from '@pokecenter/shared';
 import { MovementInput } from './movement.js';
+import { patientChecklistText } from './patientIndicators.js';
 import { animationRow, parseSpriteManifest, patientRenderPosition, playerSpriteSpecies,
   spriteMotion, type SpriteAnimation, type SpriteManifest } from '../sprites/pmd.js';
 const PLAYER_COLORS = [0x4cc9c0, 0xf29c75, 0xb2a0f7, 0xf5ce69];
@@ -43,6 +44,13 @@ export class MapScene extends Phaser.Scene {
   private inputSender: ((direction: Direction | null, interactHeld: boolean) => void) | null = null;
   private interactionSender: ((request: PatientInteractionRequest) => void) | null = null;
   private interactionHint!: Phaser.GameObjects.Text;
+  private patientInfoText!: Phaser.GameObjects.Text;
+  private patienceText!: Phaser.GameObjects.Text;
+  private patienceTrack!: Phaser.GameObjects.Rectangle;
+  private patienceFill!: Phaser.GameObjects.Rectangle;
+  private readonly treatmentIcons: Array<{ flag: number; image: Phaser.GameObjects.Image;
+    complete: Phaser.GameObjects.Image | null }> = [];
+  private readyIcon: Phaser.GameObjects.Image | null = null;
   private targetHighlight!: Phaser.GameObjects.Rectangle;
   private recoveryCount!: Phaser.GameObjects.Text;
   private machineStatusText!: Phaser.GameObjects.Text;
@@ -68,17 +76,46 @@ export class MapScene extends Phaser.Scene {
     this.load.image('center-fixtures', '/assets/original/center-fixtures.png');
     this.load.image('stretcher', '/assets/original/stretcher.png');
     this.load.image('medicine-bottle', '/assets/original/medicine-bottle.png');
+    for (const name of ['heal', 'burn', 'poison', 'complete', 'ready']) {
+      this.load.image(`icon-${name}`, `/assets/original/icon-${name}.png`);
+    }
     this.load.json('pmd-manifest', '/assets/external/pmd/manifest.json');
   }
 
   create(): void {
     this.drawMap();
+    this.treatmentIcons.length = 0;
+    this.readyIcon = null;
     this.targetHighlight = this.add.rectangle(0, 0, 42, 28, 0xffff00, 0)
       .setStrokeStyle(2, 0xffff00).setVisible(false).setDepth(1000);
     this.interactionHint = this.add.text(26, 477, '', {
       color: '#ffffff', backgroundColor: '#10243bcc', fontFamily: 'monospace', fontSize: '13px',
       padding: { x: 5, y: 3 },
     }).setDepth(1001);
+    this.patientInfoText = this.add.text(116, 521, '', {
+      color: '#f8eac8', fontFamily: 'monospace', fontSize: '11px', fontStyle: 'bold',
+    }).setDepth(1001);
+    for (const [index, [flag, name]] of ([
+      [TREATMENT.healing, 'heal'], [TREATMENT.burnHeal, 'burn'],
+      [TREATMENT.antidote, 'poison'],
+    ] as const).entries()) {
+      if (!this.textures.exists(`icon-${name}`)) continue;
+      const x = 34 + index * 20;
+      const image = this.add.image(x, 527, `icon-${name}`).setDepth(1001).setVisible(false);
+      const complete = this.textures.exists('icon-complete') ?
+        this.add.image(x + 6, 533, 'icon-complete').setDepth(1002).setVisible(false) : null;
+      this.treatmentIcons.push({ flag, image, complete });
+    }
+    if (this.textures.exists('icon-ready')) {
+      this.readyIcon = this.add.image(94, 527, 'icon-ready').setDepth(1001).setVisible(false);
+    }
+    this.patienceText = this.add.text(687, 521, '', {
+      color: '#f8eac8', fontFamily: 'monospace', fontSize: '11px', fontStyle: 'bold',
+    }).setDepth(1001);
+    this.patienceTrack = this.add.rectangle(824, 528, 100, 8, 0x355362)
+      .setOrigin(0, 0.5).setDepth(1001).setVisible(false);
+    this.patienceFill = this.add.rectangle(824, 528, 100, 8, 0xeab166)
+      .setOrigin(0, 0.5).setDepth(1002).setVisible(false);
     this.recoveryCount = this.add.text(650, 423, '', {
       color: '#173440', fontFamily: 'monospace', fontSize: '12px',
     });
@@ -554,6 +591,25 @@ export class MapScene extends Phaser.Scene {
     if (selected) this.targetHighlight.setPosition(selected.position.x, selected.position.y);
     this.interactionHint.setText(this.interactionFeedback || (selected ?
       selected.id.startsWith('medicine:prep:') ? selected.label : `E: ${selected.label}` : ''));
+    const patient = this.patients.find((entry) => entry.lifecycle === 'active' &&
+      entry.id === local?.carriedPatientId) ?? this.patients.find((entry) =>
+      entry.lifecycle === 'active' && entry.id === selected?.expectedOccupantId);
+    this.patientInfoText.setText(patient ? patientChecklistText(patient) : '');
+    for (const { flag, image, complete } of this.treatmentIcons) {
+      const required = Boolean(patient && patient.requiredTreatments & flag);
+      const done = Boolean(required && patient && patient.completedTreatments & flag);
+      image.setVisible(required).setAlpha(done ? 0.55 : 1);
+      complete?.setVisible(done);
+    }
+    this.readyIcon?.setVisible(Boolean(patient &&
+      (patient.requiredTreatments & ~patient.completedTreatments) === 0));
+    const patience = patient && patient.initialPatienceMs > 0 ?
+      Math.min(1, Math.max(0, patient.remainingPatienceMs / patient.initialPatienceMs)) : 0;
+    this.patienceText.setText(patient ? `PATIENCE ${Math.ceil(patience * 100)}%` : '');
+    this.patienceTrack.setVisible(Boolean(patient));
+    this.patienceFill.setVisible(Boolean(patient && patience > 0));
+    this.patienceFill.setDisplaySize(100 * patience, 8)
+      .setFillStyle(patience <= 0.25 ? 0xe87970 : 0xeab166);
   }
 
   private updateMachineText(): void {

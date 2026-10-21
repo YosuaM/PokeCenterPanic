@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" shape-rendering="crispEdges">
+  <title>Poison treatment icon</title>
+  <path d="M6 0h4v3h2v3h2v3h2v4h-2v2H2v-2H0V9h2V6h2V3h2z" fill="#234653"/>
+  <path d="M6 3h4v3h2v4h2v3H2v-3h2V6h2z" fill="#aa81bd"/>
+  <path d="M6 9h4v2H6z" fill="#f7e8c6"/>
+</svg>

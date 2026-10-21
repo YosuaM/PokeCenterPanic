@@ -55,3 +55,7 @@ try export(prelude + floor + "</svg>", as: "center-floor", width: 960, height: 5
 try export(prelude + fixtures + "</svg>", as: "center-fixtures", width: 960, height: 540)
 try export(try read("stretcher.svg"), as: "stretcher", width: 48, height: 24)
 try export(try read("medicine-bottle.svg"), as: "medicine-bottle", width: 20, height: 28)
+for name in ["heal", "burn", "poison", "ready"] {
+  try export(try read("icon-\(name).svg"), as: "icon-\(name)", width: 16, height: 16)
+}
+try export(try read("icon-complete.svg"), as: "icon-complete", width: 8, height: 8)

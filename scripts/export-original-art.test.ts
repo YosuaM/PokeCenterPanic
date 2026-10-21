@@ -18,7 +18,8 @@ describe('original art exporter', () => {
           CLANG_MODULE_CACHE_PATH: join(tmpdir(), 'pokecenter-clang-cache') },
       });
       for (const name of ['center-map', 'center-floor', 'center-fixtures',
-        'stretcher', 'medicine-bottle']) {
+        'stretcher', 'medicine-bottle', 'icon-heal', 'icon-burn',
+        'icon-poison', 'icon-complete', 'icon-ready']) {
         const tracked = readFileSync(join(root, 'apps/client/public/assets/original', `${name}.png`));
         expect(readFileSync(join(output, `${name}.png`))).toEqual(tracked);
       }

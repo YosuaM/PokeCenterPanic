@@ -12,6 +12,8 @@ Character sprites come from the existing PMD importer and its ignored local cach
 
 The carried-patient stretcher and generic medicine bottle also have original SVG sources in [`art/source`](../art/source) and matching PNG exports in [`apps/client/public/assets/original`](../apps/client/public/assets/original). The bottle uses a visible B or A condition mark, so its identity does not depend on color. Both are composited with the PMD sprites at native pixel size.
 
+The original HUD icons represent injury healing, burn, poison, completed treatment, and discharge readiness. The focused or carried patient's checklist names every required treatment as `TODO` or `DONE` and explicitly says `ANY ORDER`. A labeled patience percentage and bar share the bottom HUD. The HUD does not hide the fixed map; icon shapes and text convey state without relying on color or sound.
+
 On macOS, run `npm run assets:original` after editing the SVGs. The exporter uses the marked floor and fixture sections in `center-map.svg` to regenerate both runtime layers and the composite preview. The asset test checks that every tracked PNG matches its source.
 
 PMD frame sizes in the locally generated manifest are not uniform:
@@ -61,6 +63,7 @@ The pilot palette uses dark navy `#0a1c2e` for HUD panels, deep teal `#345e68` f
 - **Pilot completed:** the SVG renders at 1280 × 720 with readable station labels, patient need icons, target prompt, and HUD without hiding the room.
 - **Native-scale integration check completed:** a local round at 1280 × 720 showed the original center map with PMD Chansey staff and a PMD Pikachu patient. Their names remained readable and their texture scale is 1×. The runtime screenshot stays local because it contains third-party character art.
 - **Equipment check completed:** in a local round, Pikachu remained visible above the original stretcher while carried by Chansey, and a prepared Burn Heal appeared as the original bottle with a B mark. The same bottle texture also supports the A mark for Antidote.
+- **Medical HUD spot check completed:** at 1280 × 720, approaching an injured Pikachu displayed its original healing icon and `HEAL TODO` checklist in the bottom bar without obscuring the map. The remaining combinations and completion states have automated mapping checks.
 - **Next integration check:** compare all native-size PMD frames in the actual Phaser scene, including Eevee's 40-pixel Walk frame. Check carriage, overlaps, and the fixed-camera viewport for every selectable character.
 - **Release check:** complete the muted Chrome/Firefox walkthrough at 1280 × 720 required by `docs/specification.md` AC-21, and verify credits and distribution rights before a public build.
 
