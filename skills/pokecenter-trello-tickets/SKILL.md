@@ -39,9 +39,9 @@ Use one actual type, not the full list. Use the phase from the specification whe
 ## Workflow
 
 - Check existing cards before creating one. Update the relevant card instead of duplicating it. Split work only when separate outcomes need separate review.
-- Keep the lists in this order: `Backlog → Ready → In Progress → In Review → Done`.
-- Move a card to `Ready` when its scope and acceptance criteria are clear; to `In Progress` when work starts; to `In Review` when the result is ready for review; and to `Done` only after its acceptance criteria have been verified. Return it to an earlier state if work reopens.
-- Keep the card's scope, evidence, blockers, and PR link current when they change. Record actual verification results in the card or linked PR before moving it to `Done`. Use concise comments for material progress or decisions; avoid routine status noise.
+- Keep the list names in English and in this order: `Backlog → Ready → In Progress → In Review → Done`.
+- Move a card to `Ready` when its scope and acceptance criteria are clear; to `In Progress` when work starts; and to `In Review` when implementation and automated checks are ready. Leave completed work in `In Review` for the project owner to verify in the game. Move it to `Done` only after the owner explicitly confirms it works or asks for that move. Return it to an earlier state if work reopens.
+- Keep the card's scope, evidence, blockers, and PR link current when they change. Record automated verification results in the card or linked PR when moving it to `In Review`; they do not replace owner verification. Use concise comments for material progress or decisions; avoid routine status noise.
 
 ## Public content
 
