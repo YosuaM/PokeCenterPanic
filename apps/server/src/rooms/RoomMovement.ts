@@ -28,9 +28,10 @@ export class RoomMovement {
     this.players.delete(id);
   }
 
-  accept(id: string, value: unknown, now: number): boolean {
+  accept(id: string, value: unknown, now: number, roundId: string | null = null): boolean {
     const player = this.players.get(id);
-    if (!player || !isPlayerInput(value) || value.sequence <= player.sequence) return false;
+    if (!player || !isPlayerInput(value) || value.roundId !== roundId ||
+      value.sequence <= player.sequence) return false;
     player.sequence = value.sequence;
     player.direction = value.direction;
     if (value.direction) player.facing = value.direction;
@@ -58,7 +59,7 @@ export class RoomMovement {
 function isPlayerInput(value: unknown): value is PlayerInput {
   if (typeof value !== 'object' || value === null) return false;
   const input = value as Partial<PlayerInput>;
-  return input.roundId === null &&
+  return (input.roundId === null || typeof input.roundId === 'string') &&
     Number.isSafeInteger(input.sequence) && Number(input.sequence) > 0 &&
     (input.direction === null || input.direction === 'up' || input.direction === 'down' ||
       input.direction === 'left' || input.direction === 'right');

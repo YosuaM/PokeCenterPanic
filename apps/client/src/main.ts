@@ -3,6 +3,8 @@ import { GAME_CONFIG } from './gameConfig.js';
 import { LobbyController } from './rooms/LobbyController.js';
 import { RoomGateway } from './rooms/RoomGateway.js';
 import { MapScene } from './scenes/MapScene.js';
+import { PLAYER_CHARACTERS, type PlayerCharacter, type PlayerPresence,
+  type RoomPhaseSnapshot } from '@pokecenter/shared';
 
 const game = new Phaser.Game(GAME_CONFIG);
 
@@ -17,6 +19,32 @@ const roomCode = document.querySelector<HTMLElement>('#room-code')!;
 const players = document.querySelector<HTMLElement>('#room-players')!;
 const status = document.querySelector<HTMLElement>('#room-status')!;
 const panel = document.querySelector<HTMLElement>('#room-panel')!;
+const phaseText = document.querySelector<HTMLElement>('#room-phase')!;
+const characterSelect = document.querySelector<HTMLSelectElement>('#character-select')!;
+const readyButton = document.querySelector<HTMLButtonElement>('#ready-button')!;
+const startButton = document.querySelector<HTMLButtonElement>('#start-button')!;
+const lobbyControls = document.querySelector<HTMLElement>('#lobby-controls')!;
+let currentPlayers: PlayerPresence[] = [];
+let currentLocalId = '';
+let currentPhase: RoomPhaseSnapshot = { phase: 'lobby', hostId: '',
+  countdownRemainingMs: 0, roundId: '' };
+
+function renderLobby(): void {
+  const self = currentPlayers.find((player) => player.id === currentLocalId);
+  players.textContent = currentPlayers.length ? currentPlayers.map((player) =>
+    `${player.name}${player.id === currentLocalId ? ' (you)' : ''} · ${player.character || 'no character'} · ${player.ready ? 'ready' : 'not ready'}`
+  ).join('  |  ') : 'Connecting players…';
+  panel.classList.toggle('is-playing', currentPhase.phase === 'running');
+  lobbyControls.hidden = currentPhase.phase !== 'lobby';
+  phaseText.textContent = currentPhase.phase === 'countdown' ?
+    `Starting in ${Math.ceil(currentPhase.countdownRemainingMs / 1000)}…` :
+    currentPhase.phase === 'running' ? 'Round in progress' : 'Choose a character and ready up';
+  characterSelect.value = self?.character ?? '';
+  readyButton.textContent = self?.ready ? 'Not ready' : 'Ready';
+  readyButton.disabled = !self?.character;
+  startButton.hidden = currentPhase.hostId !== currentLocalId;
+  startButton.disabled = !currentPlayers.length || currentPlayers.some((player) => !player.ready);
+}
 
 function mapScene(): MapScene {
   return game.scene.getScene('map') as MapScene;
@@ -32,13 +60,13 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
   showRoom(code, connectedPlayers, localId) {
     menu.hidden = true;
     lobby.hidden = false;
-    panel.classList.add('is-playing');
     roomCode.textContent = code;
-    players.textContent = connectedPlayers.length
-      ? connectedPlayers.map((player) => player.name + (player.id === localId ? ' (you)' : '')).join(', ')
-      : 'Connecting players…';
+    currentPlayers = connectedPlayers;
+    currentLocalId = localId;
+    renderLobby();
     status.textContent = '';
     mapScene().setPlayers(connectedPlayers, localId);
+    mapScene().setGameplayActive(currentPhase.phase === 'running');
     mapScene().setInputSender((direction) => controller.sendInput(direction));
     mapScene().setInteractionSender((request) => controller.sendInteraction(request));
   },
@@ -57,10 +85,21 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
   showDischargedCount(count) {
     mapScene().setDischargedCount(count);
   },
+  showPhase(snapshot) {
+    currentPhase = snapshot;
+    renderLobby();
+    mapScene().setGameplayActive(snapshot.phase === 'running');
+  },
+  showLobbyResult(reason) {
+    status.textContent = reason;
+  },
   showMenu(message) {
     menu.hidden = false;
     lobby.hidden = true;
     panel.classList.remove('is-playing');
+    currentPlayers = [];
+    currentLocalId = '';
+    currentPhase = { phase: 'lobby', hostId: '', countdownRemainingMs: 0, roundId: '' };
     status.textContent = message;
     mapScene().clearPlayers();
   },
@@ -79,3 +118,16 @@ joinForm.addEventListener('submit', (event) => {
 leaveButton.addEventListener('click', () => {
   void controller.leave();
 });
+
+characterSelect.addEventListener('change', () => {
+  const character = characterSelect.value;
+  if (PLAYER_CHARACTERS.includes(character as PlayerCharacter)) {
+    controller.selectCharacter(character as PlayerCharacter);
+  }
+});
+
+readyButton.addEventListener('click', () => {
+  controller.setReady(!currentPlayers.find((player) => player.id === currentLocalId)?.ready);
+});
+
+startButton.addEventListener('click', () => controller.startGame());

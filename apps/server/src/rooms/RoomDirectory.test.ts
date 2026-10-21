@@ -12,10 +12,14 @@ describe('room codes', () => {
     const codes = ['ABC234', 'ABC234', 'DEF567'];
     const directory = new RoomDirectory(() => codes.shift() ?? 'XYZ789');
     expect(directory.register('room-1')).toBe('ABC234');
+    expect(directory.phaseFor('room-1')).toBe('lobby');
+    directory.setPhase('room-1', 'countdown');
+    expect(directory.phaseFor('room-1')).toBe('countdown');
     expect(directory.register('room-2')).toBe('DEF567');
     expect(directory.roomIdFor('ABC234')).toBe('room-1');
     directory.unregister('room-1');
     expect(directory.roomIdFor('ABC234')).toBeUndefined();
+    expect(directory.phaseFor('room-1')).toBeUndefined();
   });
 });
 

@@ -31,7 +31,7 @@ describe('resolveCapacity', () => {
 });
 
 describe('private room flow', () => {
-  const server = createGameServer({ capacity: 3 });
+  const server = createGameServer({ capacity: 3, countdownMs: 50 });
   let endpoint: string;
   const joinedRooms: Array<{ leave(): Promise<number> }> = [];
 
@@ -57,6 +57,22 @@ describe('private room flow', () => {
     return { status: response.status, body: await response.json() };
   }
 
+  async function startRound(host: Awaited<ReturnType<Client['consumeSeatReservation']>>,
+    members: Array<Awaited<ReturnType<Client['consumeSeatReservation']>>> = []): Promise<string> {
+    for (const room of [host, ...members]) {
+      room.send('player:select', { character: 'Chansey', sequence: 1, roundId: null });
+      room.send('player:ready', { ready: true, sequence: 2, roundId: null });
+    }
+    await vi.waitFor(() => {
+      const state = host.state as { players: Map<string, { ready: boolean }> };
+      expect([host, ...members].every((room) => state.players?.get(room.sessionId)?.ready)).toBe(true);
+    }, { timeout: 2000 });
+    host.send('game:start', { sequence: 3, roundId: null });
+    await vi.waitFor(() => expect((host.state as { phase: string }).phase).toBe('running'),
+      { timeout: 2000 });
+    return (host.state as { roundId: string }).roundId;
+  }
+
   it('creates a private room and joins it from another client with a case-insensitive code', async () => {
     const created = await reserve('/api/rooms', 'Red');
     expect(created.status).toBe(200);
@@ -72,7 +88,8 @@ describe('private room flow', () => {
 
     const hostRoster = new Promise<PlayerPresence[]>((resolve) => host.onMessage('lobby:players', resolve));
     host.send('lobby:sync');
-    expect(await hostRoster).toEqual([{ id: host.sessionId, name: 'Red', slot: 0 }]);
+    expect((await hostRoster).map(({ id, name, slot }) => ({ id, name, slot })))
+      .toEqual([{ id: host.sessionId, name: 'Red', slot: 0 }]);
 
     const joined = await reserve(`/api/rooms/${created.body.code.toLowerCase()}/join`, 'Blue');
     expect(joined.status).toBe(200);
@@ -82,7 +99,7 @@ describe('private room flow', () => {
 
     const guestRoster = new Promise<PlayerPresence[]>((resolve) => guest.onMessage('lobby:players', resolve));
     guest.send('lobby:sync');
-    expect(await guestRoster).toEqual([
+    expect((await guestRoster).map(({ id, name, slot }) => ({ id, name, slot }))).toEqual([
       { id: host.sessionId, name: 'Red', slot: 0 },
       { id: guest.sessionId, name: 'Blue', slot: 1 },
     ]);
@@ -128,7 +145,38 @@ describe('private room flow', () => {
       });
     });
     await guest.leave();
-    expect(await updatedRoster).toEqual([{ id: host.sessionId, name: 'Red', slot: 0 }]);
+    expect((await updatedRoster).map(({ id, name, slot }) => ({ id, name, slot })))
+      .toEqual([{ id: host.sessionId, name: 'Red', slot: 0 }]);
+  });
+
+  it('keeps the room in lobby until a valid host start and refuses new members during play', async () => {
+    const created = await reserve('/api/rooms', 'Red');
+    const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
+    joinedRooms.push(host);
+    const state = () => host.state as { phase: string; roundId: string;
+      players: Map<string, { x: number }>; patients: Map<string, unknown> };
+    await vi.waitFor(() => expect(state().phase).toBe('lobby'), { timeout: 2000 });
+    expect(state().patients.size).toBe(0);
+    host.send('player:input', { direction: 'right', sequence: 1, roundId: null });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(state().players.get(host.sessionId)?.x).toBe(456);
+    const rejected = new Promise<{ ok: boolean; reason: string }>((resolve) =>
+      host.onMessage('lobby:result', (result: { ok: boolean; reason: string }) => {
+        if (!result.ok) resolve(result);
+      }));
+    host.send('game:start', { sequence: 1, roundId: null });
+    expect((await rejected).reason).toBe('All players must choose a character and be ready');
+    host.send('player:select', { character: 'Chansey', sequence: 2, roundId: null });
+    host.send('player:ready', { ready: true, sequence: 3, roundId: null });
+    await vi.waitFor(() => expect(state().players.get(host.sessionId)).toEqual(
+      expect.objectContaining({ ready: true })), { timeout: 2000 });
+    host.send('game:start', { sequence: 4, roundId: null });
+    await vi.waitFor(() => expect(state().phase).toBe('running'), { timeout: 2000 });
+    expect(state().roundId).toBeTruthy();
+    expect(state().patients.has('patient-1')).toBe(true);
+    expect(await reserve(`/api/rooms/${created.body.code}/join`, 'Late')).toEqual({
+      status: 409, body: { error: 'Game in progress' },
+    });
   });
 
   it('replicates server-validated positions to both clients', async () => {
@@ -139,6 +187,8 @@ describe('private room flow', () => {
     const guest = await new Client(endpoint).consumeSeatReservation(joined.body.reservation);
     joinedRooms.push(guest);
 
+    const roundId = await startRound(host, [guest]);
+
     const player = (room: typeof host) => {
       const state = room.state as { players: Map<string, { x: number; y: number }> };
       return state.players?.get(host.sessionId);
@@ -147,12 +197,12 @@ describe('private room flow', () => {
     await vi.waitFor(() => expect(player(guest)).toBeDefined(), { timeout: 2000 });
     expect(player(host)).toEqual(expect.objectContaining({ x: 456, y: 422 }));
     expect(player(guest)).toEqual(expect.objectContaining({ x: 456, y: 422 }));
-    host.send('player:input', { direction: 'right', sequence: 1, roundId: null });
+    host.send('player:input', { direction: 'right', sequence: 1, roundId });
     await vi.waitFor(() => expect(player(guest)?.x).toBeGreaterThan(456), { timeout: 2000 });
     await vi.waitFor(() => expect(player(host)?.x).toBe(player(guest)?.x), { timeout: 2000 });
 
-    host.send('player:input', { direction: null, sequence: 2, roundId: null });
-    host.send('player:input', { direction: 'up', sequence: 2, roundId: null });
+    host.send('player:input', { direction: null, sequence: 2, roundId });
+    host.send('player:input', { direction: 'up', sequence: 2, roundId });
     host.send('player:input', { direction: 'up', sequence: 3, roundId: 'forged' });
     await new Promise((resolve) => setTimeout(resolve, 150));
     const stoppedX = player(guest)!.x;
@@ -161,7 +211,7 @@ describe('private room flow', () => {
     expect(player(host)?.x).toBe(stoppedX);
 
     for (let sequence = 4; sequence <= 24; sequence += 1) {
-      host.send('player:input', { direction: 'up', sequence, roundId: null, y: 100 });
+      host.send('player:input', { direction: 'up', sequence, roundId, y: 100 });
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     await vi.waitFor(() => expect(player(guest)?.y).toBeLessThan(422), { timeout: 2000 });
@@ -176,6 +226,8 @@ describe('private room flow', () => {
     const joined = await reserve(`/api/rooms/${created.body.code}/join`, 'Blue');
     const guest = await new Client(endpoint).consumeSeatReservation(joined.body.reservation);
     joinedRooms.push(guest);
+
+    await startRound(host, [guest]);
 
     const patientState = (room: typeof host) => room.state as {
       patients: Map<string, { id: string; species: string; location: string; slotIndex: number;
@@ -199,6 +251,7 @@ describe('private room flow', () => {
     const created = await reserve('/api/rooms', 'Red');
     const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
     joinedRooms.push(host);
+    await startRound(host);
     await vi.waitFor(() => expect((host.state as { patients: Map<string, unknown> }).patients?.get('patient-1'))
       .toBeDefined(), { timeout: 2000 });
     const result = new Promise<{ ok: boolean; reason: string }>((resolve) =>

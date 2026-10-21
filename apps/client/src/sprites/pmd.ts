@@ -1,11 +1,12 @@
-import type { Direction, PatientRecord, PlayerPresence, PlayerPosition, Point } from '@pokecenter/shared';
+import { PLAYER_CHARACTERS, type Direction, type PatientRecord, type PlayerPresence,
+  type PlayerPosition, type Point } from '@pokecenter/shared';
 
 export const PATIENT_SPRITES = {
   Pikachu: '0025', Bulbasaur: '0001', Charmander: '0004',
   Squirtle: '0007', Eevee: '0133', Psyduck: '0054',
 } as const;
 
-export const PLAYER_SPRITES = ['Chansey', 'Audino', 'Machoke', 'Meowth'] as const;
+export const PLAYER_SPRITES = PLAYER_CHARACTERS;
 
 export const SPRITE_IDS: Record<string, string> = {
   ...PATIENT_SPRITES, Chansey: '0113', Audino: '0531', Machoke: '0067', Meowth: '0052',
@@ -33,7 +34,7 @@ export interface SpriteManifest {
 }
 
 export function playerSpriteSpecies(player: PlayerPresence): string {
-  return PLAYER_SPRITES[player.slot % PLAYER_SPRITES.length]!;
+  return player.character ?? PLAYER_SPRITES[player.slot % PLAYER_SPRITES.length]!;
 }
 
 export function patientRenderPosition(patient: PatientRecord, stations: {

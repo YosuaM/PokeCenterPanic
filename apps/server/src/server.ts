@@ -6,14 +6,16 @@ import { createPrivateRoomType } from './rooms/PrototypeRoom.js';
 
 const project: ProjectInfo = PROJECT_INFO;
 
-export function createGameServer({ capacity = 2 }: { capacity?: number } = {}): Server {
+export function createGameServer({ capacity = 2, countdownMs = 3_000 }:
+  { capacity?: number; countdownMs?: number } = {}): Server {
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 4) {
     throw new Error('Room capacity must be an integer between 1 and 4');
   }
 
   const directory = new RoomDirectory();
   const creationSecret = randomUUID();
-  const RoomType = createPrivateRoomType(directory, capacity, creationSecret);
+  if (!Number.isFinite(countdownMs) || countdownMs <= 0) throw new Error('Invalid countdown duration');
+  const RoomType = createPrivateRoomType(directory, capacity, creationSecret, countdownMs);
 
   const createRoom = createEndpoint('/api/rooms', { method: 'POST' }, async (ctx) => {
     const name = validatePlayerName(ctx.body?.name);
@@ -36,6 +38,9 @@ export function createGameServer({ capacity = 2 }: { capacity?: number } = {}): 
     const code = normalizeRoomCode(ctx.params.code);
     const roomId = code && directory.roomIdFor(code);
     if (!roomId) return Response.json({ error: 'Invalid room code' }, { status: 404 });
+    const phase = directory.phaseFor(roomId);
+    if (phase !== 'lobby') return Response.json({ error: phase === 'countdown' ?
+      'Countdown in progress' : 'Game in progress' }, { status: 409 });
 
     try {
       const reservation = await matchMaker.joinById(roomId, { name, code });
@@ -45,6 +50,9 @@ export function createGameServer({ capacity = 2 }: { capacity?: number } = {}): 
       if (!room || !directory.roomIdFor(code)) {
         return Response.json({ error: 'Invalid room code' }, { status: 404 });
       }
+      const currentPhase = directory.phaseFor(roomId);
+      if (currentPhase !== 'lobby') return Response.json({ error: currentPhase === 'countdown' ?
+        'Countdown in progress' : 'Game in progress' }, { status: 409 });
       if (room.locked || room.clients >= room.maxClients) {
         return Response.json({ error: 'Room is full' }, { status: 409 });
       }

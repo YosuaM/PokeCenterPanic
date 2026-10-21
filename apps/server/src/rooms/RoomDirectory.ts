@@ -19,6 +19,7 @@ export function validatePlayerName(value: unknown): string | null {
 export class RoomDirectory {
   private readonly roomsByCode = new Map<string, string>();
   private readonly codesByRoom = new Map<string, string>();
+  private readonly phasesByRoom = new Map<string, string>();
 
   constructor(private readonly generateCode = () =>
     Array.from({ length: CODE_LENGTH }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('')) {}
@@ -29,6 +30,7 @@ export class RoomDirectory {
       if (!normalizeRoomCode(code) || this.roomsByCode.has(code)) continue;
       this.roomsByCode.set(code, roomId);
       this.codesByRoom.set(roomId, code);
+      this.phasesByRoom.set(roomId, 'lobby');
       return code;
     }
     throw new Error('Could not allocate a unique room code');
@@ -42,9 +44,18 @@ export class RoomDirectory {
     return this.codesByRoom.get(roomId);
   }
 
+  phaseFor(roomId: string): string | undefined {
+    return this.phasesByRoom.get(roomId);
+  }
+
+  setPhase(roomId: string, phase: string): void {
+    if (this.codesByRoom.has(roomId)) this.phasesByRoom.set(roomId, phase);
+  }
+
   unregister(roomId: string): void {
     const code = this.codesByRoom.get(roomId);
     if (code) this.roomsByCode.delete(code);
     this.codesByRoom.delete(roomId);
+    this.phasesByRoom.delete(roomId);
   }
 }

@@ -48,6 +48,7 @@ export class MapScene extends Phaser.Scene {
   private lastSentDirection: Direction | null = null;
   private spriteManifest: SpriteManifest | null = null;
   private spritesReady = false;
+  private gameplayActive = true;
 
   constructor() {
     super('map');
@@ -130,6 +131,11 @@ export class MapScene extends Phaser.Scene {
     this.inputSender = sender;
   }
 
+  setGameplayActive(active: boolean): void {
+    this.gameplayActive = active;
+    if (!active) this.clearMovement();
+  }
+
   setInteractionSender(sender: (request: PatientInteractionRequest) => void): void {
     this.interactionSender = sender;
   }
@@ -163,7 +169,8 @@ export class MapScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     const direction = this.movement.direction;
-    if (this.avatars.has(this.localId) && this.inputSender && time - this.lastSentAt >= 50 &&
+    if (this.gameplayActive && this.avatars.has(this.localId) && this.inputSender &&
+      time - this.lastSentAt >= 50 &&
       (direction !== this.lastSentDirection || direction !== null)) {
       this.inputSender(direction);
       this.lastSentDirection = direction;
@@ -197,7 +204,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (!this.avatars.has(this.localId) || this.isTyping()) return;
+    if (!this.gameplayActive || !this.avatars.has(this.localId) || this.isTyping()) return;
     if (event.code === 'KeyE') {
       event.preventDefault();
       if (event.repeat) return;
@@ -245,7 +252,12 @@ export class MapScene extends Phaser.Scene {
       }
     }
     this.players.forEach((player) => {
-      if (this.avatars.has(player.id)) return;
+      const existing = this.avatars.get(player.id);
+      if (existing?.species === playerSpriteSpecies(player)) return;
+      if (existing) {
+        existing.container.destroy();
+        this.avatars.delete(player.id);
+      }
       const slot = player.slot;
       const spawn = SPAWN_POINTS[slot];
       if (!spawn) return;

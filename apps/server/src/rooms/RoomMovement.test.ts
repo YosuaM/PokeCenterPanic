@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { RoomMovement } from './RoomMovement.js';
 
 describe('RoomMovement', () => {
+  it('ignores input from another round', () => {
+    const movement = new RoomMovement();
+    movement.add('red');
+    expect(movement.accept('red', { direction: 'right', sequence: 1, roundId: 'old' },
+      0, 'current')).toBe(false);
+    expect(movement.accept('red', { direction: 'right', sequence: 1, roundId: 'current' },
+      0, 'current')).toBe(true);
+  });
   it('accepts only sequenced cardinal input from an existing player', () => {
     const movement = new RoomMovement();
     movement.add('red');

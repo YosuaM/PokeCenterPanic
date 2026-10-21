@@ -50,9 +50,14 @@
       #room-panel.is-playing h1 { display: none; }
       #room-panel.is-playing #room-lobby { display: flex; align-items: center; gap: 12px; }
       #room-panel.is-playing #room-lobby > p:first-child { display: none; }
+      #room-panel.is-playing #lobby-controls { display: none; }
       #room-panel.is-playing p { margin: 0; font-size: 12px; line-height: 1.2; }
       #room-panel.is-playing #room-code { font-size: 18px; white-space: nowrap; }
       #room-panel.is-playing #room-players { display: block; }
+      #room-players { display: block; margin-top: 8px; line-height: 1.6; }
+      #room-phase { margin-top: 12px; font-weight: 700; }
+      #lobby-controls { margin-top: 16px; }
+      #lobby-controls select { width: 100%; padding: 10px; border-radius: 8px; font: inherit; }
       #room-panel.is-playing button { width: auto; padding: 7px 10px; margin: 0; white-space: nowrap; }
       #room-panel.is-playing #room-status:empty { display: none; }
 
@@ -93,6 +98,19 @@
         <p>Share this code with another player:</p>
         <strong id="room-code"></strong>
         <p>Connected players: <span id="room-players"></span></p>
+        <p id="room-phase"></p>
+        <div id="lobby-controls">
+          <label for="character-select">Your Pokémon</label>
+          <select id="character-select">
+            <option value="">Choose a character</option>
+            <option value="Chansey">Chansey</option>
+            <option value="Audino">Audino</option>
+            <option value="Machoke">Machoke</option>
+            <option value="Meowth">Meowth</option>
+          </select>
+          <button id="ready-button" type="button" disabled>Ready</button>
+          <button id="start-button" type="button" hidden>Start game</button>
+        </div>
         <button id="leave-room" type="button">Leave room</button>
       </div>
       <p id="room-status" role="status" aria-live="polite"></p>

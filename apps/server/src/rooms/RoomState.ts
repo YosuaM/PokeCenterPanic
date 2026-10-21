@@ -7,6 +7,8 @@ export const PlayerState = schema({
   slot: t.uint8(),
   facing: t.string(),
   carriedPatientId: t.string(),
+  character: t.string(),
+  ready: t.boolean(),
 }, 'PrototypePlayerState');
 export type PlayerState = SchemaType<typeof PlayerState>;
 
@@ -40,5 +42,8 @@ export const RoomState = schema({
   healingMachine: HealingMachineState,
   dischargedCount: t.number(),
   phase: t.string(),
+  hostId: t.string(),
+  countdownRemainingMs: t.number(),
+  roundId: t.string(),
 }, 'PrototypeRoomState');
 export type RoomState = SchemaType<typeof RoomState>;

@@ -67,6 +67,23 @@ function setup(manifest?: SpriteManifest) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('MapScene', () => {
+  it('does not accept gameplay input before the round and updates a selected character', () => {
+    const { scene, container, containers, keyboardListeners } = setup();
+    const sendInput = vi.fn();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0, character: 'Chansey' }], 'red');
+    scene.setInputSender(sendInput);
+    scene.setGameplayActive(false);
+    keyboardListeners.get('keydown')?.({ code: 'KeyD', preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    scene.update(0, 50);
+    expect(sendInput).not.toHaveBeenCalled();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0, character: 'Audino' }], 'red');
+    expect(containers[0]?.destroy).toHaveBeenCalledOnce();
+    expect(container).toHaveBeenCalledTimes(2);
+    scene.setGameplayActive(true);
+    keyboardListeners.get('keydown')?.({ code: 'KeyD', preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    scene.update(50, 50);
+    expect(sendInput).toHaveBeenCalledWith('right');
+  });
   it('renders all six patient species from a validated local sprite fixture', () => {
     const names = ['Pikachu', 'Bulbasaur', 'Charmander', 'Squirtle', 'Eevee', 'Psyduck'] as const;
     const ids = ['0025', '0001', '0004', '0007', '0133', '0054'];
