@@ -1,0 +1,23 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+.npmrc
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Dependencies and generated output
+node_modules/
+dist/
+coverage/
+.cache/
+*.log
+
+# External resources consumed locally
+apps/client/public/assets/external/
+vendor-assets/
+
+# Operating system files
+.DS_Store
