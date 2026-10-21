@@ -1,4 +1,5 @@
 import { ErrorCode, Room, ServerError, type Client } from 'colyseus';
+import type { PlayerPresence } from '@pokecenter/shared';
 import { normalizeRoomCode, validatePlayerName, type RoomDirectory } from './RoomDirectory.js';
 
 export interface PrivateRoomOptions {
@@ -11,7 +12,11 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
   return class PrivatePrototypeRoom extends Room {
     private code = '';
     private creatorKey = '';
-    private readonly names = new Map<string, string>();
+    private readonly players = new Map<string, string>();
+
+    private roster(): PlayerPresence[] {
+      return [...this.players].map(([id, name]) => ({ id, name }));
+    }
 
     async onCreate(options: Partial<PrivateRoomOptions> = {}): Promise<void> {
       if (options.creationSecret !== creationSecret || !options.creatorKey) {
@@ -23,7 +28,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       await this.setPrivate(true);
 
       this.onMessage('lobby:sync', (client) => {
-        client.send('lobby:players', [...this.names.values()]);
+        client.send('lobby:players', this.roster());
       });
     }
 
@@ -38,13 +43,13 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
     }
 
     onJoin(client: Client, options: PrivateRoomOptions): void {
-      this.names.set(client.sessionId, validatePlayerName(options.name)!);
-      this.broadcast('lobby:players', [...this.names.values()]);
+      this.players.set(client.sessionId, validatePlayerName(options.name)!);
+      this.broadcast('lobby:players', this.roster());
     }
 
     onLeave(client: Client): void {
-      this.names.delete(client.sessionId);
-      this.broadcast('lobby:players', [...this.names.values()]);
+      this.players.delete(client.sessionId);
+      this.broadcast('lobby:players', this.roster());
     }
 
     onDispose(): void {

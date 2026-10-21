@@ -37,6 +37,25 @@
         box-shadow: 0 16px 48px #07131faa;
       }
 
+      #room-panel.is-playing {
+        top: 12px;
+        right: 12px;
+        left: auto;
+        width: min(510px, calc(100% - 24px));
+        padding: 8px 10px;
+        transform: none;
+        background: #10243bec;
+      }
+
+      #room-panel.is-playing h1 { display: none; }
+      #room-panel.is-playing #room-lobby { display: flex; align-items: center; gap: 12px; }
+      #room-panel.is-playing #room-lobby > p:first-child { display: none; }
+      #room-panel.is-playing p { margin: 0; font-size: 12px; line-height: 1.2; }
+      #room-panel.is-playing #room-code { font-size: 18px; white-space: nowrap; }
+      #room-panel.is-playing #room-players { display: block; }
+      #room-panel.is-playing button { width: auto; padding: 7px 10px; margin: 0; white-space: nowrap; }
+      #room-panel.is-playing #room-status:empty { display: none; }
+
       h1 { margin: 0 0 8px; font-size: 28px; }
       p { line-height: 1.5; }
       label { display: block; margin: 18px 0 6px; }

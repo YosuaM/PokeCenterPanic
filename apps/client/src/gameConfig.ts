@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BootScene } from './scenes/BootScene.js';
+import { MapScene } from './scenes/MapScene.js';
 
 export const GAME_CONFIG = {
   type: Phaser.AUTO,
@@ -11,5 +11,6 @@ export const GAME_CONFIG = {
     height: 540,
   },
   backgroundColor: '#172d46',
-  scene: [BootScene],
+  pixelArt: true,
+  scene: [MapScene],
 } satisfies Phaser.Types.Core.GameConfig;

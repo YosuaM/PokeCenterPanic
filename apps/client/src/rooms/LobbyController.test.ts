@@ -1,11 +1,13 @@
 import type { Room } from '@colyseus/sdk';
+import type { PlayerPresence } from '@pokecenter/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { LobbyController, type LobbyGateway, type LobbyView } from './LobbyController.js';
 
 function setup() {
-  let message: ((players: string[]) => void) | undefined;
+  let message: ((players: PlayerPresence[]) => void) | undefined;
   let disconnected: (() => void) | undefined;
   const room = {
+    sessionId: 'host-id',
     leave: vi.fn(async () => 1000),
     send: vi.fn(),
     onMessage: vi.fn((_type, listener) => { message = listener; }),
@@ -21,7 +23,7 @@ function setup() {
     showMenu: vi.fn(),
   };
   return { controller: new LobbyController(gateway, view), gateway, view, room,
-    players: (names: string[]) => message?.(names), disconnect: () => disconnected?.() };
+    players: (roster: PlayerPresence[]) => message?.(roster), disconnect: () => disconnected?.() };
 }
 
 describe('LobbyController', () => {
@@ -29,20 +31,24 @@ describe('LobbyController', () => {
     const { controller, gateway, view, room, players } = setup();
     await controller.create('Red');
     expect(gateway.create).toHaveBeenCalledWith('Red');
-    expect(view.showRoom).toHaveBeenCalledWith('ABC234', []);
+    expect(view.showRoom).toHaveBeenCalledWith('ABC234', [], 'host-id');
     expect(room.send).toHaveBeenCalledWith('lobby:sync');
-    players(['Red', 'Blue']);
-    expect(view.showRoom).toHaveBeenCalledWith('ABC234', ['Red', 'Blue']);
+    const roster = [{ id: 'host-id', name: 'Red' }, { id: 'guest-id', name: 'Blue' }];
+    players(roster);
+    expect(view.showRoom).toHaveBeenCalledWith('ABC234', roster, 'host-id');
     expect(view.setBusy).toHaveBeenLastCalledWith(false);
   });
 
   it('joins by code and returns to the menu when leaving', async () => {
-    const { controller, gateway, view, room } = setup();
+    const { controller, gateway, view, room, players } = setup();
     await controller.join('abc234', 'Blue');
     expect(gateway.join).toHaveBeenCalledWith('abc234', 'Blue');
     await controller.leave();
     expect(room.leave).toHaveBeenCalled();
     expect(view.showMenu).toHaveBeenCalledWith('You left the room.');
+    vi.mocked(view.showRoom).mockClear();
+    players([{ id: 'host-id', name: 'Red' }]);
+    expect(view.showRoom).not.toHaveBeenCalled();
   });
 
   it('shows a server error and clears a disconnected room', async () => {

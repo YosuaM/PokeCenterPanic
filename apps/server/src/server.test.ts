@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { Client } from '@colyseus/sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PROJECT_INFO } from '@pokecenter/shared';
+import { PROJECT_INFO, type PlayerPresence } from '@pokecenter/shared';
 import { createGameServer, resolveCapacity, resolvePort } from './server.js';
 
 describe('resolvePort', () => {
@@ -70,9 +70,9 @@ describe('private room flow', () => {
       .rejects.toThrow('Invalid room code');
     await expect(new Client(endpoint).joinById(host.roomId)).rejects.toThrow();
 
-    const hostRoster = new Promise<string[]>((resolve) => host.onMessage('lobby:players', resolve));
+    const hostRoster = new Promise<PlayerPresence[]>((resolve) => host.onMessage('lobby:players', resolve));
     host.send('lobby:sync');
-    expect(await hostRoster).toEqual(['Red']);
+    expect(await hostRoster).toEqual([{ id: host.sessionId, name: 'Red' }]);
 
     const joined = await reserve(`/api/rooms/${created.body.code.toLowerCase()}/join`, 'Blue');
     expect(joined.status).toBe(200);
@@ -80,9 +80,12 @@ describe('private room flow', () => {
     joinedRooms.push(guest);
     expect(guest.roomId).toBe(host.roomId);
 
-    const guestRoster = new Promise<string[]>((resolve) => guest.onMessage('lobby:players', resolve));
+    const guestRoster = new Promise<PlayerPresence[]>((resolve) => guest.onMessage('lobby:players', resolve));
     guest.send('lobby:sync');
-    expect(await guestRoster).toEqual(['Red', 'Blue']);
+    expect(await guestRoster).toEqual([
+      { id: host.sessionId, name: 'Red' },
+      { id: guest.sessionId, name: 'Blue' },
+    ]);
 
     const third = await reserve(`/api/rooms/${created.body.code}/join`, 'Green');
     expect(third.status).toBe(200);
@@ -104,6 +107,28 @@ describe('private room flow', () => {
       body: { error: 'Enter a name of 1–16 visible characters' },
     });
     await expect(new Client(endpoint).create(PROJECT_INFO.roomName, { name: 'Red' })).rejects.toThrow();
+  });
+
+  it('removes a departed player from the roster', async () => {
+    const created = await reserve('/api/rooms', 'Red');
+    const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
+    joinedRooms.push(host);
+    const joinedRoster = new Promise<PlayerPresence[]>((resolve) => {
+      host.onMessage('lobby:players', (roster: PlayerPresence[]) => {
+        if (roster.length === 2) resolve(roster);
+      });
+    });
+    const joined = await reserve(`/api/rooms/${created.body.code}/join`, 'Blue');
+    const guest = await new Client(endpoint).consumeSeatReservation(joined.body.reservation);
+    guest.onMessage('lobby:players', () => undefined);
+    await joinedRoster;
+    const updatedRoster = new Promise<PlayerPresence[]>((resolve) => {
+      host.onMessage('lobby:players', (roster: PlayerPresence[]) => {
+        if (roster.length === 1) resolve(roster);
+      });
+    });
+    await guest.leave();
+    expect(await updatedRoster).toEqual([{ id: host.sessionId, name: 'Red' }]);
   });
 
 });

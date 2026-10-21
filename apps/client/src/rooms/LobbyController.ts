@@ -1,4 +1,5 @@
 import type { Room } from '@colyseus/sdk';
+import type { PlayerPresence } from '@pokecenter/shared';
 import type { JoinedRoom } from './RoomGateway.js';
 
 export interface LobbyGateway {
@@ -8,7 +9,7 @@ export interface LobbyGateway {
 
 export interface LobbyView {
   setBusy(busy: boolean): void;
-  showRoom(code: string, players: string[]): void;
+  showRoom(code: string, players: PlayerPresence[], localId: string): void;
   showMenu(message: string): void;
 }
 
@@ -40,9 +41,9 @@ export class LobbyController {
     try {
       const { code, room } = await connect();
       this.room = room;
-      this.view.showRoom(code, []);
-      room.onMessage('lobby:players', (players: string[]) => {
-        if (this.room === room) this.view.showRoom(code, players);
+      this.view.showRoom(code, [], room.sessionId);
+      room.onMessage('lobby:players', (players: PlayerPresence[]) => {
+        if (this.room === room) this.view.showRoom(code, players, room.sessionId);
       });
       room.onLeave(() => {
         if (this.room !== room) return;
