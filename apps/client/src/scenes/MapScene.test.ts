@@ -5,7 +5,7 @@ vi.mock('phaser', () => ({ default: { Scene: class {} } }));
 import { MapScene } from './MapScene.js';
 import type { SpriteManifest } from '../sprites/pmd.js';
 
-function setup(manifest?: SpriteManifest) {
+function setup(manifest?: SpriteManifest, mapArt = true) {
   const keyboardListeners = new Map<string, (event: KeyboardEvent) => void>();
   const windowListeners = new Map<string, () => void>();
   const documentListeners = new Map<string, () => void>();
@@ -32,6 +32,7 @@ function setup(manifest?: SpriteManifest) {
   const rectangle = vi.fn(() => ({ setStrokeStyle: vi.fn().mockReturnThis(),
     setVisible: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(),
     setPosition: vi.fn().mockReturnThis() }));
+  const image = vi.fn(() => ({ setDepth: vi.fn().mockReturnThis() }));
   const sprite = vi.fn((x: number, y: number, key: string) => ({ x, y, key,
     setOrigin: vi.fn().mockReturnThis(),
     setScale: vi.fn().mockReturnThis(), play: vi.fn().mockReturnThis(),
@@ -45,12 +46,13 @@ function setup(manifest?: SpriteManifest) {
   const scene = new MapScene();
   let onLoadComplete = () => {};
   Object.assign(scene, {
-    add: { graphics: vi.fn(() => graphics), text, rectangle, container, sprite },
+    add: { graphics: vi.fn(() => graphics), image, text, rectangle, container, sprite },
     cache: { json: { get: vi.fn(() => manifest) } },
-    load: { spritesheet: vi.fn(), once: vi.fn((_event: string, callback: () => void) => {
+    load: { image: vi.fn(), json: vi.fn(), spritesheet: vi.fn(),
+      once: vi.fn((_event: string, callback: () => void) => {
       onLoadComplete = callback;
     }), start: vi.fn(() => onLoadComplete()) },
-    textures: { exists: vi.fn(() => true) },
+    textures: { exists: vi.fn((key: string) => key === 'center-map' ? mapArt : true) },
     anims: { create: vi.fn(), exists: vi.fn(() => true) },
     input: { keyboard: {
       on: vi.fn((type: string, listener: (event: KeyboardEvent) => void) => keyboardListeners.set(type, listener)),
@@ -59,8 +61,9 @@ function setup(manifest?: SpriteManifest) {
     events: { once: vi.fn() },
     sys: { isActive: () => true },
   });
+  scene.preload();
   scene.create();
-  return { scene, text, container, containers, sprite, keyboardListeners, windowListeners,
+  return { scene, image, graphics, text, container, containers, sprite, keyboardListeners, windowListeners,
     documentListeners, InputElement };
 }
 
@@ -167,8 +170,10 @@ describe('MapScene', () => {
     expect(interact).toHaveBeenCalledWith({ targetId: 'medicine:apply:reception:0',
       expectedOccupantId: 'patient-1' });
   });
-  it('renders the provisional stations and distinct avatars for the room roster', () => {
-    const { scene, text, container } = setup();
+  it('renders original center art with distinct PMD avatars', () => {
+    const { scene, image, text, container } = setup();
+    expect(image).toHaveBeenCalledWith(480, 270, 'center-map');
+    expect(text).toHaveBeenCalledWith(26, 16, 'POKÉCENTER PANIC  /  CENTER 01', expect.any(Object));
     expect(text).toHaveBeenCalledWith(92, 97, 'RECEPTION  ·  4 SLOTS', expect.any(Object));
     expect(text).toHaveBeenCalledWith(733, 223, 'HEALING 02', expect.any(Object));
 
@@ -178,6 +183,13 @@ describe('MapScene', () => {
     expect(container.mock.calls[1]?.slice(0, 2)).toEqual([504, 422]);
     expect(text).toHaveBeenCalledWith(0, -31, 'Red', expect.any(Object));
     expect(text).toHaveBeenCalledWith(0, -31, 'Blue', expect.any(Object));
+  });
+  it('uses the provisional geometry if the original map texture is unavailable', () => {
+    const { image, graphics, text } = setup(undefined, false);
+    expect(image).not.toHaveBeenCalled();
+    expect(graphics.fillRect).toHaveBeenCalledWith(0, 0, 960, 540);
+    expect(text).toHaveBeenCalledWith(26, 16, 'POKÉCENTER PANIC  /  PROTOTYPE MAP',
+      expect.any(Object));
   });
 
   it('sends local input and renders server positions for both avatars', () => {

@@ -1,0 +1,24 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { MAP_OBSTACLES } from '@pokecenter/shared';
+import { pngDimensions } from '../sprites/pmd.js';
+
+const source = readFileSync(new URL('../../../../art/source/center-map.svg', import.meta.url), 'utf8');
+const texture = readFileSync(new URL('../../public/assets/original/center-map.png', import.meta.url));
+
+describe('original center environment art', () => {
+  it('exports one texture at the fixed map resolution', () => {
+    expect(pngDimensions(texture)).toEqual({ width: 960, height: 540 });
+  });
+
+  it('keeps station art bounds aligned with the server collision geometry', () => {
+    const matches = [...source.matchAll(/<rect data-obstacle="(\d+)" x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)"/g)];
+    expect(matches).toHaveLength(MAP_OBSTACLES.length);
+    for (const [index, obstacle] of MAP_OBSTACLES.entries()) {
+      const match = matches[index]!;
+      expect(Number(match[1])).toBe(index);
+      expect([Number(match[2]), Number(match[3]), Number(match[4]), Number(match[5])])
+        .toEqual([obstacle.x, obstacle.y, obstacle.width, obstacle.height]);
+    }
+  });
+});

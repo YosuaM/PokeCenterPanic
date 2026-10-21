@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540" role="img" aria-labelledby="title description" shape-rendering="crispEdges">
   <title id="title">PokéCenter Panic visual scale pilot</title>
-  <desc id="description">Original pixel-style study of the center map, one staff member, one patient, a healing station, medicine preparation, and a readable HUD. Character silhouettes are placeholders.</desc>
+  <desc id="description">Original pixel-style study of the center map and interface. Dashed boxes reserve positions for PMD player and patient sprites loaded separately by the game.</desc>
   <defs>
     <pattern id="floor" width="48" height="48" patternUnits="userSpaceOnUse">
       <rect width="48" height="48" fill="#c6dbcf"/>
@@ -125,25 +125,11 @@
   <path d="M745 416h125v28H745z" fill="#d8ebe0"/>
   <text x="755" y="435" fill="#426e68" font-family="monospace" font-size="12" font-weight="bold">QUEUE: 00</text>
 
-  <!-- Original placeholder patient and player silhouettes -->
-  <path d="M168 170h30v6h-30z" fill="#3e5b64" opacity=".55"/>
-  <path d="M170 139h8v-8h8v8h8v6h4v18h-4v6h-24v-6h-4v-18h4z" fill="#dca061"/>
-  <path d="M174 144h20v14h-20z" fill="#f5c98a"/>
-  <path d="M177 149h3v3h-3zM188 149h3v3h-3z" fill="#334958"/>
-  <path d="M177 158h14v3h-14z" fill="#a95f59"/>
-  <path d="M155 183h96v22h-96z" fill="#143247"/>
-  <text x="164" y="199" fill="#fff5df" font-family="monospace" font-size="11" font-weight="bold">PATIENT 01</text>
-  <path d="M468 359h36v6h-36z" fill="#48696b" opacity=".5"/>
-  <path d="M470 320h32v12h-32z" fill="#e8ede0"/>
-  <path d="M466 327h40v8h-40z" fill="#f7f0de"/>
-  <path d="M470 335h32v25h-32z" fill="#74b7aa"/>
-  <path d="M476 340h20v15h-20z" fill="#b6dbc3"/>
-  <path d="M479 325h4v4h-4zM489 325h4v4h-4z" fill="#344e5b"/>
-  <path d="M483 343h6v2h-2v2h-2v-2h-2z" fill="#f2f0db"/>
-  <path d="M476 358h8v6h-8zM488 358h8v6h-8z" fill="#345869"/>
-  <path d="M459 375h64v22h-64z" fill="#163449"/>
-  <text x="466" y="391" fill="#fff5df" font-family="monospace" font-size="11" font-weight="bold">#1 STAFF</text>
-  <path d="M458 326h56v43h-56z" fill="none" stroke="#f5d074" stroke-width="2" stroke-dasharray="6 3"/>
+  <!-- PMD sprite placement guides; no character artwork is embedded. -->
+  <path d="M158 128h48v48h-48zM458 326h56v43h-56z" fill="none" stroke="#f5d074" stroke-width="2" stroke-dasharray="6 3"/>
+  <path d="M153 183h107v22H153zM454 375h74v22h-74z" fill="#163449"/>
+  <text x="161" y="199" fill="#fff5df" font-family="monospace" font-size="11" font-weight="bold">PMD PATIENT</text>
+  <text x="463" y="391" fill="#fff5df" font-family="monospace" font-size="11" font-weight="bold">PMD STAFF</text>
   <path d="M516 327h29v24h-29z" fill="#f5d074"/>
   <text x="527" y="343" fill="#18394b" font-family="monospace" font-size="14" font-weight="bold">E</text>
 

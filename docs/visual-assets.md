@@ -1,12 +1,14 @@
 # MVP visual assets
 
-This is the working art guide for the first Pokémon Center. The [editable visual pilot](visual-pilot.svg) is an original, self-contained composition used to evaluate scale, palette, station recognition, and HUD density at the minimum 1280 × 720 viewport. Its two character silhouettes are placeholders, not Pokémon art or production sprites.
+This is the working art guide for the first Pokémon Center. The [editable visual pilot](visual-pilot.svg) is an original, self-contained composition used to evaluate scale, palette, station recognition, and HUD density at the minimum 1280 × 720 viewport. Its dashed boxes mark positions for PMD sprites; the pilot contains no character artwork.
 
 ![Visual pilot at 1280 × 720](visual-pilot.png)
 
 ## Baseline and scale
 
-The current game uses a fixed 960 × 540 world, a 48-pixel logical tile, `Phaser.Scale.FIT`, and `pixelArt: true`. Keep those world dimensions for the first art integration so the shared movement geometry and interaction points continue to agree. The pilot has been rendered at 1280 × 720; final browser validation must still include actual PMD sprites, Chrome and Firefox, and a complete round.
+The current game uses a fixed 960 × 540 world, a 48-pixel logical tile, `Phaser.Scale.FIT`, and `pixelArt: true`. Keep those world dimensions for the first art integration so the shared movement geometry and interaction points continue to agree. The pilot has been rendered at 1280 × 720; final browser validation must still include all PMD sprites, Chrome and Firefox, and a complete round.
+
+Character sprites come from the existing PMD importer and its ignored local cache. We create the scenario art ourselves. The first editable environment source is [`art/source/center-map.svg`](../art/source/center-map.svg); its 960 × 540 runtime export is [`apps/client/public/assets/original/center-map.png`](../apps/client/public/assets/original/center-map.png). `MapScene` draws that original map, then overlays the imported PMD characters and live game state. PMD source rights and credits still require review before a public build.
 
 PMD frame sizes in the locally generated manifest are not uniform:
 
@@ -53,7 +55,7 @@ The pilot palette uses dark navy `#0a1c2e` for HUD panels, deep teal `#345e68` f
 ## Visual checks
 
 - **Pilot completed:** the SVG renders at 1280 × 720 with readable station labels, patient need icons, target prompt, and HUD without hiding the room.
-- **Native-scale spot check completed:** a local round at 1280 × 720 showed Chansey staff and an injured Pikachu patient with readable names and crisp sprites. Their texture scale is 1×. The runtime screenshot stays local because it contains third-party character art.
+- **Native-scale integration check completed:** a local round at 1280 × 720 showed the original center map with PMD Chansey staff and a PMD Pikachu patient. Their names remained readable and their texture scale is 1×. The runtime screenshot stays local because it contains third-party character art.
 - **Next integration check:** compare all native-size PMD frames in the actual Phaser scene, including Eevee's 40-pixel Walk frame. Check carriage, overlaps, and the fixed-camera viewport for every selectable character.
 - **Release check:** complete the muted Chrome/Firefox walkthrough at 1280 × 720 required by `docs/specification.md` AC-21, and verify credits and distribution rights before a public build.
 

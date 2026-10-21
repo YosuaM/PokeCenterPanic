@@ -56,6 +56,7 @@ export class MapScene extends Phaser.Scene {
   private interactHeld = false;
   private spriteManifest: SpriteManifest | null = null;
   private spritesReady = false;
+  private mapArtLoaded = false;
   private gameplayActive = true;
 
   constructor() {
@@ -63,6 +64,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   preload(): void {
+    this.load.image('center-map', '/assets/original/center-map.png');
     this.load.json('pmd-manifest', '/assets/external/pmd/manifest.json');
   }
 
@@ -555,16 +557,22 @@ export class MapScene extends Phaser.Scene {
   }
 
   private drawMap(): void {
-    const floor = this.add.graphics();
-    floor.fillStyle(0x284656).fillRect(0, 0, 960, 540);
-    floor.fillStyle(0x527e83).fillRect(48, 56, 864, 432);
-    floor.fillStyle(0x7faeab).fillRect(58, 66, 844, 412);
-    floor.lineStyle(1, 0x6b9c99, 0.55);
-    for (let x = 58; x <= 902; x += TILE_SIZE) floor.lineBetween(x, 66, x, 478);
-    for (let y = 66; y <= 478; y += TILE_SIZE) floor.lineBetween(58, y, 902, y);
-    floor.fillStyle(0x2c5e67).fillRect(382, 478, 196, 10);
+    this.mapArtLoaded = this.textures.exists('center-map');
+    if (this.mapArtLoaded) {
+      this.add.image(480, 270, 'center-map').setDepth(-1);
+    } else {
+      const floor = this.add.graphics();
+      floor.fillStyle(0x284656).fillRect(0, 0, 960, 540);
+      floor.fillStyle(0x527e83).fillRect(48, 56, 864, 432);
+      floor.fillStyle(0x7faeab).fillRect(58, 66, 844, 412);
+      floor.lineStyle(1, 0x6b9c99, 0.55);
+      for (let x = 58; x <= 902; x += TILE_SIZE) floor.lineBetween(x, 66, x, 478);
+      for (let y = 66; y <= 478; y += TILE_SIZE) floor.lineBetween(58, y, 902, y);
+      floor.fillStyle(0x2c5e67).fillRect(382, 478, 196, 10);
+    }
 
-    this.add.text(26, 16, 'POKÉCENTER PANIC  /  PROTOTYPE MAP', {
+    this.add.text(26, 16, this.mapArtLoaded ? 'POKÉCENTER PANIC  /  CENTER 01' :
+      'POKÉCENTER PANIC  /  PROTOTYPE MAP', {
       color: '#f8eac8', fontFamily: 'monospace', fontSize: '17px', fontStyle: 'bold',
     });
     this.add.text(26, 505, 'MOVE: WASD / ARROWS   •   FOUR DIRECTIONS   •   3 TILES / SECOND', {
@@ -573,8 +581,10 @@ export class MapScene extends Phaser.Scene {
 
     this.station(MAP_OBSTACLES[0]!, 0xd8a67e, 'RECEPTION  ·  4 SLOTS');
     for (let x = 177; x <= 753; x += 192) this.slot(x, 138, 1 + (x - 177) / 192);
-    this.add.rectangle(DISCHARGE_POSITION.x, DISCHARGE_POSITION.y, 58, 24, 0x9bd59d)
-      .setStrokeStyle(2, 0x426b4f);
+    if (!this.mapArtLoaded) {
+      this.add.rectangle(DISCHARGE_POSITION.x, DISCHARGE_POSITION.y, 58, 24, 0x9bd59d)
+        .setStrokeStyle(2, 0x426b4f);
+    }
     this.add.text(DISCHARGE_POSITION.x, DISCHARGE_POSITION.y, 'OUT', {
       color: '#173440', fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -606,15 +616,19 @@ export class MapScene extends Phaser.Scene {
   }
 
   private station({ x, y, width, height }: MapObstacle, color: number, label: string): void {
-    this.add.rectangle(x + width / 2, y + height / 2, width, height, color)
-      .setStrokeStyle(3, 0x244653);
+    if (!this.mapArtLoaded) {
+      this.add.rectangle(x + width / 2, y + height / 2, width, height, color)
+        .setStrokeStyle(3, 0x244653);
+    }
     this.add.text(x + 10, y + 9, label, {
       color: '#173440', fontFamily: 'monospace', fontSize: '13px', fontStyle: 'bold',
     });
   }
 
   private slot(x: number, y: number, number: number): void {
-    this.add.rectangle(x, y, 42, 22, 0xf4d9b5).setStrokeStyle(2, 0x7e5948);
+    if (!this.mapArtLoaded) {
+      this.add.rectangle(x, y, 42, 22, 0xf4d9b5).setStrokeStyle(2, 0x7e5948);
+    }
     this.add.text(x, y, String(number), {
       color: '#583e37', fontFamily: 'monospace', fontSize: '12px',
     }).setOrigin(0.5);

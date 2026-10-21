@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540" shape-rendering="crispEdges">
+  <title>PokéCenter Panic original center environment</title>
+  <desc>Original map artwork with reception, healing machines, medicine workbench, waiting beds, recovery area, and discharge point. Character sprites are loaded separately from PMD Collab.</desc>
+  <defs>
+    <pattern id="floor" width="48" height="48" patternUnits="userSpaceOnUse">
+      <rect width="48" height="48" fill="#c6dbcf"/>
+      <path d="M0 0H48V48" fill="none" stroke="#aacbbf" stroke-width="2"/>
+      <path d="M6 8h6v2H6zM34 32h4v2h-4z" fill="#b2d0c1"/>
+    </pattern>
+    <g id="arrival-bed">
+      <rect x="0" y="3" width="42" height="22" fill="#6b9693"/>
+      <rect x="3" y="0" width="36" height="22" fill="#f1e6cf"/>
+      <rect x="6" y="3" width="30" height="7" fill="#a9c9bf"/>
+      <rect x="6" y="13" width="30" height="6" fill="#e3ceae"/>
+    </g>
+    <g id="medicine-surface">
+      <rect width="42" height="22" fill="#658783"/>
+      <rect x="3" y="2" width="36" height="17" fill="#e4d8be"/>
+      <rect x="7" y="5" width="28" height="11" fill="#f3e9cf"/>
+    </g>
+    <g id="medical-cross" fill="#f4f0df">
+      <path d="M5 0h6v5h5v6h-5v5H5v-5H0V5h5z"/>
+    </g>
+  </defs>
+
+  <rect width="960" height="540" fill="#122b3d"/>
+  <rect width="960" height="56" fill="#0a1c2e"/>
+  <rect y="52" width="960" height="4" fill="#476f76"/>
+  <rect x="48" y="56" width="864" height="432" fill="#345e68"/>
+  <rect x="58" y="66" width="844" height="412" fill="url(#floor)"/>
+  <rect x="48" y="56" width="864" height="8" fill="#527d80"/>
+  <rect x="48" y="480" width="864" height="8" fill="#1e4857"/>
+  <rect x="382" y="478" width="196" height="10" fill="#d9b07e"/>
+  <rect x="398" y="482" width="164" height="6" fill="#f4dfb3"/>
+  <rect y="488" width="960" height="52" fill="#0a1c2e"/>
+  <rect y="488" width="960" height="4" fill="#476f76"/>
+
+  <!-- The six data-obstacle rectangles must match the shared collision geometry. -->
+  <rect data-obstacle="0" x="82" y="88" width="796" height="68" fill="#8e6055"/>
+  <rect x="82" y="88" width="796" height="11" fill="#e5b88b"/>
+  <rect x="88" y="99" width="784" height="47" fill="#f2d3a1"/>
+  <rect x="82" y="146" width="796" height="10" fill="#a9715e"/>
+  <rect x="82" y="153" width="796" height="3" fill="#624750"/>
+  <use href="#arrival-bed" x="156" y="126"/>
+  <use href="#arrival-bed" x="348" y="126"/>
+  <use href="#arrival-bed" x="540" y="126"/>
+  <use href="#arrival-bed" x="732" y="126"/>
+  <rect x="811" y="126" width="58" height="24" fill="#497c69"/>
+  <rect x="815" y="130" width="50" height="16" fill="#c8e5b7"/>
+
+  <rect data-obstacle="1" x="82" y="214" width="155" height="117" fill="#31536b"/>
+  <rect x="88" y="220" width="143" height="105" fill="#729fb4"/>
+  <rect x="94" y="226" width="131" height="93" fill="#a8d0ce"/>
+  <rect x="104" y="267" width="55" height="42" fill="#ecf1d9"/>
+  <rect x="109" y="272" width="45" height="11" fill="#9cc8d5"/>
+  <rect x="109" y="286" width="45" height="18" fill="#d7e9db"/>
+  <rect x="170" y="268" width="43" height="31" fill="#447786"/>
+  <rect x="175" y="273" width="33" height="21" fill="#d6eee0"/>
+  <rect x="170" y="302" width="43" height="7" fill="#294e64"/>
+  <use href="#medical-cross" x="188" y="232"/>
+  <rect x="82" y="327" width="155" height="4" fill="#183f50"/>
+
+  <rect data-obstacle="2" x="723" y="214" width="155" height="117" fill="#31536b"/>
+  <rect x="729" y="220" width="143" height="105" fill="#729fb4"/>
+  <rect x="735" y="226" width="131" height="93" fill="#a8d0ce"/>
+  <rect x="745" y="267" width="55" height="42" fill="#ecf1d9"/>
+  <rect x="750" y="272" width="45" height="11" fill="#9cc8d5"/>
+  <rect x="750" y="286" width="45" height="18" fill="#d7e9db"/>
+  <rect x="811" y="268" width="43" height="31" fill="#447786"/>
+  <rect x="816" y="273" width="33" height="21" fill="#d6eee0"/>
+  <rect x="811" y="302" width="43" height="7" fill="#294e64"/>
+  <use href="#medical-cross" x="829" y="232"/>
+  <rect x="723" y="327" width="155" height="4" fill="#183f50"/>
+
+  <rect data-obstacle="3" x="342" y="204" width="276" height="102" fill="#684d55"/>
+  <rect x="348" y="210" width="264" height="87" fill="#dcae80"/>
+  <rect x="354" y="216" width="252" height="75" fill="#f2d3a1"/>
+  <rect x="365" y="245" width="102" height="41" fill="#8bb8ac"/>
+  <rect x="370" y="250" width="92" height="31" fill="#cce5c7"/>
+  <rect x="493" y="245" width="102" height="41" fill="#8bb8ac"/>
+  <rect x="498" y="250" width="92" height="31" fill="#cce5c7"/>
+  <path d="M385 255h8v4h-2v4h4v14h-12v-14h4v-4h-2z" fill="#4d6983"/>
+  <rect x="385" y="266" width="8" height="8" fill="#e8f1e2"/>
+  <path d="M517 255h8v4h-2v4h4v14h-12v-14h4v-4h-2z" fill="#4d6983"/>
+  <rect x="517" y="266" width="8" height="8" fill="#e8f1e2"/>
+  <rect x="342" y="297" width="276" height="9" fill="#9d6c5c"/>
+
+  <use href="#medicine-surface" x="369" y="354"/>
+  <use href="#medicine-surface" x="429" y="354"/>
+  <use href="#medicine-surface" x="489" y="354"/>
+  <use href="#medicine-surface" x="549" y="354"/>
+
+  <rect data-obstacle="4" x="82" y="393" width="240" height="76" fill="#695b75"/>
+  <rect x="88" y="399" width="228" height="64" fill="#bbaec5"/>
+  <use href="#arrival-bed" x="109" y="414"/>
+  <use href="#arrival-bed" x="163" y="414"/>
+  <use href="#arrival-bed" x="217" y="414"/>
+  <use href="#arrival-bed" x="271" y="414"/>
+
+  <rect data-obstacle="5" x="638" y="393" width="240" height="76" fill="#3d6c69"/>
+  <rect x="644" y="399" width="228" height="64" fill="#a4cbbb"/>
+  <rect x="734" y="414" width="100" height="28" fill="#d8ebe0"/>
+  <rect x="742" y="420" width="84" height="16" fill="#bbdcd0"/>
+</svg>

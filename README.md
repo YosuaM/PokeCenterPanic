@@ -2,7 +2,7 @@
 
 PokéCenter Panic is a noncommercial cooperative browser game in development. The [functional and technical specification](docs/specification.md) describes the planned MVP.
 
-The [MVP visual asset guide](docs/visual-assets.md) includes the original scene pilot, asset inventory, and scale decisions for the first Pokémon Center.
+The [MVP visual asset guide](docs/visual-assets.md) covers the original center environment, PMD character sprites, asset inventory, and scale decisions.
 
 ## Development
 
@@ -21,7 +21,7 @@ The client opens at `http://127.0.0.1:5173`; Colyseus listens on port `2567` by 
 
 Enter a player name and select **Create room**. Share the displayed six-character code; up to three others can join from separate browser sessions. Codes are case-insensitive. Choose a Pokémon, mark yourself ready, and have the host select **Start game** once everyone is ready. A three-second countdown leads into the patient-care prototype. Rooms default to four seats; set `ROOM_CAPACITY=1`, `2`, or `3` before starting the server to test a smaller room. Invalid codes and full rooms show distinct errors. An interrupted connection reserves its seat for 30 seconds; the same tab retries automatically, and a reload can restore the seat from that tab's session. **Leave room** releases the seat immediately. An empty room closes after 60 seconds without a connected player. Rooms are held in memory and disappear when the server restarts.
 
-The provisional map shows every connected player. Move your own character with WASD or the arrow keys; the most recently pressed direction wins, with no diagonal movement. The server validates movement against map boundaries and solid stations, then synchronizes positions to all players. Movement stops when the browser loses focus or input becomes stale. Players can pass through one another.
+The original center map shows every connected player. Move your own character with WASD or the arrow keys; the most recently pressed direction wins, with no diagonal movement. The server validates movement against map boundaries and solid stations, then synchronizes positions to all players. Movement stops when the browser loses focus or input becomes stale. Players can pass through one another.
 
 To render PMD sprites locally, run `npm run assets:pmd` before starting the client. This fills a Git-ignored cache for the six patient species and four player characters. The game uses provisional markers if the cache is absent. See [external sprite sources and credits](docs/asset-sources.md) for terms and attribution; do not commit downloaded assets.
 
