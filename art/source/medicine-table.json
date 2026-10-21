@@ -1,0 +1,43 @@
+{
+  "id": "medicine-table",
+  "source": "art/source/medicine-table.blend",
+  "runtime": "apps/client/public/assets/original/models/medicine-table.glb",
+  "preview": "art/previews/medicine-table.png",
+  "status": "integrated-3d-runtime",
+  "origin": "original-project-geometry",
+  "externalResources": [],
+  "blenderVersion": "5.2.2 LTS",
+  "editableMeshes": 83,
+  "mapTilePixels": 48,
+  "root": "MedicineTable",
+  "runtimeUpAxis": "+Y",
+  "runtimeFrontAxis": "+Z",
+  "originPlacement": "ground-center",
+  "worktopHeight": 0.66,
+  "runtimeBounds": {
+    "min": [
+      -2.84,
+      0,
+      -1.04
+    ],
+    "max": [
+      2.84,
+      1.19,
+      1.046
+    ]
+  },
+  "runtimeMeshes": 11,
+  "runtimeMaterials": 11,
+  "runtimeTriangles": 10372,
+  "runtimeBytes": 404012,
+  "interactionAnchors": [
+    "BurnHealAnchor",
+    "AntidoteAnchor",
+    "DisposalAnchor"
+  ],
+  "exportNotes": "Evaluated bevels and normals; grouped by material; selected hierarchy in active scene only. No external textures, fonts, lights, cameras or studio. Anchors align with shared interaction X coordinates at the front edge; gameplay points remain unchanged.",
+  "stateNodes": [
+    "BurnHealGlow",
+    "AntidoteGlow"
+  ]
+}

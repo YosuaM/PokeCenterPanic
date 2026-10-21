@@ -1,0 +1,42 @@
+{
+  "id": "recovery-area",
+  "source": "art/source/recovery-area.blend",
+  "runtime": "apps/client/public/assets/original/models/recovery-area.glb",
+  "preview": "art/previews/recovery-area.png",
+  "status": "integrated-3d-runtime",
+  "origin": "original-project-geometry",
+  "externalResources": [],
+  "blenderVersion": "5.2.2 LTS",
+  "editableMeshes": 43,
+  "mapTilePixels": 48,
+  "root": "RecoveryArea",
+  "runtimeUpAxis": "+Y",
+  "runtimeFrontAxis": "+Z",
+  "originPlacement": "shared-obstacle-ground-center",
+  "patientSurfaceHeight": 0.57,
+  "runtimeBounds": {
+    "min": [
+      -2.305,
+      0,
+      -0.715
+    ],
+    "max": [
+      2.29,
+      1.18,
+      0.742
+    ]
+  },
+  "runtimeMeshes": 11,
+  "runtimeMaterials": 11,
+  "runtimeTriangles": 4116,
+  "runtimeBytes": 155404,
+  "patientAnchors": [
+    "RecoveryAnchor"
+  ],
+  "exportNotes": "One recovery bed for the front of the existing queue. Original geometry and solid materials; evaluated bevels, grouped by material. Active scene selected hierarchy only; no studio, external textures, fonts or animation.",
+  "stateNodes": [
+    "StatusGlow",
+    "ScreenTrace",
+    "ReadyMark"
+  ]
+}

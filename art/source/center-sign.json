@@ -1,0 +1,39 @@
+{
+  "id": "center-sign",
+  "source": "art/source/center-sign.blend",
+  "runtime": "apps/client/public/assets/original/models/center-sign.glb",
+  "preview": "art/previews/center-sign.png",
+  "status": "integrated-3d-runtime",
+  "origin": "original-project-geometry",
+  "externalResources": [],
+  "blenderVersion": "5.2.2 LTS",
+  "editableMeshes": 39,
+  "root": "CenterSign",
+  "runtimeUpAxis": "+Y",
+  "runtimeFrontAxis": "+Z",
+  "originPlacement": "mounting-feet-bottom-center",
+  "runtimeMeshes": 7,
+  "runtimeMaterials": 7,
+  "runtimeTriangles": 4884,
+  "runtimeBytes": 181932,
+  "anchors": [
+    "SignMountAnchor"
+  ],
+  "lightNodes": [
+    "StatusGlow",
+    "ScreenTrace"
+  ],
+  "exportNotes": "Original continuous geometric CENTER lettering and luminous medical badge; no fonts or textures. Geometry grouped by material. Studio excluded.",
+  "runtimeBounds": {
+    "min": [
+      -2.950000047683716,
+      0.0,
+      -0.25999999046325684
+    ],
+    "max": [
+      2.950000047683716,
+      1.2599999904632568,
+      0.3700000047683716
+    ]
+  }
+}

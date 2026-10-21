@@ -1,0 +1,27 @@
+{
+  "id": "healing-machine",
+  "source": "art/source/healing-machine.blend",
+  "runtime": "apps/client/public/assets/original/models/healing-machine.glb",
+  "preview": "art/previews/healing-machine.png",
+  "status": "integrated-3d-runtime",
+  "origin": "original-project-geometry",
+  "externalResources": [],
+  "blenderVersion": "5.2.2 LTS",
+  "unitsPerMapTile": 1,
+  "mapTilePixels": 48,
+  "root": "HealingMachine",
+  "runtimeUpAxis": "+Y",
+  "runtimeFrontAxis": "+Z",
+  "originPlacement": "ground-center",
+  "patientAnchor": { "node": "PatientAnchor", "position": [0, 0.66, 0] },
+  "runtimeBounds": {
+    "min": [-1.5725, 0, -1.17],
+    "max": [1.5725, 1.48, 1.205]
+  },
+  "runtimeMeshes": 10,
+  "runtimeMaterials": 10,
+  "runtimeTriangles": 14060,
+  "runtimeBytes": 455944,
+  "stateNodes": ["StatusGlow", "ScreenTrace"],
+  "exportNotes": "Evaluated bevels and normals; geometry joined by material; active scene and selected model only; no studio, cameras, lights, textures or animation."
+}

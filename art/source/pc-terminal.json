@@ -1,0 +1,45 @@
+{
+  "id": "pc-terminal",
+  "source": "art/source/pc-terminal.blend",
+  "runtime": "apps/client/public/assets/original/models/pc-terminal.glb",
+  "preview": "art/previews/pc-terminal.png",
+  "status": "integrated-3d-runtime",
+  "origin": "original-project-geometry",
+  "externalResources": [],
+  "blenderVersion": "5.2.2 LTS",
+  "editableMeshes": 48,
+  "root": "PcTerminal",
+  "runtimeUpAxis": "+Y",
+  "runtimeFrontAxis": "+Z",
+  "originPlacement": "desktop-base-center",
+  "runtimeMeshes": 14,
+  "runtimeMaterials": 14,
+  "runtimeTriangles": 5184,
+  "runtimeBytes": 186516,
+  "anchors": [
+    "PcDeskAnchor",
+    "PcScreenAnchor"
+  ],
+  "lightNodes": [
+    "StatusGlow",
+    "ScreenTrace",
+    "DataLine1",
+    "DataLine2",
+    "DataLine3",
+    "ProgressGlow",
+    "ReaderGlow"
+  ],
+  "exportNotes": "Original monitor, keyboard, reader, vents and illuminated screen symbols. No external fonts or textures; studio excluded. Independent data rows, progress bar and reader indicator for runtime processing animation.",
+  "runtimeBounds": {
+    "min": [
+      -0.48100000619888306,
+      0.0,
+      -0.4699999988079071
+    ],
+    "max": [
+      0.48100000619888306,
+      1.159999966621399,
+      0.49400001764297485
+    ]
+  }
+}
