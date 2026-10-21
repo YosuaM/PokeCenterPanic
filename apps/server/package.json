@@ -1,0 +1,19 @@
+{
+  "name": "@pokecenter/server",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@pokecenter/shared": "0.1.0",
+    "colyseus": "^0.18.9"
+  },
+  "devDependencies": {
+    "@colyseus/sdk": "^0.18.0"
+  }
+}
