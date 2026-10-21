@@ -12,6 +12,8 @@ export const TREATMENT = {
   antidote: 4,
 } as const;
 
+export const HEALING_DURATION_MS = 4_000;
+
 export interface PatientRecord {
   id: string;
   species: PatientSpecies;

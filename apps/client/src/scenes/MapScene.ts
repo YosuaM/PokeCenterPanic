@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import { DISCHARGE_INTERACTION_POINT, DISCHARGE_POSITION, HEALING_INTERACTION_POINT,
+import { DISCHARGE_INTERACTION_POINT, DISCHARGE_POSITION, HEALING_DURATION_MS, HEALING_INTERACTION_POINT,
   HEALING_MACHINE_POSITION, MAP_OBSTACLES, MEDICINE_DISPOSAL_POINT,
-  MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, RECOVERY_INTERACTION_POINT, RECOVERY_POSITION,
+  MEDICINE_PREPARATION_MS, MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS,
+  RECOVERY_INTERACTION_POINT, RECOVERY_POSITION,
   RECEPTION_INTERACTION_POINTS, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS, TILE_SIZE,
   TREATMENT, WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS, patientPresentation,
   selectInteractionTarget, type Direction, type HealingMachineSnapshot, type MedicineDoseRecord,
@@ -54,6 +55,10 @@ export class MapScene extends Phaser.Scene {
   private targetHighlight!: Phaser.GameObjects.Rectangle;
   private recoveryCount!: Phaser.GameObjects.Text;
   private machineStatusText!: Phaser.GameObjects.Text;
+  private healingTrack!: Phaser.GameObjects.Rectangle;
+  private healingFill!: Phaser.GameObjects.Rectangle;
+  private readonly preparationBars: Array<{ track: Phaser.GameObjects.Rectangle;
+    fill: Phaser.GameObjects.Rectangle }> = [];
   private dischargedCountText!: Phaser.GameObjects.Text;
   private healingMachine: HealingMachineSnapshot = { patientId: '', status: 'empty', remainingMs: 0 };
   private selectedTarget: InteractionTarget | null = null;
@@ -122,10 +127,24 @@ export class MapScene extends Phaser.Scene {
     this.machineStatusText = this.add.text(94, 252, '', {
       color: '#173440', fontFamily: 'monospace', fontSize: '12px',
     });
+    this.healingTrack = this.add.rectangle(94, 314, 125, 6, 0x355362)
+      .setOrigin(0, 0.5).setVisible(false);
+    this.healingFill = this.add.rectangle(94, 314, 125, 6, 0xb6db9d)
+      .setOrigin(0, 0.5).setVisible(false);
+    this.preparationBars.length = 0;
+    for (const point of MEDICINE_PREPARATION_POINTS) {
+      this.preparationBars.push({
+        track: this.add.rectangle(point.x - 30, 343, 60, 6, 0x355362)
+          .setOrigin(0, 0.5).setVisible(false),
+        fill: this.add.rectangle(point.x - 30, 343, 60, 6, 0xb6db9d)
+          .setOrigin(0, 0.5).setVisible(false),
+      });
+    }
     this.dischargedCountText = this.add.text(760, 505, '', {
       color: '#f8eac8', fontFamily: 'monospace', fontSize: '13px',
     });
     this.updateMachineText();
+    this.updatePreparationBars();
     this.dischargedCountText.setText('DISCHARGED: 0');
     this.renderPlayers();
     this.renderPatients();
@@ -187,6 +206,7 @@ export class MapScene extends Phaser.Scene {
     this.medicineRemainingMs = remainingMs;
     if (this.sys.isActive()) {
       this.renderMedicines();
+      this.updatePreparationBars();
       this.refreshInteraction();
     }
   }
@@ -617,6 +637,20 @@ export class MapScene extends Phaser.Scene {
     this.machineStatusText.setText(machine.status === 'treating' ?
       `${Math.ceil(machine.remainingMs / 1000)}s LEFT` :
       machine.status === 'completed' ? 'READY' : 'MACHINE EMPTY');
+    const treating = machine.status === 'treating';
+    const progress = treating ? 1 - Math.min(1, Math.max(0, machine.remainingMs / HEALING_DURATION_MS)) : 0;
+    this.healingTrack.setVisible(treating);
+    this.healingFill.setVisible(treating && progress > 0).setDisplaySize(125 * progress, 6);
+  }
+
+  private updatePreparationBars(): void {
+    for (const [index, bar] of this.preparationBars.entries()) {
+      const preparing = Boolean(this.medicineOwners[index]);
+      const progress = preparing ? 1 - Math.min(1, Math.max(0,
+        (this.medicineRemainingMs[index] ?? MEDICINE_PREPARATION_MS) / MEDICINE_PREPARATION_MS)) : 0;
+      bar.track.setVisible(preparing);
+      bar.fill.setVisible(preparing && progress > 0).setDisplaySize(60 * progress, 6);
+    }
   }
 
   private drawMap(): void {

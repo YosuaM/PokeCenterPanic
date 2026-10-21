@@ -1,5 +1,5 @@
 import {
-  DISCHARGE_INTERACTION_POINT, HEALING_INTERACTION_POINT, PATIENT_SPECIES,
+  DISCHARGE_INTERACTION_POINT, HEALING_DURATION_MS, HEALING_INTERACTION_POINT, PATIENT_SPECIES,
   RECOVERY_INTERACTION_POINT, RECEPTION_INTERACTION_POINTS,
   RECEPTION_SLOT_POSITIONS, TREATMENT, WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS,
   isInteractionReachable, isValidTreatmentSet, patientPresentation,
@@ -10,7 +10,6 @@ import { HealingMachineState, PatientState, type RoomState } from './RoomState.j
 
 const PROTOTYPE_PATIENCE_MS = 90_000;
 const MAX_ACTIVE_PATIENTS = 10;
-const HEALING_DURATION_MS = 4_000;
 
 function rejection(reason: string): PatientInteractionResult {
   return { ok: false, reason };

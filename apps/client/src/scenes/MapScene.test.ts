@@ -164,6 +164,25 @@ describe('MapScene', () => {
     expect(container).toHaveBeenCalledTimes(2);
     scene.setMedicines([], ['', '', '', ''], ['', ''], [0, 0]);
   });
+
+  it('shows synchronized healing and medicine preparation progress', () => {
+    const { scene, rectangle, text } = setup();
+    const healingFill = rectangle.mock.results.find((result) => result.value.x === 94 &&
+      result.value.y === 314 && result.value.color === 0xb6db9d)?.value;
+    const preparationFill = rectangle.mock.results.find((result) => result.value.x === 370 &&
+      result.value.y === 343 && result.value.color === 0xb6db9d)?.value;
+    scene.setHealingMachine({ patientId: 'patient', status: 'treating', remainingMs: 2_000 });
+    expect(healingFill?.setVisible).toHaveBeenLastCalledWith(true);
+    expect(healingFill?.setDisplaySize).toHaveBeenLastCalledWith(62.5, 6);
+    expect(text).toHaveBeenCalledWith(94, 252, '', expect.any(Object));
+    scene.setMedicines([], ['', '', '', ''], ['red', ''], [1_000, 0]);
+    expect(preparationFill?.setVisible).toHaveBeenLastCalledWith(true);
+    expect(preparationFill?.setDisplaySize).toHaveBeenLastCalledWith(30, 6);
+    scene.setHealingMachine({ patientId: 'patient', status: 'completed', remainingMs: 0 });
+    scene.setMedicines([], ['', '', '', ''], ['', ''], [0, 0]);
+    expect(healingFill?.setVisible).toHaveBeenLastCalledWith(false);
+    expect(preparationFill?.setVisible).toHaveBeenLastCalledWith(false);
+  });
   it('targets a stationary patient for medicine and shows the pending condition', () => {
     const { scene, keyboardListeners, text } = setup();
     const interact = vi.fn();

@@ -12,7 +12,7 @@ Character sprites come from the existing PMD importer and its ignored local cach
 
 The carried-patient stretcher and generic medicine bottle also have original SVG sources in [`art/source`](../art/source) and matching PNG exports in [`apps/client/public/assets/original`](../apps/client/public/assets/original). The bottle uses a visible B or A condition mark, so its identity does not depend on color. Both are composited with the PMD sprites at native pixel size.
 
-The original HUD icons represent injury healing, burn, poison, completed treatment, and discharge readiness. The focused or carried patient's checklist names every required treatment as `TODO` or `DONE` and explicitly says `ANY ORDER`. A labeled patience percentage and bar share the bottom HUD. The HUD does not hide the fixed map; icon shapes and text convey state without relying on color or sound.
+The original HUD icons represent injury healing, burn, poison, completed treatment, and discharge readiness. The focused or carried patient's checklist names every required treatment as `TODO` or `DONE` and explicitly says `ANY ORDER`. A labeled patience percentage and bar share the bottom HUD. Healing and medicine preparation also show progress bars beside their stations, synchronized with server timers. The HUD does not hide the fixed map; icon shapes and text convey state without relying on color or sound.
 
 On macOS, run `npm run assets:original` after editing the SVGs. The exporter uses the marked floor and fixture sections in `center-map.svg` to regenerate both runtime layers and the composite preview. The asset test checks that every tracked PNG matches its source.
 
