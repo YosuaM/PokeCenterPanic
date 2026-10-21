@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
-import { MAP_OBSTACLES, RECOVERY_INTERACTION_POINT, RECOVERY_POSITION,
+import { DISCHARGE_INTERACTION_POINT, DISCHARGE_POSITION, HEALING_INTERACTION_POINT,
+  HEALING_MACHINE_POSITION, MAP_OBSTACLES, RECOVERY_INTERACTION_POINT, RECOVERY_POSITION,
   RECEPTION_INTERACTION_POINTS, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS, TILE_SIZE,
-  WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS, patientPresentation, selectInteractionTarget,
-  type Direction, type InteractionTarget, type MapObstacle, type PatientInteractionRequest,
+  TREATMENT, WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS, patientPresentation,
+  selectInteractionTarget, type Direction, type HealingMachineSnapshot,
+  type InteractionTarget, type MapObstacle, type PatientInteractionRequest,
   type PatientInteractionResult, type PatientRecord, type PlayerPosition, type PlayerPresence, type Point } from '@pokecenter/shared';
 import { MovementInput } from './movement.js';
 const PLAYER_COLORS = [0x4cc9c0, 0xf29c75, 0xb2a0f7, 0xf5ce69];
@@ -31,6 +33,9 @@ export class MapScene extends Phaser.Scene {
   private interactionHint!: Phaser.GameObjects.Text;
   private targetHighlight!: Phaser.GameObjects.Rectangle;
   private recoveryCount!: Phaser.GameObjects.Text;
+  private machineStatusText!: Phaser.GameObjects.Text;
+  private dischargedCountText!: Phaser.GameObjects.Text;
+  private healingMachine: HealingMachineSnapshot = { patientId: '', status: 'empty', remainingMs: 0 };
   private selectedTarget: InteractionTarget | null = null;
   private interactionFeedback = '';
   private lastSentAt = -Infinity;
@@ -51,6 +56,14 @@ export class MapScene extends Phaser.Scene {
     this.recoveryCount = this.add.text(650, 423, '', {
       color: '#173440', fontFamily: 'monospace', fontSize: '12px',
     });
+    this.machineStatusText = this.add.text(94, 252, '', {
+      color: '#173440', fontFamily: 'monospace', fontSize: '12px',
+    });
+    this.dischargedCountText = this.add.text(760, 505, '', {
+      color: '#f8eac8', fontFamily: 'monospace', fontSize: '13px',
+    });
+    this.updateMachineText();
+    this.dischargedCountText.setText('DISCHARGED: 0');
     this.renderPlayers();
     this.renderPatients();
     this.input.keyboard?.on('keydown', this.onKeyDown, this);
@@ -111,6 +124,18 @@ export class MapScene extends Phaser.Scene {
   setInteractionResult(result: PatientInteractionResult): void {
     this.interactionFeedback = result.ok ? '' : result.reason;
     this.refreshInteraction();
+  }
+
+  setHealingMachine(machine: HealingMachineSnapshot): void {
+    this.healingMachine = machine;
+    if (this.sys.isActive()) {
+      this.updateMachineText();
+      this.refreshInteraction();
+    }
+  }
+
+  setDischargedCount(count: number): void {
+    if (this.sys.isActive()) this.dischargedCountText.setText(`DISCHARGED: ${count}`);
   }
 
   setAuthoritativePositions(positions: PlayerPosition[]): void {
@@ -227,6 +252,7 @@ export class MapScene extends Phaser.Scene {
       const position = patient.location === 'reception' ? RECEPTION_SLOT_POSITIONS[patient.slotIndex] :
         patient.location === 'waiting' ? WAITING_SLOT_POSITIONS[patient.slotIndex] :
           patient.location === 'recovery' && patient.slotIndex === 0 ? RECOVERY_POSITION :
+            patient.location === 'healingMachine' ? HEALING_MACHINE_POSITION :
             patient.location === 'carrier' ? this.avatars.get(patient.carrierId)?.position : undefined;
       if (!position) continue;
       visible.add(patient.id);
@@ -282,6 +308,19 @@ export class MapScene extends Phaser.Scene {
         expectedOccupantId: front?.id ?? '',
         label: local.carriedPatientId ? 'Recovery is pickup only' :
           front ? `Pick up ${front.species}` : 'Recovery empty' });
+      const carried = this.patients.find((patient) => patient.id === local.carriedPatientId);
+      const machinePatient = this.patients.find((patient) => patient.id === this.healingMachine.patientId);
+      const machineLabel = local.carriedPatientId ? this.healingMachine.patientId ? 'Machine occupied' :
+        carried && (carried.requiredTreatments & TREATMENT.healing) &&
+          !(carried.completedTreatments & TREATMENT.healing) ? 'Place in healing machine' : 'Healing not needed' :
+        this.healingMachine.status === 'completed' && machinePatient ? `Pick up ${machinePatient.species}` :
+          this.healingMachine.status === 'treating' ? 'Treatment in progress' : 'Machine empty';
+      targets.push({ id: 'healing:0', position: HEALING_INTERACTION_POINT,
+        expectedOccupantId: this.healingMachine.patientId, label: machineLabel });
+      targets.push({ id: 'discharge', position: DISCHARGE_INTERACTION_POINT,
+        expectedOccupantId: carried?.id ?? '',
+        label: carried ? patientPresentation(carried).readyForDischarge ? 'Discharge patient' :
+          'Treatment still required' : 'No patient to discharge' });
     }
     const selected = local ? selectInteractionTarget(local, local.facing, targets) : null;
     if (this.selectedTarget?.id !== selected?.id) this.interactionFeedback = '';
@@ -289,6 +328,13 @@ export class MapScene extends Phaser.Scene {
     this.targetHighlight.setVisible(Boolean(selected));
     if (selected) this.targetHighlight.setPosition(selected.position.x, selected.position.y);
     this.interactionHint.setText(this.interactionFeedback || (selected ? `E: ${selected.label}` : ''));
+  }
+
+  private updateMachineText(): void {
+    const machine = this.healingMachine;
+    this.machineStatusText.setText(machine.status === 'treating' ?
+      `${Math.ceil(machine.remainingMs / 1000)}s LEFT` :
+      machine.status === 'completed' ? 'READY' : 'MACHINE EMPTY');
   }
 
   private drawMap(): void {
@@ -310,6 +356,11 @@ export class MapScene extends Phaser.Scene {
 
     this.station(MAP_OBSTACLES[0]!, 0xd8a67e, 'RECEPTION  ·  4 SLOTS');
     for (let x = 177; x <= 753; x += 192) this.slot(x, 138, 1 + (x - 177) / 192);
+    this.add.rectangle(DISCHARGE_POSITION.x, DISCHARGE_POSITION.y, 58, 24, 0x9bd59d)
+      .setStrokeStyle(2, 0x426b4f);
+    this.add.text(DISCHARGE_POSITION.x, DISCHARGE_POSITION.y, 'OUT', {
+      color: '#173440', fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold',
+    }).setOrigin(0.5);
 
     this.station(MAP_OBSTACLES[1]!, 0x8abbd4, 'HEALING 01');
     this.station(MAP_OBSTACLES[2]!, 0x8abbd4, 'HEALING 02');

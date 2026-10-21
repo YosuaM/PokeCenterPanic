@@ -41,6 +41,10 @@ export const WAITING_INTERACTION_POINTS: readonly Point[] =
 
 export const RECOVERY_POSITION: Point = { x: 752, y: 425 };
 export const RECOVERY_INTERACTION_POINT: Point = { x: 752, y: 365 };
+export const HEALING_MACHINE_POSITION: Point = { x: 160, y: 273 };
+export const HEALING_INTERACTION_POINT: Point = { x: 260, y: 273 };
+export const DISCHARGE_POSITION: Point = { x: 840, y: 138 };
+export const DISCHARGE_INTERACTION_POINT: Point = { x: 840, y: 184 };
 
 export const MAP_OBSTACLES: readonly MapObstacle[] = [
   { x: 82, y: 88, width: 796, height: 68 },

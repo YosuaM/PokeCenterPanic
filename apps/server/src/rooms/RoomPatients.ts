@@ -1,14 +1,16 @@
 import {
-  PATIENT_SPECIES, RECOVERY_INTERACTION_POINT, RECEPTION_INTERACTION_POINTS,
+  DISCHARGE_INTERACTION_POINT, HEALING_INTERACTION_POINT, PATIENT_SPECIES,
+  RECOVERY_INTERACTION_POINT, RECEPTION_INTERACTION_POINTS,
   RECEPTION_SLOT_POSITIONS, TREATMENT, WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS,
-  isInteractionReachable, isValidTreatmentSet,
+  isInteractionReachable, isValidTreatmentSet, patientPresentation,
   type Direction, type PatientInteractionRequest, type PatientInteractionResult,
   type PatientSpecies, type Point,
 } from '@pokecenter/shared';
-import { PatientState, type RoomState } from './RoomState.js';
+import { HealingMachineState, PatientState, type RoomState } from './RoomState.js';
 
 const PROTOTYPE_PATIENCE_MS = 90_000;
 const MAX_ACTIVE_PATIENTS = 10;
+const HEALING_DURATION_MS = 4_000;
 
 function rejection(reason: string): PatientInteractionResult {
   return { ok: false, reason };
@@ -19,6 +21,11 @@ export class RoomPatients {
   private readonly recoveryEnteredAt = new Map<string, number>();
 
   constructor(private readonly state: RoomState, private readonly now: () => number = () => performance.now()) {
+    state.healingMachine = new HealingMachineState();
+    state.healingMachine.patientId = '';
+    state.healingMachine.status = 'empty';
+    state.healingMachine.remainingMs = 0;
+    state.dischargedCount = 0;
     for (let index = 0; index < RECEPTION_SLOT_POSITIONS.length; index += 1) {
       state.receptionSlots.push('');
     }
@@ -30,7 +37,10 @@ export class RoomPatients {
   admit(species: PatientSpecies, requiredTreatments: number, slotIndex: number): PatientState | null {
     if (!PATIENT_SPECIES.includes(species) || !isValidTreatmentSet(requiredTreatments) ||
       !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= this.state.receptionSlots.length ||
-      this.state.receptionSlots[slotIndex] !== '' || this.state.patients.size >= MAX_ACTIVE_PATIENTS) return null;
+      this.state.receptionSlots[slotIndex] !== '' ||
+      [...this.state.patients.values()].filter((patient) => patient.lifecycle === 'active').length >= MAX_ACTIVE_PATIENTS) {
+      return null;
+    }
 
     const patient = new PatientState();
     patient.id = `patient-${this.nextId++}`;
@@ -49,6 +59,20 @@ export class RoomPatients {
     return patient;
   }
 
+  advance(elapsedMs: number): void {
+    const machine = this.state.healingMachine;
+    if (machine.status !== 'treating' || !Number.isFinite(elapsedMs) || elapsedMs <= 0) return;
+    machine.remainingMs = Math.max(0, machine.remainingMs - elapsedMs);
+    if (machine.remainingMs > 0) return;
+    const patient = this.state.patients.get(machine.patientId);
+    if (!patient || patient.lifecycle !== 'active' || patient.location !== 'healingMachine' ||
+      !(patient.requiredTreatments & TREATMENT.healing) ||
+      (patient.completedTreatments & TREATMENT.healing)) throw new Error('Invalid healing ownership');
+    patient.completedTreatments |= TREATMENT.healing;
+    machine.status = 'completed';
+    this.assertOwnership();
+  }
+
   interact(playerId: string, value: unknown, position: Point, facing: Direction): PatientInteractionResult {
     const player = this.state.players.get(playerId);
     if (!player || !isInteractionRequest(value)) return rejection('Invalid interaction');
@@ -59,7 +83,9 @@ export class RoomPatients {
     const index = match ? Number(match[2]) : -1;
     const point = kind === 'reception' ? RECEPTION_INTERACTION_POINTS[index] :
       kind === 'waiting' ? WAITING_INTERACTION_POINTS[index] :
-        targetId === 'recovery' ? RECOVERY_INTERACTION_POINT : undefined;
+        targetId === 'recovery' ? RECOVERY_INTERACTION_POINT :
+          targetId === 'healing:0' ? HEALING_INTERACTION_POINT :
+            targetId === 'discharge' ? DISCHARGE_INTERACTION_POINT : undefined;
     if (!point) return rejection('Unknown target');
     if (!isInteractionReachable(position, facing, point)) return rejection('Out of range or blocked');
 
@@ -70,6 +96,8 @@ export class RoomPatients {
       return player.carriedPatientId ? this.placeInWaiting(playerId, index, expectedOccupantId) :
         this.pickup(playerId, this.state.waitingSlots, index, 'waiting', expectedOccupantId);
     }
+    if (targetId === 'healing:0') return this.interactHealing(playerId, expectedOccupantId);
+    if (targetId === 'discharge') return this.discharge(playerId, expectedOccupantId);
     if (player.carriedPatientId) return rejection('Hands are full');
     const front = this.state.recoveryQueue[0] ?? '';
     if (!front || front !== expectedOccupantId) return rejection('Patient already claimed or removed');
@@ -136,6 +164,11 @@ export class RoomPatients {
     for (let index = 0; index < this.state.recoveryQueue.length; index += 1) {
       verify(this.state.recoveryQueue[index]!, 'recovery', index);
     }
+    if (this.state.healingMachine.patientId) {
+      verify(this.state.healingMachine.patientId, 'healingMachine', 0);
+    } else if (this.state.healingMachine.status !== 'empty' || this.state.healingMachine.remainingMs !== 0) {
+      throw new Error('Empty machine has treatment state');
+    }
     for (const [playerId, player] of this.state.players) {
       if (player.carriedPatientId) verify(player.carriedPatientId, 'carrier', -1, playerId);
     }
@@ -184,6 +217,62 @@ export class RoomPatients {
     patient.slotIndex = -1;
     patient.carrierId = playerId;
     player.carriedPatientId = patient.id;
+  }
+
+  private interactHealing(playerId: string, expectedId: string): PatientInteractionResult {
+    const player = this.state.players.get(playerId)!;
+    const machine = this.state.healingMachine;
+    if (machine.patientId !== expectedId) return rejection('Machine occupant changed');
+    if (player.carriedPatientId) {
+      if (machine.status !== 'empty') return rejection('Machine occupied');
+      const patient = this.state.patients.get(player.carriedPatientId);
+      if (!patient || patient.lifecycle !== 'active' || patient.location !== 'carrier' ||
+        patient.carrierId !== playerId) return rejection('Patient unavailable');
+      if (!(patient.requiredTreatments & TREATMENT.healing) ||
+        (patient.completedTreatments & TREATMENT.healing)) return rejection('Healing not needed');
+      player.carriedPatientId = '';
+      patient.carrierId = '';
+      patient.location = 'healingMachine';
+      patient.slotIndex = 0;
+      machine.patientId = patient.id;
+      machine.status = 'treating';
+      machine.remainingMs = HEALING_DURATION_MS;
+      this.assertOwnership();
+      return { ok: true, reason: '' };
+    }
+    if (!machine.patientId) return rejection('Machine empty');
+    if (machine.status !== 'completed') return rejection('Treatment in progress');
+    const patient = this.state.patients.get(machine.patientId);
+    if (!patient || patient.lifecycle !== 'active' || patient.location !== 'healingMachine') {
+      return rejection('Patient unavailable');
+    }
+    machine.patientId = '';
+    machine.status = 'empty';
+    machine.remainingMs = 0;
+    this.giveToPlayer(patient, playerId);
+    this.assertOwnership();
+    return { ok: true, reason: '' };
+  }
+
+  private discharge(playerId: string, expectedId: string): PatientInteractionResult {
+    const player = this.state.players.get(playerId)!;
+    if (!player.carriedPatientId) return rejection('No patient to discharge');
+    if (player.carriedPatientId !== expectedId) return rejection('Carried patient changed');
+    const patient = this.state.patients.get(player.carriedPatientId);
+    if (!patient || patient.lifecycle !== 'active' || patient.location !== 'carrier' ||
+      patient.carrierId !== playerId) return rejection('Patient unavailable');
+    if (!patientPresentation({ requiredTreatments: patient.requiredTreatments,
+      completedTreatments: patient.completedTreatments, lifecycle: 'active' }).readyForDischarge) {
+      return rejection('Treatment still required');
+    }
+    player.carriedPatientId = '';
+    patient.carrierId = '';
+    patient.location = 'none';
+    patient.slotIndex = -1;
+    patient.lifecycle = 'discharged';
+    this.state.dischargedCount += 1;
+    this.assertOwnership();
+    return { ok: true, reason: '' };
   }
 }
 

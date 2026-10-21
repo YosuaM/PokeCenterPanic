@@ -193,4 +193,49 @@ describe('MapScene', () => {
     keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
     expect(send).toHaveBeenCalledWith({ targetId: 'waiting:0', expectedOccupantId: 'patient-2' });
   });
+
+  it('targets healing placement, completed pickup, and discharge in sequence', () => {
+    const { scene, keyboardListeners, container } = setup();
+    const send = vi.fn();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setInteractionSender(send);
+    scene.setAuthoritativePositions([{ id: 'red', x: 280, y: 273, facing: 'left',
+      carriedPatientId: 'patient-1' }]);
+    scene.setPatients([{
+      id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 0,
+      initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active',
+      location: 'carrier', slotIndex: -1, carrierId: 'red',
+    }]);
+    keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    expect(send).toHaveBeenLastCalledWith({ targetId: 'healing:0', expectedOccupantId: '' });
+
+    scene.setAuthoritativePositions([{ id: 'red', x: 280, y: 273, facing: 'left', carriedPatientId: '' }]);
+    scene.setHealingMachine({ patientId: 'patient-1', status: 'completed', remainingMs: 0 });
+    scene.setPatients([{
+      id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 1,
+      initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active',
+      location: 'healingMachine', slotIndex: 0, carrierId: '',
+    }]);
+    expect(container).toHaveBeenCalledWith(160, 273, expect.any(Array));
+    keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    expect(send).toHaveBeenLastCalledWith({ targetId: 'healing:0', expectedOccupantId: 'patient-1' });
+
+    scene.setAuthoritativePositions([{ id: 'red', x: 840, y: 180, facing: 'down',
+      carriedPatientId: 'patient-1' }]);
+    scene.setHealingMachine({ patientId: '', status: 'empty', remainingMs: 0 });
+    scene.setPatients([{
+      id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 1,
+      initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active',
+      location: 'carrier', slotIndex: -1, carrierId: 'red',
+    }]);
+    keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    expect(send).toHaveBeenLastCalledWith({ targetId: 'discharge', expectedOccupantId: 'patient-1' });
+  });
+
+  it('shows the synchronized discharge count', () => {
+    const { scene, text } = setup();
+    scene.setDischargedCount(1);
+    expect(text.mock.results.some((result) => result.value.setText.mock.calls.some(
+      (call: string[]) => call[0] === 'DISCHARGED: 1'))).toBe(true);
+  });
 });

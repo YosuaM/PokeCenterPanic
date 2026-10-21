@@ -42,6 +42,12 @@ export interface PatientInteractionResult {
   reason: string;
 }
 
+export interface HealingMachineSnapshot {
+  patientId: string;
+  status: 'empty' | 'treating' | 'completed';
+  remainingMs: number;
+}
+
 export function isValidTreatmentSet(required: number): boolean {
   return required === TREATMENT.healing ||
     required === TREATMENT.burnHeal ||

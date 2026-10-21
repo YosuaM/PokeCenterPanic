@@ -36,6 +36,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       this.patchRate = 50;
       this.setTimestep((elapsedMs) => {
         this.movement.advance(elapsedMs, performance.now());
+        this.patients.advance(elapsedMs);
         for (const [id, player] of this.state.players) {
           const position = this.movement.position(id);
           if (!position) continue;

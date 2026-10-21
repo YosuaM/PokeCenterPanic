@@ -180,4 +180,93 @@ describe('RoomPatients', () => {
     expect(sixth.slotIndex).toBe(0);
     expect(() => patients.assertOwnership()).not.toThrow();
   });
+
+  it('heals once in the first machine and discharges a treated patient once', () => {
+    const state = new RoomState();
+    const patients = new RoomPatients(state);
+    addPlayer(state, 'red');
+    addPlayer(state, 'blue');
+    const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
+    patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
+      { x: 177, y: 180 }, 'down');
+    expect(patients.interact('red', { targetId: 'discharge', expectedOccupantId: patient.id },
+      { x: 840, y: 180 }, 'down').reason).toBe('Treatment still required');
+    expect(state.players.get('red')?.carriedPatientId).toBe(patient.id);
+
+    expect(patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
+      { x: 280, y: 273 }, 'left').ok).toBe(true);
+    expect(state.healingMachine).toMatchObject({ patientId: patient.id,
+      status: 'treating', remainingMs: 4000 });
+    expect(patient).toMatchObject({ location: 'healingMachine', slotIndex: 0, carrierId: '' });
+    patients.advance(1000);
+    expect(state.healingMachine.remainingMs).toBe(3000);
+    expect(patients.interact('blue', { targetId: 'healing:0', expectedOccupantId: patient.id },
+      { x: 280, y: 273 }, 'left').reason).toBe('Treatment in progress');
+    patients.advance(3000);
+    patients.advance(1000);
+    expect(state.healingMachine).toMatchObject({ status: 'completed', remainingMs: 0 });
+    expect(patient.completedTreatments).toBe(TREATMENT.healing);
+    expect(patients.interact('blue', { targetId: 'healing:0', expectedOccupantId: patient.id },
+      { x: 280, y: 273 }, 'left').ok).toBe(true);
+    expect(state.healingMachine).toMatchObject({ patientId: '', status: 'empty', remainingMs: 0 });
+    expect(state.players.get('blue')?.carriedPatientId).toBe(patient.id);
+    expect(patients.interact('red', { targetId: 'healing:0', expectedOccupantId: patient.id },
+      { x: 280, y: 273 }, 'left').ok).toBe(false);
+    expect(patients.interact('blue', { targetId: 'discharge', expectedOccupantId: 'stale-id' },
+      { x: 840, y: 180 }, 'down').reason).toBe('Carried patient changed');
+    expect(state.players.get('blue')?.carriedPatientId).toBe(patient.id);
+    expect(patients.interact('blue', { targetId: 'discharge', expectedOccupantId: patient.id },
+      { x: 840, y: 180 }, 'down').ok).toBe(true);
+    expect(patients.interact('blue', { targetId: 'discharge', expectedOccupantId: patient.id },
+      { x: 840, y: 180 }, 'down').ok).toBe(false);
+    expect(state.dischargedCount).toBe(1);
+    expect(patient).toMatchObject({ lifecycle: 'discharged', location: 'none',
+      slotIndex: -1, carrierId: '' });
+    expect(state.players.get('blue')?.carriedPatientId).toBe('');
+    expect(() => patients.assertOwnership()).not.toThrow();
+  });
+
+  it('rejects occupied machines and patients without pending healing', () => {
+    const state = new RoomState();
+    const patients = new RoomPatients(state);
+    addPlayer(state, 'red');
+    addPlayer(state, 'blue');
+    const injured = patients.admit('Pikachu', TREATMENT.healing, 0)!;
+    const burned = patients.admit('Eevee', TREATMENT.burnHeal, 1)!;
+    patients.interact('red', { targetId: 'reception:0', expectedOccupantId: injured.id },
+      { x: 177, y: 180 }, 'down');
+    patients.interact('blue', { targetId: 'reception:1', expectedOccupantId: burned.id },
+      { x: 369, y: 180 }, 'down');
+    patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
+      { x: 280, y: 273 }, 'left');
+    expect(patients.interact('blue', { targetId: 'healing:0', expectedOccupantId: injured.id },
+      { x: 280, y: 273 }, 'left').reason).toBe('Machine occupied');
+    expect(state.players.get('blue')?.carriedPatientId).toBe(burned.id);
+    patients.advance(4000);
+    patients.interact('red', { targetId: 'healing:0', expectedOccupantId: injured.id },
+      { x: 280, y: 273 }, 'left');
+    expect(patients.interact('blue', { targetId: 'healing:0', expectedOccupantId: '' },
+      { x: 280, y: 273 }, 'left').reason).toBe('Healing not needed');
+    expect(state.healingMachine.status).toBe('empty');
+    expect(burned).toMatchObject({ location: 'carrier', carrierId: 'blue' });
+  });
+
+  it('does not discharge an injured and burned patient after healing alone', () => {
+    const state = new RoomState();
+    const patients = new RoomPatients(state);
+    addPlayer(state, 'red');
+    const patient = patients.admit('Pikachu', TREATMENT.healing | TREATMENT.burnHeal, 0)!;
+    patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
+      { x: 177, y: 180 }, 'down');
+    patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
+      { x: 280, y: 273 }, 'left');
+    patients.advance(4000);
+    patients.interact('red', { targetId: 'healing:0', expectedOccupantId: patient.id },
+      { x: 280, y: 273 }, 'left');
+    expect(patient.completedTreatments).toBe(TREATMENT.healing);
+    expect(patients.interact('red', { targetId: 'discharge', expectedOccupantId: patient.id },
+      { x: 840, y: 180 }, 'down').reason).toBe('Treatment still required');
+    expect(patient).toMatchObject({ lifecycle: 'active', location: 'carrier', carrierId: 'red' });
+    expect(state.dischargedCount).toBe(0);
+  });
 });

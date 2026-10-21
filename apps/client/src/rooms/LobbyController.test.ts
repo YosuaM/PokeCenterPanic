@@ -26,6 +26,8 @@ function setup() {
     showPositions: vi.fn(),
     showPatients: vi.fn(),
     showInteractionResult: vi.fn(),
+    showHealingMachine: vi.fn(),
+    showDischargedCount: vi.fn(),
     showMenu: vi.fn(),
   };
   return { controller: new LobbyController(gateway, view), gateway, view, room,
@@ -33,7 +35,9 @@ function setup() {
     result: (result: { ok: boolean; reason: string }) => messages.get('patient:result')?.(result as never),
     state: (positions: Map<string, { x: number; y: number; facing: 'up' | 'down' | 'left' | 'right';
       carriedPatientId: string }>, patients = new Map<string, PatientRecord>()) =>
-      stateChange?.({ players: positions, patients }),
+      stateChange?.({ players: positions, patients,
+        healingMachine: { patientId: 'patient-1', status: 'treating', remainingMs: 3000 },
+        dischargedCount: 1 }),
     disconnect: () => disconnected?.() };
 }
 
@@ -87,6 +91,10 @@ describe('LobbyController', () => {
     state(new Map([['host-id', { x: 470, y: 422, facing: 'right', carriedPatientId: '' }]]),
       new Map([[patient.id, patient]]));
     expect(view.showPatients).toHaveBeenLastCalledWith([patient]);
+    expect(view.showHealingMachine).toHaveBeenCalledWith({
+      patientId: 'patient-1', status: 'treating', remainingMs: 3000,
+    });
+    expect(view.showDischargedCount).toHaveBeenCalledWith(1);
     controller.sendInteraction({ targetId: 'reception:0', expectedOccupantId: patient.id });
     expect(room.send).toHaveBeenCalledWith('patient:interact',
       { targetId: 'reception:0', expectedOccupantId: patient.id });

@@ -1,5 +1,5 @@
 import type { Room } from '@colyseus/sdk';
-import type { Direction, PatientInteractionRequest, PatientInteractionResult,
+import type { Direction, HealingMachineSnapshot, PatientInteractionRequest, PatientInteractionResult,
   PatientRecord, PlayerPosition, PlayerPresence } from '@pokecenter/shared';
 import type { JoinedRoom } from './RoomGateway.js';
 
@@ -14,6 +14,8 @@ export interface LobbyView {
   showPositions(positions: PlayerPosition[]): void;
   showPatients(patients: PatientRecord[]): void;
   showInteractionResult(result: PatientInteractionResult): void;
+  showHealingMachine(machine: HealingMachineSnapshot): void;
+  showDischargedCount(count: number): void;
   showMenu(message: string): void;
 }
 
@@ -66,12 +68,16 @@ export class LobbyController {
         const snapshot = state as {
           players: Map<string, { x: number; y: number; facing: Direction; carriedPatientId: string }>;
           patients?: Map<string, PatientRecord>;
+          healingMachine?: HealingMachineSnapshot;
+          dischargedCount?: number;
         };
         const players = snapshot.players;
         this.view.showPositions([...players].map(([id, player]) => ({
           id, x: player.x, y: player.y, facing: player.facing, carriedPatientId: player.carriedPatientId,
         })));
         this.view.showPatients(snapshot.patients ? [...snapshot.patients.values()] : []);
+        if (snapshot.healingMachine) this.view.showHealingMachine(snapshot.healingMachine);
+        if (typeof snapshot.dischargedCount === 'number') this.view.showDischargedCount(snapshot.dischargedCount);
       };
       room.onStateChange(updateState);
       updateState(room.state);

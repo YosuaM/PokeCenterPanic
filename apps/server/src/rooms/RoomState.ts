@@ -24,12 +24,21 @@ export const PatientState = schema({
 }, 'PrototypePatientState');
 export type PatientState = SchemaType<typeof PatientState>;
 
+export const HealingMachineState = schema({
+  patientId: t.string(),
+  status: t.string(),
+  remainingMs: t.number(),
+}, 'PrototypeHealingMachineState');
+export type HealingMachineState = SchemaType<typeof HealingMachineState>;
+
 export const RoomState = schema({
   players: t.map(PlayerState),
   patients: t.map(PatientState),
   receptionSlots: t.array('string'),
   waitingSlots: t.array('string'),
   recoveryQueue: t.array('string'),
+  healingMachine: HealingMachineState,
+  dischargedCount: t.number(),
   phase: t.string(),
 }, 'PrototypeRoomState');
 export type RoomState = SchemaType<typeof RoomState>;

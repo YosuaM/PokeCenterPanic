@@ -51,6 +51,12 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
   showInteractionResult(result) {
     mapScene().setInteractionResult(result);
   },
+  showHealingMachine(machine) {
+    mapScene().setHealingMachine(machine);
+  },
+  showDischargedCount(count) {
+    mapScene().setDischargedCount(count);
+  },
   showMenu(message) {
     menu.hidden = false;
     lobby.hidden = true;
