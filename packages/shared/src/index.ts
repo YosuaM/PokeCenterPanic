@@ -22,6 +22,7 @@ export interface PlayerInput {
 }
 
 export * from './map.js';
+export * from './patient.js';
 
 export const PROJECT_INFO = {
   title: 'PokéCenter Panic',

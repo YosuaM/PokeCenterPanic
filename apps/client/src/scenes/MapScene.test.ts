@@ -113,4 +113,17 @@ describe('MapScene', () => {
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
     expect(container.mock.calls[0]?.slice(0, 2)).toEqual([480, 422]);
   });
+
+  it('renders and removes a synchronized reception patient', () => {
+    const { scene, container, containers, text } = setup();
+    scene.setPatients([{
+      id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 0,
+      initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active',
+      location: 'reception', slotIndex: 0, carrierId: '',
+    }]);
+    expect(container).toHaveBeenCalledWith(177, 138, expect.any(Array));
+    expect(text).toHaveBeenCalledWith(0, 42, 'Pikachu  50/100', expect.any(Object));
+    scene.setPatients([]);
+    expect(containers[0]?.destroy).toHaveBeenCalledOnce();
+  });
 });

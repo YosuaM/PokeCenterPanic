@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { MAP_OBSTACLES, SPAWN_POINTS, TILE_SIZE, type Direction, type MapObstacle, type PlayerPosition, type PlayerPresence, type Point } from '@pokecenter/shared';
+import { MAP_OBSTACLES, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS, TILE_SIZE, patientPresentation,
+  type Direction, type MapObstacle, type PatientRecord, type PlayerPosition, type PlayerPresence, type Point } from '@pokecenter/shared';
 import { MovementInput } from './movement.js';
 const PLAYER_COLORS = [0x4cc9c0, 0xf29c75, 0xb2a0f7, 0xf5ce69];
 
@@ -9,11 +10,18 @@ interface Avatar {
   target: Point;
 }
 
+interface PatientMarker {
+  container: Phaser.GameObjects.Container;
+  signature: string;
+}
+
 export class MapScene extends Phaser.Scene {
   private readonly movement = new MovementInput();
   private readonly avatars = new Map<string, Avatar>();
+  private readonly patientMarkers = new Map<string, PatientMarker>();
   private readonly authoritativePositions = new Map<string, Point>();
   private players: PlayerPresence[] = [];
+  private patients: PatientRecord[] = [];
   private localId = '';
   private inputSender: ((direction: Direction | null) => void) | null = null;
   private lastSentAt = -Infinity;
@@ -26,6 +34,7 @@ export class MapScene extends Phaser.Scene {
   create(): void {
     this.drawMap();
     this.renderPlayers();
+    this.renderPatients();
     this.input.keyboard?.on('keydown', this.onKeyDown, this);
     this.input.keyboard?.on('keyup', this.onKeyUp, this);
     window.addEventListener('blur', this.clearMovement);
@@ -54,7 +63,13 @@ export class MapScene extends Phaser.Scene {
 
   clearPlayers(): void {
     this.setPlayers([], '');
+    this.setPatients([]);
     this.inputSender = null;
+  }
+
+  setPatients(patients: PatientRecord[]): void {
+    this.patients = patients;
+    if (this.sys.isActive()) this.renderPatients();
   }
 
   setInputSender(sender: (direction: Direction | null) => void): void {
@@ -141,6 +156,33 @@ export class MapScene extends Phaser.Scene {
         .setDepth(position.y);
       this.avatars.set(player.id, { container, position, target });
     });
+  }
+
+  private renderPatients(): void {
+    const visible = new Set<string>();
+    for (const patient of this.patients) {
+      if (patient.lifecycle !== 'active' || patient.location !== 'reception') continue;
+      const position = RECEPTION_SLOT_POSITIONS[patient.slotIndex];
+      if (!position) continue;
+      visible.add(patient.id);
+      const presentation = patientPresentation(patient);
+      const signature = `${patient.species}:${patient.slotIndex}:${presentation.hp}:${presentation.status}`;
+      const previous = this.patientMarkers.get(patient.id);
+      if (previous?.signature === signature) continue;
+      previous?.container.destroy();
+      const body = this.add.rectangle(0, -12, 28, 25, 0xf6c76a).setStrokeStyle(2, 0x593a30);
+      const label = this.add.text(0, 42, `${patient.species}  ${presentation.hp}/100`, {
+        color: '#ffffff', backgroundColor: '#10243bcc', fontFamily: 'monospace', fontSize: '11px',
+        padding: { x: 3, y: 2 },
+      }).setOrigin(0.5);
+      const container = this.add.container(position.x, position.y, [body, label]).setDepth(position.y);
+      this.patientMarkers.set(patient.id, { container, signature });
+    }
+    for (const [id, marker] of this.patientMarkers) {
+      if (visible.has(id)) continue;
+      marker.container.destroy();
+      this.patientMarkers.delete(id);
+    }
   }
 
   private drawMap(): void {

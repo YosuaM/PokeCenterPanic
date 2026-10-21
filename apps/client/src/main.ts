@@ -44,6 +44,9 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
   showPositions(positions) {
     mapScene().setAuthoritativePositions(positions);
   },
+  showPatients(patients) {
+    mapScene().setPatients(patients);
+  },
   showMenu(message) {
     menu.hidden = false;
     lobby.hidden = true;

@@ -169,6 +169,32 @@ describe('private room flow', () => {
     await vi.waitFor(() => expect(player(host)?.y).toBe(player(guest)?.y), { timeout: 2000 });
   });
 
+  it('replicates the same controlled reception patient to both clients', async () => {
+    const created = await reserve('/api/rooms', 'Red');
+    const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
+    joinedRooms.push(host);
+    const joined = await reserve(`/api/rooms/${created.body.code}/join`, 'Blue');
+    const guest = await new Client(endpoint).consumeSeatReservation(joined.body.reservation);
+    joinedRooms.push(guest);
+
+    const patientState = (room: typeof host) => room.state as {
+      patients: Map<string, { id: string; species: string; location: string; slotIndex: number;
+        requiredTreatments: number; completedTreatments: number }>;
+      receptionSlots: string[];
+      phase: string;
+    };
+    await vi.waitFor(() => expect(patientState(host).patients?.get('patient-1')).toBeDefined(), { timeout: 2000 });
+    await vi.waitFor(() => expect(patientState(guest).patients?.get('patient-1')).toBeDefined(), { timeout: 2000 });
+    for (const room of [host, guest]) {
+      expect(patientState(room).phase).toBe('running');
+      expect([...patientState(room).receptionSlots]).toEqual(['patient-1', '', '', '']);
+      expect(patientState(room).patients.get('patient-1')).toEqual(expect.objectContaining({
+        id: 'patient-1', species: 'Pikachu', location: 'reception', slotIndex: 0,
+        requiredTreatments: 1, completedTreatments: 0,
+      }));
+    }
+  });
+
 });
 
 describe('capacity configuration', () => {

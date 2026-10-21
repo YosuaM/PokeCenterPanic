@@ -1,5 +1,5 @@
 import type { Room } from '@colyseus/sdk';
-import type { PlayerPresence } from '@pokecenter/shared';
+import type { PatientRecord, PlayerPresence } from '@pokecenter/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { LobbyController, type LobbyGateway, type LobbyView } from './LobbyController.js';
 
@@ -24,11 +24,13 @@ function setup() {
     setBusy: vi.fn(),
     showRoom: vi.fn(),
     showPositions: vi.fn(),
+    showPatients: vi.fn(),
     showMenu: vi.fn(),
   };
   return { controller: new LobbyController(gateway, view), gateway, view, room,
     players: (roster: PlayerPresence[]) => message?.(roster),
-    state: (positions: Map<string, { x: number; y: number }>) => stateChange?.({ players: positions }),
+    state: (positions: Map<string, { x: number; y: number }>, patients = new Map<string, PatientRecord>()) =>
+      stateChange?.({ players: positions, patients }),
     disconnect: () => disconnected?.() };
 }
 
@@ -44,6 +46,7 @@ describe('LobbyController', () => {
     expect(view.showRoom).toHaveBeenCalledWith('ABC234', roster, 'host-id');
     expect(view.setBusy).toHaveBeenLastCalledWith(false);
     expect(view.showPositions).toHaveBeenCalledWith([{ id: 'host-id', x: 456, y: 422 }]);
+    expect(view.showPatients).toHaveBeenCalledWith([]);
   });
 
   it('joins by code and returns to the menu when leaving', async () => {
@@ -69,6 +72,13 @@ describe('LobbyController', () => {
     expect(view.showPositions).toHaveBeenLastCalledWith([
       { id: 'host-id', x: 470, y: 422 }, { id: 'guest-id', x: 504, y: 422 },
     ]);
+    const patient: PatientRecord = {
+      id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 0,
+      initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active',
+      location: 'reception', slotIndex: 0, carrierId: '',
+    };
+    state(new Map([['host-id', { x: 470, y: 422 }]]), new Map([[patient.id, patient]]));
+    expect(view.showPatients).toHaveBeenLastCalledWith([patient]);
     await controller.leave();
     vi.mocked(room.send).mockClear();
     controller.sendInput('left');

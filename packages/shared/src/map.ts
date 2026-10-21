@@ -23,6 +23,11 @@ export const SPAWN_POINTS: readonly Point[] = [
   { x: 408, y: 422 }, { x: 552, y: 422 },
 ];
 
+export const RECEPTION_SLOT_POSITIONS: readonly Point[] = [
+  { x: 177, y: 138 }, { x: 369, y: 138 },
+  { x: 561, y: 138 }, { x: 753, y: 138 },
+];
+
 export const MAP_OBSTACLES: readonly MapObstacle[] = [
   { x: 82, y: 88, width: 796, height: 68 },
   { x: 82, y: 214, width: 155, height: 117 },

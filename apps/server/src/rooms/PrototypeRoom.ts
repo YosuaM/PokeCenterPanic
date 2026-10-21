@@ -2,6 +2,7 @@ import { ErrorCode, Room, ServerError, type Client } from 'colyseus';
 import type { PlayerPresence } from '@pokecenter/shared';
 import { normalizeRoomCode, validatePlayerName, type RoomDirectory } from './RoomDirectory.js';
 import { RoomMovement } from './RoomMovement.js';
+import { RoomPatients, seedPrototypePatient } from './RoomPatients.js';
 import { PlayerState, RoomState } from './RoomState.js';
 
 export interface PrivateRoomOptions {
@@ -16,6 +17,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
     private creatorKey = '';
     private readonly movement = new RoomMovement();
     state = new RoomState();
+    private readonly patients = new RoomPatients(this.state);
 
     private roster(): PlayerPresence[] {
       return [...this.state.players].map(([id, player]) => ({ id, name: player.name, slot: player.slot }));
@@ -26,6 +28,8 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
         throw new ServerError(ErrorCode.AUTH_FAILED, 'Room creation is unavailable');
       }
       this.maxClients = capacity;
+      this.state.phase = 'running';
+      seedPrototypePatient(this.patients);
       this.creatorKey = options.creatorKey;
       this.code = directory.register(this.roomId);
       await this.setPrivate(true);
