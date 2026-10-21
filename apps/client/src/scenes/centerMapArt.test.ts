@@ -9,6 +9,16 @@ const texture = readFileSync(new URL('../../public/assets/original/center-map.pn
 describe('original center environment art', () => {
   it('exports one texture at the fixed map resolution', () => {
     expect(pngDimensions(texture)).toEqual({ width: 960, height: 540 });
+    for (const layer of ['center-floor', 'center-fixtures']) {
+      const png = readFileSync(new URL(`../../public/assets/original/${layer}.png`, import.meta.url));
+      expect(pngDimensions(png)).toEqual({ width: 960, height: 540 });
+    }
+  });
+
+  it('exports equipment at native PMD-compatible pixel sizes', () => {
+    const asset = (name: string) => readFileSync(new URL(`../../public/assets/original/${name}.png`, import.meta.url));
+    expect(pngDimensions(asset('stretcher'))).toEqual({ width: 48, height: 24 });
+    expect(pngDimensions(asset('medicine-bottle'))).toEqual({ width: 20, height: 28 });
   });
 
   it('keeps station art bounds aligned with the server collision geometry', () => {

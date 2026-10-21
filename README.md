@@ -25,6 +25,8 @@ The original center map shows every connected player. Move your own character wi
 
 To render PMD sprites locally, run `npm run assets:pmd` before starting the client. This fills a Git-ignored cache for the six patient species and four player characters. The game uses provisional markers if the cache is absent. See [external sprite sources and credits](docs/asset-sources.md) for terms and attribution; do not commit downloaded assets.
 
+To export the original center art after editing its SVG sources, run `npm run assets:original` on macOS. The exporter refreshes the floor and fixture layers, composite preview, stretcher, and medicine bottle PNGs. These original assets are tracked in the repository.
+
 Before handing off changes, run:
 
 ```sh

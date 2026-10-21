@@ -5,7 +5,8 @@ vi.mock('phaser', () => ({ default: { Scene: class {} } }));
 import { MapScene } from './MapScene.js';
 import type { SpriteManifest } from '../sprites/pmd.js';
 
-function setup(manifest?: SpriteManifest, mapArt = true) {
+function setup(manifest?: SpriteManifest, mapArt = true, equipmentArt = true,
+  fixtureArt = mapArt) {
   const keyboardListeners = new Map<string, (event: KeyboardEvent) => void>();
   const windowListeners = new Map<string, () => void>();
   const documentListeners = new Map<string, () => void>();
@@ -32,7 +33,9 @@ function setup(manifest?: SpriteManifest, mapArt = true) {
   const rectangle = vi.fn(() => ({ setStrokeStyle: vi.fn().mockReturnThis(),
     setVisible: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(),
     setPosition: vi.fn().mockReturnThis() }));
-  const image = vi.fn(() => ({ setDepth: vi.fn().mockReturnThis() }));
+  const image = vi.fn((x: number, y: number, key: string) => ({ x, y, key,
+    setDepth: vi.fn().mockReturnThis(),
+  }));
   const sprite = vi.fn((x: number, y: number, key: string) => ({ x, y, key,
     setOrigin: vi.fn().mockReturnThis(),
     setScale: vi.fn().mockReturnThis(), play: vi.fn().mockReturnThis(),
@@ -52,7 +55,9 @@ function setup(manifest?: SpriteManifest, mapArt = true) {
       once: vi.fn((_event: string, callback: () => void) => {
       onLoadComplete = callback;
     }), start: vi.fn(() => onLoadComplete()) },
-    textures: { exists: vi.fn((key: string) => key === 'center-map' ? mapArt : true) },
+    textures: { exists: vi.fn((key: string) => key === 'center-floor' ? mapArt :
+      key === 'center-fixtures' ? fixtureArt :
+      key === 'stretcher' || key === 'medicine-bottle' ? equipmentArt : true) },
     anims: { create: vi.fn(), exists: vi.fn(() => true) },
     input: { keyboard: {
       on: vi.fn((type: string, listener: (event: KeyboardEvent) => void) => keyboardListeners.set(type, listener)),
@@ -63,7 +68,7 @@ function setup(manifest?: SpriteManifest, mapArt = true) {
   });
   scene.preload();
   scene.create();
-  return { scene, image, graphics, text, container, containers, sprite, keyboardListeners, windowListeners,
+  return { scene, image, graphics, text, rectangle, container, containers, sprite, keyboardListeners, windowListeners,
     documentListeners, InputElement };
 }
 
@@ -172,7 +177,10 @@ describe('MapScene', () => {
   });
   it('renders original center art with distinct PMD avatars', () => {
     const { scene, image, text, container } = setup();
-    expect(image).toHaveBeenCalledWith(480, 270, 'center-map');
+    expect(image).toHaveBeenCalledWith(480, 270, 'center-floor');
+    expect(image).toHaveBeenCalledWith(480, 270, 'center-fixtures');
+    expect(image.mock.results[0]?.value.setDepth).toHaveBeenCalledWith(-2);
+    expect(image.mock.results[1]?.value.setDepth).toHaveBeenCalledWith(-1);
     expect(text).toHaveBeenCalledWith(26, 16, 'POKÉCENTER PANIC  /  CENTER 01', expect.any(Object));
     expect(text).toHaveBeenCalledWith(92, 97, 'RECEPTION  ·  4 SLOTS', expect.any(Object));
     expect(text).toHaveBeenCalledWith(733, 223, 'HEALING 02', expect.any(Object));
@@ -190,6 +198,12 @@ describe('MapScene', () => {
     expect(graphics.fillRect).toHaveBeenCalledWith(0, 0, 960, 540);
     expect(text).toHaveBeenCalledWith(26, 16, 'POKÉCENTER PANIC  /  PROTOTYPE MAP',
       expect.any(Object));
+  });
+
+  it('does not render a partial environment when the fixture layer is missing', () => {
+    const { image, graphics } = setup(undefined, true, true, false);
+    expect(image).not.toHaveBeenCalledWith(480, 270, 'center-floor');
+    expect(graphics.fillRect).toHaveBeenCalledWith(0, 0, 960, 540);
   });
 
   it('sends local input and renders server positions for both avatars', () => {
@@ -260,7 +274,7 @@ describe('MapScene', () => {
   });
 
   it('keeps the carried patient attached to its carrier and raises the player label', () => {
-    const { scene, containers, text } = setup();
+    const { scene, image, containers, text } = setup();
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
     scene.setAuthoritativePositions([{ id: 'red', x: 470, y: 410, facing: 'right',
       carriedPatientId: 'patient-1' }]);
@@ -270,10 +284,36 @@ describe('MapScene', () => {
       location: 'carrier', slotIndex: -1, carrierId: 'red',
     }]);
     scene.update(50, 70);
+    expect(image).toHaveBeenCalledWith(0, 9, 'stretcher');
     expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(470, 410);
     expect(containers[1]?.setPosition).toHaveBeenLastCalledWith(470, 382);
     const playerName = text.mock.results.find((result) => result.value.setY.mock.calls.length);
     expect(playerName?.value.setY).toHaveBeenLastCalledWith(-77);
+  });
+
+  it('uses one original bottle with a readable condition mark for each dose', () => {
+    const { scene, image, text } = setup();
+    scene.setMedicines([
+      { id: 'burn', kind: 'burnHeal', location: 'surface', slotIndex: 0, carrierId: '' },
+      { id: 'poison', kind: 'antidote', location: 'surface', slotIndex: 1, carrierId: '' },
+    ], ['burn', 'poison', '', ''], ['', ''], [0, 0]);
+    expect(image.mock.calls.filter((call) => call[2] === 'medicine-bottle')).toHaveLength(2);
+    expect(text).toHaveBeenCalledWith(0, 3, 'B', expect.any(Object));
+    expect(text).toHaveBeenCalledWith(0, 3, 'A', expect.any(Object));
+  });
+
+  it('retains equipment markers if an original texture is missing', () => {
+    const { scene, image, rectangle } = setup(undefined, true, false);
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setPatients([{ id: 'patient', species: 'Pikachu', requiredTreatments: 1,
+      completedTreatments: 0, initialPatienceMs: 90_000, remainingPatienceMs: 90_000,
+      lifecycle: 'active', location: 'carrier', slotIndex: -1, carrierId: 'red' }]);
+    scene.setMedicines([{ id: 'dose', kind: 'burnHeal', location: 'surface',
+      slotIndex: 0, carrierId: '' }], ['dose', '', '', ''], ['', ''], [0, 0]);
+    expect(image).not.toHaveBeenCalledWith(0, 9, 'stretcher');
+    expect(image).not.toHaveBeenCalledWith(0, 0, 'medicine-bottle');
+    expect(rectangle).toHaveBeenCalledWith(0, 9, 42, 16, 0xe7e3d3);
+    expect(rectangle).toHaveBeenCalledWith(0, 0, 16, 24, 0xf28d66);
   });
 
   it('sends one contextual pickup request per E press with the expected patient', () => {

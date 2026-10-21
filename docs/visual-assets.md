@@ -8,7 +8,11 @@ This is the working art guide for the first Pokémon Center. The [editable visua
 
 The current game uses a fixed 960 × 540 world, a 48-pixel logical tile, `Phaser.Scale.FIT`, and `pixelArt: true`. Keep those world dimensions for the first art integration so the shared movement geometry and interaction points continue to agree. The pilot has been rendered at 1280 × 720; final browser validation must still include all PMD sprites, Chrome and Firefox, and a complete round.
 
-Character sprites come from the existing PMD importer and its ignored local cache. We create the scenario art ourselves. The first editable environment source is [`art/source/center-map.svg`](../art/source/center-map.svg); its 960 × 540 runtime export is [`apps/client/public/assets/original/center-map.png`](../apps/client/public/assets/original/center-map.png). `MapScene` draws that original map, then overlays the imported PMD characters and live game state. PMD source rights and credits still require review before a public build.
+Character sprites come from the existing PMD importer and its ignored local cache. We create the scenario art ourselves. The first editable environment source is [`art/source/center-map.svg`](../art/source/center-map.svg). Its 960 × 540 [composite preview](../apps/client/public/assets/original/center-map.png) is exported as separate [floor](../apps/client/public/assets/original/center-floor.png) and [fixture](../apps/client/public/assets/original/center-fixtures.png) textures for runtime. `MapScene` draws those original layers, then overlays the imported PMD characters and live game state. PMD source rights and credits still require review before a public build.
+
+The carried-patient stretcher and generic medicine bottle also have original SVG sources in [`art/source`](../art/source) and matching PNG exports in [`apps/client/public/assets/original`](../apps/client/public/assets/original). The bottle uses a visible B or A condition mark, so its identity does not depend on color. Both are composited with the PMD sprites at native pixel size.
+
+On macOS, run `npm run assets:original` after editing the SVGs. The exporter uses the marked floor and fixture sections in `center-map.svg` to regenerate both runtime layers and the composite preview. The asset test checks that every tracked PNG matches its source.
 
 PMD frame sizes in the locally generated manifest are not uniform:
 
@@ -56,6 +60,7 @@ The pilot palette uses dark navy `#0a1c2e` for HUD panels, deep teal `#345e68` f
 
 - **Pilot completed:** the SVG renders at 1280 × 720 with readable station labels, patient need icons, target prompt, and HUD without hiding the room.
 - **Native-scale integration check completed:** a local round at 1280 × 720 showed the original center map with PMD Chansey staff and a PMD Pikachu patient. Their names remained readable and their texture scale is 1×. The runtime screenshot stays local because it contains third-party character art.
+- **Equipment check completed:** in a local round, Pikachu remained visible above the original stretcher while carried by Chansey, and a prepared Burn Heal appeared as the original bottle with a B mark. The same bottle texture also supports the A mark for Antidote.
 - **Next integration check:** compare all native-size PMD frames in the actual Phaser scene, including Eevee's 40-pixel Walk frame. Check carriage, overlaps, and the fixed-camera viewport for every selectable character.
 - **Release check:** complete the muted Chrome/Firefox walkthrough at 1280 × 720 required by `docs/specification.md` AC-21, and verify credits and distribution rights before a public build.
 

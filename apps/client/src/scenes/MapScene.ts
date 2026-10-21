@@ -64,7 +64,10 @@ export class MapScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image('center-map', '/assets/original/center-map.png');
+    this.load.image('center-floor', '/assets/original/center-floor.png');
+    this.load.image('center-fixtures', '/assets/original/center-fixtures.png');
+    this.load.image('stretcher', '/assets/original/stretcher.png');
+    this.load.image('medicine-bottle', '/assets/original/medicine-bottle.png');
     this.load.json('pmd-manifest', '/assets/external/pmd/manifest.json');
   }
 
@@ -343,8 +346,9 @@ export class MapScene extends Phaser.Scene {
       if (previous?.signature === signature) continue;
       previous?.container.destroy();
       const carried = patient.location === 'carrier';
-      const stretcher = carried ? this.add.rectangle(0, 9, 42, 16, 0xe7e3d3)
-        .setStrokeStyle(2, 0x593a30) : null;
+      const stretcher = carried ? this.textures.exists('stretcher') ?
+        this.add.image(0, 9, 'stretcher') :
+        this.add.rectangle(0, 9, 42, 16, 0xe7e3d3).setStrokeStyle(2, 0x593a30) : null;
       const sprite = this.createSprite(patient.species, 0, carried ? 8 : 12);
       const body = sprite ?? this.add.rectangle(0, carried ? 0 : -12, carried ? 40 : 28, carried ? 19 : 25,
         carried ? 0xe7e3d3 : 0xf6c76a).setStrokeStyle(2, 0x593a30);
@@ -373,10 +377,13 @@ export class MapScene extends Phaser.Scene {
     for (const dose of this.medicineDoses) {
       visible.add(dose.id);
       if (this.medicineMarkers.has(dose.id)) continue;
-      const bottle = this.add.rectangle(0, 0, 16, 24,
-        dose.kind === 'burnHeal' ? 0xf28d66 : 0xa876d6).setStrokeStyle(2, 0x173440);
-      const icon = this.add.text(0, 0, dose.kind === 'burnHeal' ? 'B' : 'A', {
-        color: '#ffffff', fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold',
+      const bottle = this.textures.exists('medicine-bottle') ?
+        this.add.image(0, 0, 'medicine-bottle') :
+        this.add.rectangle(0, 0, 16, 24, dose.kind === 'burnHeal' ? 0xf28d66 : 0xa876d6)
+          .setStrokeStyle(2, 0x173440);
+      const icon = this.add.text(0, 3, dose.kind === 'burnHeal' ? 'B' : 'A', {
+        color: this.textures.exists('medicine-bottle') ? '#173440' : '#ffffff',
+        fontFamily: 'monospace', fontSize: '11px', fontStyle: 'bold',
       }).setOrigin(0.5);
       const position = dose.location === 'surface' ? MEDICINE_SURFACE_POINTS[dose.slotIndex] :
         this.avatars.get(dose.carrierId)?.position;
@@ -557,9 +564,10 @@ export class MapScene extends Phaser.Scene {
   }
 
   private drawMap(): void {
-    this.mapArtLoaded = this.textures.exists('center-map');
+    this.mapArtLoaded = this.textures.exists('center-floor') && this.textures.exists('center-fixtures');
     if (this.mapArtLoaded) {
-      this.add.image(480, 270, 'center-map').setDepth(-1);
+      this.add.image(480, 270, 'center-floor').setDepth(-2);
+      this.add.image(480, 270, 'center-fixtures').setDepth(-1);
     } else {
       const floor = this.add.graphics();
       floor.fillStyle(0x284656).fillRect(0, 0, 960, 540);
