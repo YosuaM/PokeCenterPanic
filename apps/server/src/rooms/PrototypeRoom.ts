@@ -41,6 +41,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
           if (!position) continue;
           player.x = position.x;
           player.y = position.y;
+          player.facing = this.movement.facing(id)!;
         }
       }, 50);
 
@@ -49,6 +50,16 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       });
       this.onMessage('player:input', (client, input: unknown) => {
         this.movement.accept(client.sessionId, input, performance.now());
+      });
+      this.onMessage('patient:interact', (client, input: unknown) => {
+        const player = this.state.players.get(client.sessionId);
+        const position = this.movement.position(client.sessionId);
+        const facing = this.movement.facing(client.sessionId);
+        if (this.state.phase !== 'running' || !player || !position || !facing) {
+          client.send('patient:result', { ok: false, reason: 'Interaction unavailable' });
+          return;
+        }
+        client.send('patient:result', this.patients.interact(client.sessionId, input, position, facing));
       });
     }
 
@@ -69,11 +80,14 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       player.x = position.x;
       player.y = position.y;
       player.slot = slot;
+      player.facing = 'up';
+      player.carriedPatientId = '';
       this.state.players.set(client.sessionId, player);
       this.broadcast('lobby:players', this.roster());
     }
 
     onLeave(client: Client): void {
+      this.patients.releaseCarrier(client.sessionId);
       this.movement.remove(client.sessionId);
       this.state.players.delete(client.sessionId);
       this.broadcast('lobby:players', this.roster());

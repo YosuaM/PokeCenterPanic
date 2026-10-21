@@ -10,6 +10,7 @@ describe('RoomMovement', () => {
     expect(movement.accept('red', { direction: 'diagonal', sequence: 1, roundId: null }, 0)).toBe(false);
     expect(movement.accept('red', { direction: 'right', sequence: 1.5, roundId: null }, 0)).toBe(false);
     expect(movement.accept('red', { direction: 'right', sequence: 1, roundId: null }, 0)).toBe(true);
+    expect(movement.facing('red')).toBe('right');
     movement.advance(50, 50);
     expect(movement.position('red')).toEqual({ x: 463.2, y: 422 });
   });
@@ -20,8 +21,11 @@ describe('RoomMovement', () => {
     movement.accept('red', { direction: 'right', sequence: 2, roundId: null }, 0);
     expect(movement.accept('red', { direction: 'left', sequence: 2, roundId: null }, 200)).toBe(false);
     expect(movement.accept('red', { direction: 'left', sequence: 1, roundId: null }, 200)).toBe(false);
+    expect(movement.facing('red')).toBe('right');
     movement.advance(50, 250);
     expect(movement.position('red')).toEqual({ x: 456, y: 422 });
+    movement.accept('red', { direction: null, sequence: 3, roundId: null }, 260);
+    expect(movement.facing('red')).toBe('right');
   });
 
   it('blocks stations and edges but lets players pass through each other', () => {

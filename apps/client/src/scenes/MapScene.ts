@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
-import { MAP_OBSTACLES, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS, TILE_SIZE, patientPresentation,
-  type Direction, type MapObstacle, type PatientRecord, type PlayerPosition, type PlayerPresence, type Point } from '@pokecenter/shared';
+import { MAP_OBSTACLES, RECOVERY_INTERACTION_POINT, RECOVERY_POSITION,
+  RECEPTION_INTERACTION_POINTS, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS, TILE_SIZE,
+  WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS, patientPresentation, selectInteractionTarget,
+  type Direction, type InteractionTarget, type MapObstacle, type PatientInteractionRequest,
+  type PatientInteractionResult, type PatientRecord, type PlayerPosition, type PlayerPresence, type Point } from '@pokecenter/shared';
 import { MovementInput } from './movement.js';
 const PLAYER_COLORS = [0x4cc9c0, 0xf29c75, 0xb2a0f7, 0xf5ce69];
 
@@ -19,11 +22,17 @@ export class MapScene extends Phaser.Scene {
   private readonly movement = new MovementInput();
   private readonly avatars = new Map<string, Avatar>();
   private readonly patientMarkers = new Map<string, PatientMarker>();
-  private readonly authoritativePositions = new Map<string, Point>();
+  private readonly authoritativePositions = new Map<string, PlayerPosition>();
   private players: PlayerPresence[] = [];
   private patients: PatientRecord[] = [];
   private localId = '';
   private inputSender: ((direction: Direction | null) => void) | null = null;
+  private interactionSender: ((request: PatientInteractionRequest) => void) | null = null;
+  private interactionHint!: Phaser.GameObjects.Text;
+  private targetHighlight!: Phaser.GameObjects.Rectangle;
+  private recoveryCount!: Phaser.GameObjects.Text;
+  private selectedTarget: InteractionTarget | null = null;
+  private interactionFeedback = '';
   private lastSentAt = -Infinity;
   private lastSentDirection: Direction | null = null;
 
@@ -33,6 +42,15 @@ export class MapScene extends Phaser.Scene {
 
   create(): void {
     this.drawMap();
+    this.targetHighlight = this.add.rectangle(0, 0, 42, 28, 0xffff00, 0)
+      .setStrokeStyle(2, 0xffff00).setVisible(false).setDepth(1000);
+    this.interactionHint = this.add.text(26, 477, '', {
+      color: '#ffffff', backgroundColor: '#10243bcc', fontFamily: 'monospace', fontSize: '13px',
+      padding: { x: 5, y: 3 },
+    }).setDepth(1001);
+    this.recoveryCount = this.add.text(650, 423, '', {
+      color: '#173440', fontFamily: 'monospace', fontSize: '12px',
+    });
     this.renderPlayers();
     this.renderPatients();
     this.input.keyboard?.on('keydown', this.onKeyDown, this);
@@ -58,30 +76,51 @@ export class MapScene extends Phaser.Scene {
     }
     this.players = players;
     this.localId = localId;
-    if (this.sys.isActive()) this.renderPlayers();
+    if (this.sys.isActive()) {
+      this.renderPlayers();
+      this.renderPatients();
+      this.refreshInteraction();
+    }
   }
 
   clearPlayers(): void {
     this.setPlayers([], '');
     this.setPatients([]);
     this.inputSender = null;
+    this.interactionSender = null;
+    this.interactionFeedback = '';
+    this.refreshInteraction();
   }
 
   setPatients(patients: PatientRecord[]): void {
     this.patients = patients;
-    if (this.sys.isActive()) this.renderPatients();
+    if (this.sys.isActive()) {
+      this.renderPatients();
+      this.refreshInteraction();
+    }
   }
 
   setInputSender(sender: (direction: Direction | null) => void): void {
     this.inputSender = sender;
   }
 
+  setInteractionSender(sender: (request: PatientInteractionRequest) => void): void {
+    this.interactionSender = sender;
+  }
+
+  setInteractionResult(result: PatientInteractionResult): void {
+    this.interactionFeedback = result.ok ? '' : result.reason;
+    this.refreshInteraction();
+  }
+
   setAuthoritativePositions(positions: PlayerPosition[]): void {
-    for (const { id, x, y } of positions) {
-      this.authoritativePositions.set(id, { x, y });
+    for (const position of positions) {
+      const { id, x, y } = position;
+      this.authoritativePositions.set(id, position);
       const avatar = this.avatars.get(id);
       if (avatar) avatar.target = { x, y };
     }
+    if (this.sys.isActive()) this.refreshInteraction();
   }
 
   update(time: number, delta: number): void {
@@ -99,10 +138,33 @@ export class MapScene extends Phaser.Scene {
       avatar.container.setPosition(avatar.position.x, avatar.position.y);
       avatar.container.setDepth(avatar.position.y);
     }
+    for (const patient of this.patients) {
+      if (patient.location !== 'carrier') continue;
+      const avatar = this.avatars.get(patient.carrierId);
+      const marker = this.patientMarkers.get(patient.id);
+      if (avatar && marker) {
+        marker.container.setPosition(avatar.position.x, avatar.position.y - 28);
+        marker.container.setDepth(avatar.position.y + 1);
+      }
+    }
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (!this.avatars.has(this.localId) || this.isTyping()) return;
+    if (event.code === 'KeyE') {
+      event.preventDefault();
+      if (event.repeat) return;
+      if (this.selectedTarget) {
+        this.interactionSender?.({
+          targetId: this.selectedTarget.id,
+          expectedOccupantId: this.selectedTarget.expectedOccupantId,
+        });
+      } else {
+        this.interactionFeedback = 'No target in range';
+        this.refreshInteraction();
+      }
+      return;
+    }
     if (this.movement.press(event.code)) event.preventDefault();
   };
 
@@ -161,21 +223,28 @@ export class MapScene extends Phaser.Scene {
   private renderPatients(): void {
     const visible = new Set<string>();
     for (const patient of this.patients) {
-      if (patient.lifecycle !== 'active' || patient.location !== 'reception') continue;
-      const position = RECEPTION_SLOT_POSITIONS[patient.slotIndex];
+      if (patient.lifecycle !== 'active') continue;
+      const position = patient.location === 'reception' ? RECEPTION_SLOT_POSITIONS[patient.slotIndex] :
+        patient.location === 'waiting' ? WAITING_SLOT_POSITIONS[patient.slotIndex] :
+          patient.location === 'recovery' && patient.slotIndex === 0 ? RECOVERY_POSITION :
+            patient.location === 'carrier' ? this.avatars.get(patient.carrierId)?.position : undefined;
       if (!position) continue;
       visible.add(patient.id);
       const presentation = patientPresentation(patient);
-      const signature = `${patient.species}:${patient.slotIndex}:${presentation.hp}:${presentation.status}`;
+      const signature = `${patient.species}:${patient.location}:${patient.slotIndex}:${patient.carrierId}:${presentation.hp}:${presentation.status}`;
       const previous = this.patientMarkers.get(patient.id);
       if (previous?.signature === signature) continue;
       previous?.container.destroy();
-      const body = this.add.rectangle(0, -12, 28, 25, 0xf6c76a).setStrokeStyle(2, 0x593a30);
-      const label = this.add.text(0, 42, `${patient.species}  ${presentation.hp}/100`, {
+      const carried = patient.location === 'carrier';
+      const body = this.add.rectangle(0, carried ? 0 : -12, carried ? 40 : 28, carried ? 19 : 25,
+        carried ? 0xe7e3d3 : 0xf6c76a).setStrokeStyle(2, 0x593a30);
+      const label = this.add.text(0, patient.location === 'reception' ? 42 : carried ? -26 : 31,
+        `${patient.species}  ${presentation.hp}/100`, {
         color: '#ffffff', backgroundColor: '#10243bcc', fontFamily: 'monospace', fontSize: '11px',
         padding: { x: 3, y: 2 },
       }).setOrigin(0.5);
-      const container = this.add.container(position.x, position.y, [body, label]).setDepth(position.y);
+      const container = this.add.container(position.x, position.y - (carried ? 28 : 0), [body, label])
+        .setDepth(position.y + (carried ? 1 : 0));
       this.patientMarkers.set(patient.id, { container, signature });
     }
     for (const [id, marker] of this.patientMarkers) {
@@ -183,6 +252,43 @@ export class MapScene extends Phaser.Scene {
       marker.container.destroy();
       this.patientMarkers.delete(id);
     }
+    this.recoveryCount.setText(`QUEUE: ${this.patients.filter((patient) =>
+      patient.lifecycle === 'active' && patient.location === 'recovery').length}`);
+  }
+
+  private refreshInteraction(): void {
+    const local = this.authoritativePositions.get(this.localId);
+    const targets: InteractionTarget[] = [];
+    if (local) {
+      for (let index = 0; index < RECEPTION_INTERACTION_POINTS.length; index += 1) {
+        const occupant = this.patients.find((patient) => patient.lifecycle === 'active' &&
+          patient.location === 'reception' && patient.slotIndex === index);
+        targets.push({ id: `reception:${index}`, position: RECEPTION_INTERACTION_POINTS[index]!,
+          expectedOccupantId: occupant?.id ?? '',
+          label: local.carriedPatientId ? 'Cannot place at arrivals' :
+            occupant ? `Pick up ${occupant.species}` : 'No patient' });
+      }
+      for (let index = 0; index < WAITING_INTERACTION_POINTS.length; index += 1) {
+        const occupant = this.patients.find((patient) => patient.lifecycle === 'active' &&
+          patient.location === 'waiting' && patient.slotIndex === index);
+        targets.push({ id: `waiting:${index}`, position: WAITING_INTERACTION_POINTS[index]!,
+          expectedOccupantId: occupant?.id ?? '',
+          label: local.carriedPatientId ? occupant ? 'Slot occupied' : 'Place patient' :
+            occupant ? `Pick up ${occupant.species}` : 'No patient' });
+      }
+      const front = this.patients.find((patient) => patient.lifecycle === 'active' &&
+        patient.location === 'recovery' && patient.slotIndex === 0);
+      targets.push({ id: 'recovery', position: RECOVERY_INTERACTION_POINT,
+        expectedOccupantId: front?.id ?? '',
+        label: local.carriedPatientId ? 'Recovery is pickup only' :
+          front ? `Pick up ${front.species}` : 'Recovery empty' });
+    }
+    const selected = local ? selectInteractionTarget(local, local.facing, targets) : null;
+    if (this.selectedTarget?.id !== selected?.id) this.interactionFeedback = '';
+    this.selectedTarget = selected;
+    this.targetHighlight.setVisible(Boolean(selected));
+    if (selected) this.targetHighlight.setPosition(selected.position.x, selected.position.y);
+    this.interactionHint.setText(this.interactionFeedback || (selected ? `E: ${selected.label}` : ''));
   }
 
   private drawMap(): void {
@@ -209,6 +315,9 @@ export class MapScene extends Phaser.Scene {
     this.station(MAP_OBSTACLES[2]!, 0x8abbd4, 'HEALING 02');
     this.station(MAP_OBSTACLES[3]!, 0xe3c58a, 'MEDICINE  ·  PREP × 2');
     this.station(MAP_OBSTACLES[4]!, 0xafa1c6, 'WAITING  ·  4 SLOTS');
+    for (const [index, position] of WAITING_SLOT_POSITIONS.entries()) {
+      this.slot(position.x, position.y, index + 1);
+    }
     this.station(MAP_OBSTACLES[5]!, 0x9cbda2, 'RECOVERY / DISCHARGE');
     this.add.text(389, 333, 'MEDICINE SURFACES × 4', {
       color: '#234653', fontFamily: 'monospace', fontSize: '13px', fontStyle: 'bold',

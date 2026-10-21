@@ -7,6 +7,7 @@ interface TrackedPlayer {
   position: Point;
   slot: number;
   direction: Direction | null;
+  facing: Direction;
   lastInputAt: number;
   sequence: number;
 }
@@ -19,7 +20,7 @@ export class RoomMovement {
     const slot = SPAWN_POINTS.findIndex((_, index) => !usedSlots.has(index));
     if (slot < 0 || this.players.has(id)) throw new Error('No available player spawn');
     const position = { ...SPAWN_POINTS[slot]! };
-    this.players.set(id, { position, slot, direction: null, lastInputAt: 0, sequence: 0 });
+    this.players.set(id, { position, slot, direction: null, facing: 'up', lastInputAt: 0, sequence: 0 });
     return { position, slot };
   }
 
@@ -32,6 +33,7 @@ export class RoomMovement {
     if (!player || !isPlayerInput(value) || value.sequence <= player.sequence) return false;
     player.sequence = value.sequence;
     player.direction = value.direction;
+    if (value.direction) player.facing = value.direction;
     player.lastInputAt = now;
     return true;
   }
@@ -46,6 +48,10 @@ export class RoomMovement {
 
   position(id: string): Point | undefined {
     return this.players.get(id)?.position;
+  }
+
+  facing(id: string): Direction | undefined {
+    return this.players.get(id)?.facing;
   }
 }
 

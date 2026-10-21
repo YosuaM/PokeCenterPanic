@@ -13,6 +13,8 @@ export interface PlayerPosition {
   id: string;
   x: number;
   y: number;
+  facing: import('./map.js').Direction;
+  carriedPatientId: string;
 }
 
 export interface PlayerInput {
@@ -22,6 +24,7 @@ export interface PlayerInput {
 }
 
 export * from './map.js';
+export * from './interaction.js';
 export * from './patient.js';
 
 export const PROJECT_INFO = {

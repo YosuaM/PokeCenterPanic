@@ -28,13 +28,27 @@ export const RECEPTION_SLOT_POSITIONS: readonly Point[] = [
   { x: 561, y: 138 }, { x: 753, y: 138 },
 ];
 
+export const RECEPTION_INTERACTION_POINTS: readonly Point[] =
+  RECEPTION_SLOT_POSITIONS.map(({ x }) => ({ x, y: 184 }));
+
+export const WAITING_SLOT_POSITIONS: readonly Point[] = [
+  { x: 130, y: 425 }, { x: 184, y: 425 },
+  { x: 238, y: 425 }, { x: 292, y: 425 },
+];
+
+export const WAITING_INTERACTION_POINTS: readonly Point[] =
+  WAITING_SLOT_POSITIONS.map(({ x }) => ({ x, y: 365 }));
+
+export const RECOVERY_POSITION: Point = { x: 752, y: 425 };
+export const RECOVERY_INTERACTION_POINT: Point = { x: 752, y: 365 };
+
 export const MAP_OBSTACLES: readonly MapObstacle[] = [
   { x: 82, y: 88, width: 796, height: 68 },
   { x: 82, y: 214, width: 155, height: 117 },
   { x: 723, y: 214, width: 155, height: 117 },
   { x: 342, y: 204, width: 276, height: 102 },
-  { x: 82, y: 359, width: 240, height: 76 },
-  { x: 638, y: 359, width: 240, height: 76 },
+  { x: 82, y: 393, width: 240, height: 76 },
+  { x: 638, y: 393, width: 240, height: 76 },
 ];
 
 const DIRECTIONS: Record<Direction, Point> = {

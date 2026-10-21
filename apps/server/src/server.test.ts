@@ -195,6 +195,28 @@ describe('private room flow', () => {
     }
   });
 
+  it('rejects a remote pickup request that is out of range without changing patient ownership', async () => {
+    const created = await reserve('/api/rooms', 'Red');
+    const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
+    joinedRooms.push(host);
+    await vi.waitFor(() => expect((host.state as { patients: Map<string, unknown> }).patients?.get('patient-1'))
+      .toBeDefined(), { timeout: 2000 });
+    const result = new Promise<{ ok: boolean; reason: string }>((resolve) =>
+      host.onMessage('patient:result', resolve));
+    host.send('patient:interact', { targetId: 'reception:0', expectedOccupantId: 'patient-1' });
+    expect(await result).toEqual({ ok: false, reason: 'Out of range or blocked' });
+    const state = host.state as {
+      patients: Map<string, { location: string; carrierId: string }>;
+      receptionSlots: string[];
+      players: Map<string, { carriedPatientId: string }>;
+    };
+    expect(state.patients.get('patient-1')).toEqual(expect.objectContaining({
+      location: 'reception', carrierId: '',
+    }));
+    expect(state.receptionSlots[0]).toBe('patient-1');
+    expect(state.players.get(host.sessionId)?.carriedPatientId).toBe('');
+  });
+
 });
 
 describe('capacity configuration', () => {

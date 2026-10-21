@@ -40,12 +40,16 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
     status.textContent = '';
     mapScene().setPlayers(connectedPlayers, localId);
     mapScene().setInputSender((direction) => controller.sendInput(direction));
+    mapScene().setInteractionSender((request) => controller.sendInteraction(request));
   },
   showPositions(positions) {
     mapScene().setAuthoritativePositions(positions);
   },
   showPatients(patients) {
     mapScene().setPatients(patients);
+  },
+  showInteractionResult(result) {
+    mapScene().setInteractionResult(result);
   },
   showMenu(message) {
     menu.hidden = false;

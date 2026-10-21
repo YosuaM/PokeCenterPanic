@@ -32,6 +32,16 @@ export interface PatientPresentation {
   readyForDischarge: boolean;
 }
 
+export interface PatientInteractionRequest {
+  targetId: string;
+  expectedOccupantId: string;
+}
+
+export interface PatientInteractionResult {
+  ok: boolean;
+  reason: string;
+}
+
 export function isValidTreatmentSet(required: number): boolean {
   return required === TREATMENT.healing ||
     required === TREATMENT.burnHeal ||

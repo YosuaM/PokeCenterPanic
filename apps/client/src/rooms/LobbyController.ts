@@ -1,5 +1,6 @@
 import type { Room } from '@colyseus/sdk';
-import type { Direction, PatientRecord, PlayerPosition, PlayerPresence } from '@pokecenter/shared';
+import type { Direction, PatientInteractionRequest, PatientInteractionResult,
+  PatientRecord, PlayerPosition, PlayerPresence } from '@pokecenter/shared';
 import type { JoinedRoom } from './RoomGateway.js';
 
 export interface LobbyGateway {
@@ -12,6 +13,7 @@ export interface LobbyView {
   showRoom(code: string, players: PlayerPresence[], localId: string): void;
   showPositions(positions: PlayerPosition[]): void;
   showPatients(patients: PatientRecord[]): void;
+  showInteractionResult(result: PatientInteractionResult): void;
   showMenu(message: string): void;
 }
 
@@ -46,6 +48,10 @@ export class LobbyController {
     });
   }
 
+  sendInteraction(request: PatientInteractionRequest): void {
+    this.room?.send('patient:interact', request);
+  }
+
   private async enter(connect: () => Promise<JoinedRoom>): Promise<void> {
     if (this.busy || this.room) return;
     this.busy = true;
@@ -58,17 +64,22 @@ export class LobbyController {
       const updateState = (state: unknown) => {
         if (this.room !== room || !state || typeof state !== 'object' || !('players' in state)) return;
         const snapshot = state as {
-          players: Map<string, { x: number; y: number }>;
+          players: Map<string, { x: number; y: number; facing: Direction; carriedPatientId: string }>;
           patients?: Map<string, PatientRecord>;
         };
         const players = snapshot.players;
-        this.view.showPositions([...players].map(([id, player]) => ({ id, x: player.x, y: player.y })));
+        this.view.showPositions([...players].map(([id, player]) => ({
+          id, x: player.x, y: player.y, facing: player.facing, carriedPatientId: player.carriedPatientId,
+        })));
         this.view.showPatients(snapshot.patients ? [...snapshot.patients.values()] : []);
       };
       room.onStateChange(updateState);
       updateState(room.state);
       room.onMessage('lobby:players', (players: PlayerPresence[]) => {
         if (this.room === room) this.view.showRoom(code, players, room.sessionId);
+      });
+      room.onMessage('patient:result', (result: PatientInteractionResult) => {
+        if (this.room === room) this.view.showInteractionResult(result);
       });
       room.onLeave(() => {
         if (this.room !== room) return;
