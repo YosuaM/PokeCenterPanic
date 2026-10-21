@@ -3,8 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('phaser', () => ({ default: { Scene: class {} } }));
 
 import { MapScene } from './MapScene.js';
+import type { SpriteManifest } from '../sprites/pmd.js';
 
-function setup() {
+function setup(manifest?: SpriteManifest) {
   const keyboardListeners = new Map<string, (event: KeyboardEvent) => void>();
   const windowListeners = new Map<string, () => void>();
   const documentListeners = new Map<string, () => void>();
@@ -26,10 +27,15 @@ function setup() {
     graphics[method] = vi.fn(() => graphics);
   }
   const text = vi.fn(() => ({ setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(),
+    setY: vi.fn().mockReturnThis(),
     setText: vi.fn().mockReturnThis() }));
   const rectangle = vi.fn(() => ({ setStrokeStyle: vi.fn().mockReturnThis(),
     setVisible: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(),
     setPosition: vi.fn().mockReturnThis() }));
+  const sprite = vi.fn((x: number, y: number, key: string) => ({ x, y, key,
+    setOrigin: vi.fn().mockReturnThis(),
+    setScale: vi.fn().mockReturnThis(), play: vi.fn().mockReturnThis(),
+    anims: { currentAnim: null } }));
   const containers: Array<{ setPosition: ReturnType<typeof vi.fn>; setDepth: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }> = [];
   const container = vi.fn(() => {
     const avatar = { setPosition: vi.fn(), setDepth: vi.fn().mockReturnThis(), destroy: vi.fn() };
@@ -37,8 +43,15 @@ function setup() {
     return avatar;
   });
   const scene = new MapScene();
+  let onLoadComplete = () => {};
   Object.assign(scene, {
-    add: { graphics: vi.fn(() => graphics), text, rectangle, container },
+    add: { graphics: vi.fn(() => graphics), text, rectangle, container, sprite },
+    cache: { json: { get: vi.fn(() => manifest) } },
+    load: { spritesheet: vi.fn(), once: vi.fn((_event: string, callback: () => void) => {
+      onLoadComplete = callback;
+    }), start: vi.fn(() => onLoadComplete()) },
+    textures: { exists: vi.fn(() => true) },
+    anims: { create: vi.fn(), exists: vi.fn(() => true) },
     input: { keyboard: {
       on: vi.fn((type: string, listener: (event: KeyboardEvent) => void) => keyboardListeners.set(type, listener)),
       off: vi.fn(),
@@ -47,12 +60,29 @@ function setup() {
     sys: { isActive: () => true },
   });
   scene.create();
-  return { scene, text, container, containers, keyboardListeners, windowListeners, documentListeners, InputElement };
+  return { scene, text, container, containers, sprite, keyboardListeners, windowListeners,
+    documentListeners, InputElement };
 }
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('MapScene', () => {
+  it('renders all six patient species from a validated local sprite fixture', () => {
+    const names = ['Pikachu', 'Bulbasaur', 'Charmander', 'Squirtle', 'Eevee', 'Psyduck'] as const;
+    const ids = ['0025', '0001', '0004', '0007', '0133', '0054'];
+    const manifest: SpriteManifest = { source: 'fixture', species: names.map((name, index) => ({
+      name, id: ids[index]!, credits: 'Artist', idle: { frameWidth: 16, frameHeight: 24,
+        durations: [4, 8], directions: 8, image: `${ids[index]}/Idle-Anim.png` },
+    })) };
+    const { scene, sprite } = setup(manifest);
+    scene.setPatients(names.map((name, index) => ({
+      id: String(index), species: name, requiredTreatments: 1,
+      completedTreatments: 0, initialPatienceMs: 90_000, remainingPatienceMs: 90_000,
+      lifecycle: 'active' as const, location: index < 4 ? 'reception' as const : 'waiting' as const,
+      slotIndex: index < 4 ? index : index - 4, carrierId: '',
+    })));
+    expect(sprite.mock.calls.map((call) => call[2])).toEqual(names.map((name) => `${name}:idle`));
+  });
   it('renders the provisional stations and distinct avatars for the room roster', () => {
     const { scene, text, container } = setup();
     expect(text).toHaveBeenCalledWith(92, 97, 'RECEPTION  ·  4 SLOTS', expect.any(Object));
@@ -131,6 +161,23 @@ describe('MapScene', () => {
     expect(text).toHaveBeenCalledWith(0, 42, 'Pikachu  50/100', expect.any(Object));
     scene.setPatients([]);
     expect(containers[0]?.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the carried patient attached to its carrier and raises the player label', () => {
+    const { scene, containers, text } = setup();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setAuthoritativePositions([{ id: 'red', x: 470, y: 410, facing: 'right',
+      carriedPatientId: 'patient-1' }]);
+    scene.setPatients([{
+      id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 0,
+      initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active',
+      location: 'carrier', slotIndex: -1, carrierId: 'red',
+    }]);
+    scene.update(50, 70);
+    expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(470, 410);
+    expect(containers[1]?.setPosition).toHaveBeenLastCalledWith(470, 382);
+    const playerName = text.mock.results.find((result) => result.value.setY.mock.calls.length);
+    expect(playerName?.value.setY).toHaveBeenLastCalledWith(-77);
   });
 
   it('sends one contextual pickup request per E press with the expected patient', () => {

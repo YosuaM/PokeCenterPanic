@@ -7,17 +7,23 @@ import { DISCHARGE_INTERACTION_POINT, DISCHARGE_POSITION, HEALING_INTERACTION_PO
   type InteractionTarget, type MapObstacle, type PatientInteractionRequest,
   type PatientInteractionResult, type PatientRecord, type PlayerPosition, type PlayerPresence, type Point } from '@pokecenter/shared';
 import { MovementInput } from './movement.js';
+import { animationRow, parseSpriteManifest, patientRenderPosition, playerSpriteSpecies,
+  spriteMotion, type SpriteAnimation, type SpriteManifest } from '../sprites/pmd.js';
 const PLAYER_COLORS = [0x4cc9c0, 0xf29c75, 0xb2a0f7, 0xf5ce69];
 
 interface Avatar {
   container: Phaser.GameObjects.Container;
   position: Point;
   target: Point;
+  sprite?: Phaser.GameObjects.Sprite;
+  species: string;
+  name: Phaser.GameObjects.Text;
 }
 
 interface PatientMarker {
   container: Phaser.GameObjects.Container;
   signature: string;
+  sprite?: Phaser.GameObjects.Sprite;
 }
 
 export class MapScene extends Phaser.Scene {
@@ -40,9 +46,15 @@ export class MapScene extends Phaser.Scene {
   private interactionFeedback = '';
   private lastSentAt = -Infinity;
   private lastSentDirection: Direction | null = null;
+  private spriteManifest: SpriteManifest | null = null;
+  private spritesReady = false;
 
   constructor() {
     super('map');
+  }
+
+  preload(): void {
+    this.load.json('pmd-manifest', '/assets/external/pmd/manifest.json');
   }
 
   create(): void {
@@ -66,6 +78,7 @@ export class MapScene extends Phaser.Scene {
     this.dischargedCountText.setText('DISCHARGED: 0');
     this.renderPlayers();
     this.renderPatients();
+    this.loadPmdSprites();
     this.input.keyboard?.on('keydown', this.onKeyDown, this);
     this.input.keyboard?.on('keyup', this.onKeyUp, this);
     window.addEventListener('blur', this.clearMovement);
@@ -157,11 +170,16 @@ export class MapScene extends Phaser.Scene {
       this.lastSentAt = time;
     }
     const blend = Math.min(1, Math.max(0, delta) / 70);
-    for (const avatar of this.avatars.values()) {
+    for (const [id, avatar] of this.avatars) {
       avatar.position.x += (avatar.target.x - avatar.position.x) * blend;
       avatar.position.y += (avatar.target.y - avatar.position.y) * blend;
       avatar.container.setPosition(avatar.position.x, avatar.position.y);
       avatar.container.setDepth(avatar.position.y);
+      avatar.name.setY(this.authoritativePositions.get(id)?.carriedPatientId ? -77 : -31);
+      if (avatar.sprite) {
+        const motion = spriteMotion(this.authoritativePositions.get(id), avatar.position, avatar.target);
+        this.playSprite(avatar.sprite, avatar.species, motion.facing, motion.moving);
+      }
     }
     for (const patient of this.patients) {
       if (patient.location !== 'carrier') continue;
@@ -170,6 +188,10 @@ export class MapScene extends Phaser.Scene {
       if (avatar && marker) {
         marker.container.setPosition(avatar.position.x, avatar.position.y - 28);
         marker.container.setDepth(avatar.position.y + 1);
+        if (marker.sprite) {
+          const facing = this.authoritativePositions.get(patient.carrierId)?.facing ?? 'down';
+          this.playSprite(marker.sprite, patient.species, facing, false);
+        }
       }
     }
   }
@@ -231,7 +253,9 @@ export class MapScene extends Phaser.Scene {
       const target = { ...position };
       const color = PLAYER_COLORS[slot]!;
       const shadow = this.add.rectangle(0, 10, 29, 9, 0x0b2733, 0.55);
-      const body = this.add.rectangle(0, 0, 26, 32, color).setStrokeStyle(3, 0x163246);
+      const species = playerSpriteSpecies(player);
+      const sprite = this.createSprite(species, 0, 13);
+      const body = sprite ?? this.add.rectangle(0, 0, 26, 32, color).setStrokeStyle(3, 0x163246);
       const badge = this.add.text(0, 0, String(slot + 1), {
         color: '#10243b', fontFamily: 'monospace', fontSize: '15px', fontStyle: 'bold',
       }).setOrigin(0.5);
@@ -241,7 +265,7 @@ export class MapScene extends Phaser.Scene {
       }).setOrigin(0.5);
       const container = this.add.container(position.x, position.y, [shadow, body, badge, name])
         .setDepth(position.y);
-      this.avatars.set(player.id, { container, position, target });
+      this.avatars.set(player.id, { container, position, target, sprite, species, name });
     });
   }
 
@@ -249,11 +273,10 @@ export class MapScene extends Phaser.Scene {
     const visible = new Set<string>();
     for (const patient of this.patients) {
       if (patient.lifecycle !== 'active') continue;
-      const position = patient.location === 'reception' ? RECEPTION_SLOT_POSITIONS[patient.slotIndex] :
-        patient.location === 'waiting' ? WAITING_SLOT_POSITIONS[patient.slotIndex] :
-          patient.location === 'recovery' && patient.slotIndex === 0 ? RECOVERY_POSITION :
-            patient.location === 'healingMachine' ? HEALING_MACHINE_POSITION :
-            patient.location === 'carrier' ? this.avatars.get(patient.carrierId)?.position : undefined;
+      const position = patientRenderPosition(patient, {
+        reception: RECEPTION_SLOT_POSITIONS, waiting: WAITING_SLOT_POSITIONS,
+        recovery: RECOVERY_POSITION, healingMachine: HEALING_MACHINE_POSITION,
+      }, this.avatars.get(patient.carrierId)?.position);
       if (!position) continue;
       visible.add(patient.id);
       const presentation = patientPresentation(patient);
@@ -262,16 +285,20 @@ export class MapScene extends Phaser.Scene {
       if (previous?.signature === signature) continue;
       previous?.container.destroy();
       const carried = patient.location === 'carrier';
-      const body = this.add.rectangle(0, carried ? 0 : -12, carried ? 40 : 28, carried ? 19 : 25,
+      const stretcher = carried ? this.add.rectangle(0, 9, 42, 16, 0xe7e3d3)
+        .setStrokeStyle(2, 0x593a30) : null;
+      const sprite = this.createSprite(patient.species, 0, carried ? 8 : 12);
+      const body = sprite ?? this.add.rectangle(0, carried ? 0 : -12, carried ? 40 : 28, carried ? 19 : 25,
         carried ? 0xe7e3d3 : 0xf6c76a).setStrokeStyle(2, 0x593a30);
       const label = this.add.text(0, patient.location === 'reception' ? 42 : carried ? -26 : 31,
         `${patient.species}  ${presentation.hp}/100`, {
         color: '#ffffff', backgroundColor: '#10243bcc', fontFamily: 'monospace', fontSize: '11px',
         padding: { x: 3, y: 2 },
       }).setOrigin(0.5);
-      const container = this.add.container(position.x, position.y - (carried ? 28 : 0), [body, label])
+      const container = this.add.container(position.x, position.y - (carried ? 28 : 0),
+        [...(stretcher ? [stretcher] : []), body, label])
         .setDepth(position.y + (carried ? 1 : 0));
-      this.patientMarkers.set(patient.id, { container, signature });
+      this.patientMarkers.set(patient.id, { container, signature, sprite });
     }
     for (const [id, marker] of this.patientMarkers) {
       if (visible.has(id)) continue;
@@ -280,6 +307,72 @@ export class MapScene extends Phaser.Scene {
     }
     this.recoveryCount.setText(`QUEUE: ${this.patients.filter((patient) =>
       patient.lifecycle === 'active' && patient.location === 'recovery').length}`);
+  }
+
+  private loadPmdSprites(): void {
+    const value: unknown = this.cache?.json?.get('pmd-manifest');
+    if (!value) return;
+    try {
+      this.spriteManifest = parseSpriteManifest(value);
+    } catch (error) {
+      console.warn('PMD sprite cache unavailable:', error);
+      return;
+    }
+    for (const species of this.spriteManifest.species) {
+      for (const [name, animation] of [['idle', species.idle], ['walk', species.walk]] as const) {
+        if (!animation) continue;
+        this.load.spritesheet(`${species.name}:${name}`, `/assets/external/pmd/${animation.image}`,
+          { frameWidth: animation.frameWidth, frameHeight: animation.frameHeight });
+      }
+    }
+    this.load.once('complete', () => {
+      this.spritesReady = true;
+      for (const avatar of this.avatars.values()) avatar.container.destroy();
+      this.avatars.clear();
+      for (const marker of this.patientMarkers.values()) marker.container.destroy();
+      this.patientMarkers.clear();
+      this.registerAnimations();
+      this.renderPlayers();
+      this.renderPatients();
+    });
+    this.load.start();
+  }
+
+  private registerAnimations(): void {
+    for (const species of this.spriteManifest?.species ?? []) {
+      for (const [name, animation] of [['idle', species.idle], ['walk', species.walk]] as const) {
+        if (!animation || !this.textures.exists(`${species.name}:${name}`)) continue;
+        for (const facing of ['down', 'right', 'up', 'left'] as const) {
+          const row = animationRow(facing, animation.directions);
+          const key = `${species.name}:${name}:${facing}`;
+          this.anims.create({ key, repeat: -1, frameRate: 60, frames: animation.durations.map(
+            (duration, index) => ({ key: `${species.name}:${name}`,
+              frame: row * animation.durations.length + index,
+              duration: duration * 1000 / 60 })) });
+        }
+      }
+    }
+  }
+
+  private createSprite(species: string, x: number, y: number): Phaser.GameObjects.Sprite | undefined {
+    const animation = this.spriteAnimation(species, 'idle');
+    if (!this.spritesReady || !animation || !this.textures.exists(`${species}:idle`)) return undefined;
+    const sprite = this.add.sprite(x, y, `${species}:idle`).setOrigin(0.5, 1);
+    sprite.setScale(Math.min(1, 40 / animation.frameWidth, 48 / animation.frameHeight));
+    this.playSprite(sprite, species, 'down', false);
+    return sprite;
+  }
+
+  private spriteAnimation(species: string, name: 'idle' | 'walk'): SpriteAnimation | undefined {
+    return this.spriteManifest?.species.find((entry) => entry.name === species)?.[name];
+  }
+
+  private playSprite(sprite: Phaser.GameObjects.Sprite, species: string, facing: Direction,
+    moving: boolean): void {
+    const name = moving && this.spriteAnimation(species, 'walk') &&
+      this.textures.exists(`${species}:walk`) ? 'walk' : 'idle';
+    const key = `${species}:${name}:${facing}`;
+    if (this.anims.exists(key) && sprite.anims.currentAnim?.key !== key) sprite.play(key);
   }
 
   private refreshInteraction(): void {

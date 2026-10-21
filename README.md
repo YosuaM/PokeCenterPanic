@@ -21,6 +21,8 @@ Enter a player name and select **Create room**. Share the displayed six-characte
 
 The provisional map shows every connected player. Move your own character with WASD or the arrow keys; the most recently pressed direction wins, with no diagonal movement. The server validates movement against map boundaries and solid stations, then synchronizes positions to all players. Movement stops when the browser loses focus or input becomes stale. Players can pass through one another.
 
+To render PMD sprites locally, run `npm run assets:pmd` before starting the client. This fills a Git-ignored cache for the six patient species and four player characters. The game uses provisional markers if the cache is absent. See [external sprite sources and credits](docs/asset-sources.md) for terms and attribution; do not commit downloaded assets.
+
 Before handing off changes, run:
 
 ```sh
