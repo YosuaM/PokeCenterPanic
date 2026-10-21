@@ -11,6 +11,10 @@ export const GAME_CONFIG = {
     height: 540,
   },
   backgroundColor: '#172d46',
-  pixelArt: true,
+  transparent: true,
+  pixelArt: false,
+  antialias: true,
+  antialiasGL: true,
+  roundPixels: false,
   scene: [MapScene],
 } satisfies Phaser.Types.Core.GameConfig;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { HEALING_INTERACTION_POINT, MAP_OBSTACLES, isWalkable, PLAYER_HALF_WIDTH } from '@pokecenter/shared';
 import { RoomMovement } from './RoomMovement.js';
 
 describe('RoomMovement', () => {
@@ -55,6 +56,29 @@ describe('RoomMovement', () => {
     movement.remove('red');
     expect(movement.position('red')).toBeUndefined();
     expect(movement.accept('red', { direction: 'up', sequence: 30, roundId: null }, 1000)).toBe(false);
+  });
+
+  it('keeps a server-authoritative player outside a machine after approaching its side', () => {
+    const movement = new RoomMovement();
+    movement.add('red');
+    let sequence = 0;
+    let now = 0;
+    const advance = (direction: 'up' | 'left', ticks: number): void => {
+      for (let tick = 0; tick < ticks; tick += 1) {
+        now += 100;
+        sequence += 1;
+        expect(movement.accept('red', { direction, sequence, roundId: null }, now)).toBe(true);
+        movement.advance(100, now);
+        expect(isWalkable(movement.position('red')!)).toBe(true);
+      }
+    };
+    Object.assign(movement.position('red')!, { x: HEALING_INTERACTION_POINT.x + 40,
+      y: HEALING_INTERACTION_POINT.y });
+    advance('left', 10);
+    const position = movement.position('red')!;
+    const machine = MAP_OBSTACLES[1]!;
+    expect(position.y).toBe(HEALING_INTERACTION_POINT.y);
+    expect(position.x).toBeCloseTo(machine.x + machine.width + PLAYER_HALF_WIDTH, 1);
   });
 
   it('reuses a vacated spawn without overlapping an occupied slot', () => {

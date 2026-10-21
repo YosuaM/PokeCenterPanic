@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24" width="48" height="24" shape-rendering="crispEdges">
+  <title>Original patient stretcher</title>
+  <path d="M2 6h44v2H2zM2 16h44v2H2z" fill="#593f43"/>
+  <path d="M0 8h48v8H0z" fill="#294e62"/>
+  <path d="M4 6h40v12H4z" fill="#f5e8cf"/>
+  <path d="M7 8h34v8H7z" fill="#d9e5d8"/>
+  <path d="M9 9h8v6H9z" fill="#a3c9c8"/>
+  <path d="M2 18h8v3H2zM38 18h8v3h-8z" fill="#28485b"/>
+  <path d="M12 18h4v4h-4zM32 18h4v4h-4z" fill="#516d74"/>
+</svg>

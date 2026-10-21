@@ -2,7 +2,7 @@ import {
   HEALING_INTERACTION_POINT, MEDICINE_DISPOSAL_POINT, MEDICINE_KINDS, MEDICINE_PREPARATION_MS,
   MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, RECEPTION_INTERACTION_POINTS,
   RECOVERY_INTERACTION_POINT, TREATMENT, WAITING_INTERACTION_POINTS, isInteractionReachable,
-  type Direction, type MedicineInteractionRequest, type PatientInteractionResult, type Point,
+  type Direction, type MedicineDiscardEvent, type MedicineInteractionRequest, type PatientInteractionResult, type Point,
 } from '@pokecenter/shared';
 import { MedicineDoseState, type RoomState } from './RoomState.js';
 
@@ -29,7 +29,8 @@ export class RoomMedicine {
   private readonly preparations = new Map<string, Preparation>();
   private readonly releaseRequired = new Set<string>();
 
-  constructor(private readonly state: RoomState) {
+  constructor(private readonly state: RoomState,
+    private readonly onDiscard: (event: MedicineDiscardEvent) => void = () => {}) {
     for (let index = 0; index < MEDICINE_SURFACE_POINTS.length; index += 1) state.medicineSurfaces.push('');
     for (let index = 0; index < MEDICINE_PREPARATION_POINTS.length; index += 1) {
       state.medicinePreparationOwners.push('');
@@ -60,7 +61,7 @@ export class RoomMedicine {
     if (this.releaseRequired.has(playerId)) return reject('Release E before interacting again');
     const prep = /^medicine:prep:([01])$/.exec(request.targetId);
     const surface = /^medicine:surface:([0-3])$/.exec(request.targetId);
-    const application = /^medicine:apply:(reception|waiting):([0-3])$/.exec(request.targetId);
+    const application = /^medicine:apply:(reception|waiting):(0|[1-9]\d*)$/.exec(request.targetId);
     const applicationLocation = application?.[1];
     const applicationIndex = application ? Number(application[2]) : -1;
     const point = prep ? MEDICINE_PREPARATION_POINTS[Number(prep[1])] : surface ?
@@ -121,10 +122,17 @@ export class RoomMedicine {
     if (request.expectedOccupantId !== player.carriedMedicineId || !player.carriedMedicineId) {
       return reject('No carried medicine to discard');
     }
+    const dose = this.state.medicineDoses.get(player.carriedMedicineId);
+    if (!dose || dose.location !== 'carrier' || dose.carrierId !== playerId ||
+      (dose.kind !== 'burnHeal' && dose.kind !== 'antidote')) {
+      return reject('Carried medicine unavailable');
+    }
+    const event: MedicineDiscardEvent = { roundId: this.state.roundId, doseId: dose.id, kind: dose.kind };
     this.state.medicineDoses.delete(player.carriedMedicineId);
     player.carriedMedicineId = '';
     this.releaseRequired.add(playerId);
     this.assertOwnership();
+    this.onDiscard(event);
     return success();
   }
 
@@ -146,7 +154,7 @@ export class RoomMedicine {
       'recovery' : 'healingMachine');
     const patientIndex = location ? index : 0;
     if (!patient || patient.lifecycle !== 'active' || patient.location !== patientLocation ||
-      patient.slotIndex !== patientIndex || patient.carrierId) return reject('Patient unavailable');
+      patient.slotIndex !== patientIndex || patient.carrierId || patient.travelKind) return reject('Patient unavailable');
     if (patientLocation === 'healingMachine' && this.state.healingMachine.status !== 'completed') {
       return reject('Healing machine unavailable');
     }

@@ -1,0 +1,37 @@
+{
+  "id": "center-room",
+  "source": "art/source/center-room.blend",
+  "runtime": "apps/client/public/assets/original/models/center-room.glb",
+  "preview": "art/previews/center-room.png",
+  "status": "integrated-3d-runtime",
+  "origin": "original-project-geometry",
+  "externalResources": [],
+  "blenderVersion": "5.2.2 LTS",
+  "editableMeshes": 435,
+  "root": "CenterRoom",
+  "runtimeUpAxis": "+Y",
+  "runtimeFrontAxis": "+Z",
+  "originPlacement": "shared-map-origin",
+  "runtimeMeshes": 10,
+  "runtimeMaterials": 9,
+  "runtimeTriangles": 10020,
+  "runtimeBytes": 397056,
+  "anchors": [
+    "RoomFloorAnchor",
+    "RoomEntranceAnchor",
+    "RoomSignAnchor"
+  ],
+  "exportNotes": "Expanded clinic floor, cutaway walls and low reception divider matched to the shared map; mint treatment zone and warm public lobby. Separate entrance step. No external resources; studio excluded.",
+  "runtimeBounds": {
+    "min": [
+      -14.006667137145996,
+      -0.3999999761581421,
+      -9.454999923706055
+    ],
+    "max": [
+      14.006667137145996,
+      2.359999895095825,
+      10.133333206176758
+    ]
+  }
+}

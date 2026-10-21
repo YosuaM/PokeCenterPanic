@@ -20,3 +20,9 @@ it('fits and centers the game within the browser viewport', () => {
     height: 540,
   });
 });
+
+it('smooths the scene and HUD instead of applying a global pixel-art filter', () => {
+  expect(GAME_CONFIG).toMatchObject({
+    pixelArt: false, antialias: true, antialiasGL: true, roundPixels: false,
+  });
+});

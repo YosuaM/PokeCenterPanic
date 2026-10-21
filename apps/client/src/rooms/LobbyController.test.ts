@@ -1,5 +1,5 @@
 import type { Room } from '@colyseus/sdk';
-import type { PatientRecord, PlayerPresence } from '@pokecenter/shared';
+import type { MedicineDiscardEvent, PatientRecord, PlayerPresence } from '@pokecenter/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { LobbyController, type LobbyGateway, type LobbyView } from './LobbyController.js';
 
@@ -34,14 +34,17 @@ function setup(storage?: Storage) {
     showPositions: vi.fn(),
     showPatients: vi.fn(),
     showMedicines: vi.fn(),
+    showMedicineDiscard: vi.fn(),
     showInteractionResult: vi.fn(),
     showHealingMachine: vi.fn(),
     showDischargedCount: vi.fn(),
+    showLostCount: vi.fn(),
     showPhase: vi.fn(),
     showLobbyResult: vi.fn(),
     showMenu: vi.fn(),
   };
   return { controller: new LobbyController(gateway, view, storage), gateway, view, room,
+    discarded: (event: MedicineDiscardEvent) => messages.get('medicine:discarded')?.(event as never),
     players: (roster: PlayerPresence[]) => messages.get('lobby:players')?.(roster as never),
     resume: (lastSequence: number) => messages.get('room:resume')?.({ lastSequence } as never),
     result: (result: { ok: boolean; reason: string }) => messages.get('patient:result')?.(result as never),
@@ -51,13 +54,35 @@ function setup(storage?: Storage) {
       carriedPatientId: string }>, patients = new Map<string, PatientRecord>()) =>
       stateChange?.({ players: positions, patients,
         healingMachine: { patientId: 'patient-1', status: 'treating', remainingMs: 3000 },
-        dischargedCount: 1, phase: 'running', hostId: 'host-id',
+        dischargedCount: 1, lostCount: 2, phase: 'running', hostId: 'host-id',
         countdownRemainingMs: 0, roundId: 'round-1' }),
     disconnect: () => disconnected?.(), drop: () => dropped?.(),
     reconnect: () => reconnected?.() };
 }
 
 describe('LobbyController', () => {
+  it('shows confirmed discards once and ignores old rounds, reconnection and departed rooms', async () => {
+    const test = setup();
+    await test.controller.create('Staff');
+    const event = { roundId: 'round-1', doseId: 'dose-1', kind: 'burnHeal' as const };
+    test.discarded(event);
+    expect(test.view.showMedicineDiscard).not.toHaveBeenCalled();
+    test.state(new Map());
+    test.discarded({ ...event, roundId: 'old-round' });
+    test.discarded(event);
+    test.discarded(event);
+    expect(test.view.showMedicineDiscard).toHaveBeenCalledExactlyOnceWith(event);
+    test.drop();
+    test.discarded({ ...event, doseId: 'dose-2' });
+    expect(test.view.showMedicineDiscard).toHaveBeenCalledOnce();
+    test.reconnect();
+    test.discarded({ ...event, doseId: 'dose-2', kind: 'antidote' });
+    expect(test.view.showMedicineDiscard).toHaveBeenCalledTimes(2);
+    await test.controller.leave();
+    test.discarded({ ...event, doseId: 'dose-3' });
+    expect(test.view.showMedicineDiscard).toHaveBeenCalledTimes(2);
+  });
+
   it('stores the reconnect token and sequence, pauses on drop, and restores a reloaded session', async () => {
     const saved = new Map<string, string>();
     const storage = { getItem: (key: string) => saved.get(key) ?? null,
@@ -143,6 +168,7 @@ describe('LobbyController', () => {
       patientId: 'patient-1', status: 'treating', remainingMs: 3000,
     });
     expect(view.showDischargedCount).toHaveBeenCalledWith(1);
+    expect(view.showLostCount).toHaveBeenCalledWith(2);
     controller.sendInteraction({ targetId: 'reception:0', expectedOccupantId: patient.id });
     expect(room.send).toHaveBeenCalledWith('patient:interact',
       { targetId: 'reception:0', expectedOccupantId: patient.id });

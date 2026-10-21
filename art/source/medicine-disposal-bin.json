@@ -1,0 +1,41 @@
+{
+  "id": "medicine-disposal-bin",
+  "source": "art/source/medicine-disposal-bin.blend",
+  "runtime": "apps/client/public/assets/original/models/medicine-disposal-bin.glb",
+  "preview": "art/previews/medicine-disposal-bin.png",
+  "status": "integrated-3d-runtime",
+  "origin": "original-project-geometry",
+  "externalResources": [],
+  "blenderVersion": "5.2.2 LTS",
+  "editableMeshes": 18,
+  "mapTilePixels": 48,
+  "root": "MedicineDisposalBin",
+  "runtimeUpAxis": "+Y",
+  "runtimeFrontAxis": "+Z",
+  "originPlacement": "container-base-center",
+  "runtimeBounds": {
+    "min": [
+      -0.34,
+      0,
+      -0.55
+    ],
+    "max": [
+      0.34,
+      0.835,
+      0.592
+    ]
+  },
+  "runtimeMeshes": 7,
+  "runtimeMaterials": 7,
+  "runtimeTriangles": 1864,
+  "runtimeBytes": 72448,
+  "anchors": [
+    "MedicineDisposalAnchor"
+  ],
+  "placement": {
+    "height": 0.705,
+    "tableLocalZ": 0.22,
+    "x": "MEDICINE_DISPOSAL_POINT.x"
+  },
+  "exportNotes": "Original geometry and solid materials. Selected active-scene hierarchy, evaluated bevels grouped by material; studio, fonts, textures and animation excluded."
+}

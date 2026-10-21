@@ -25,6 +25,11 @@ export const PatientState = schema({
   location: t.string(),
   slotIndex: t.number(),
   carrierId: t.string(),
+  travelKind: t.string(),
+  travelElapsedMs: t.number(),
+  faintX: t.number(),
+  faintY: t.number(),
+  faintElevation: t.number(),
 }, 'PrototypePatientState');
 export type PatientState = SchemaType<typeof PatientState>;
 
@@ -56,6 +61,7 @@ export const RoomState = schema({
   recoveryQueue: t.array('string'),
   healingMachine: HealingMachineState,
   dischargedCount: t.number(),
+  lostCount: t.number(),
   phase: t.string(),
   hostId: t.string(),
   countdownRemainingMs: t.number(),

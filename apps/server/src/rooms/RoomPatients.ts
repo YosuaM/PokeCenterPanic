@@ -1,8 +1,9 @@
 import {
-  DISCHARGE_INTERACTION_POINT, HEALING_INTERACTION_POINT, PATIENT_SPECIES,
-  RECOVERY_INTERACTION_POINT, RECEPTION_INTERACTION_POINTS,
+  DISCHARGE_INTERACTION_POINT, HEALING_DURATION_MS, HEALING_INTERACTION_POINT, PATIENT_SPECIES,
+  RECOVERY_INTERACTION_POINT, RECOVERY_POSITION, HEALING_MACHINE_POSITION, RECEPTION_INTERACTION_POINTS,
   RECEPTION_SLOT_POSITIONS, TREATMENT, WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS,
-  isInteractionReachable, isValidTreatmentSet, patientPresentation,
+  isInteractionReachable, isValidTreatmentSet, patientPresentation, patientTravelDuration, patientTravelPose,
+  PATIENT_ELEVATIONS,
   type Direction, type PatientInteractionRequest, type PatientInteractionResult,
   type PatientSpecies, type Point,
 } from '@pokecenter/shared';
@@ -10,7 +11,6 @@ import { HealingMachineState, PatientState, type RoomState } from './RoomState.j
 
 const PROTOTYPE_PATIENCE_MS = 90_000;
 const MAX_ACTIVE_PATIENTS = 10;
-const HEALING_DURATION_MS = 4_000;
 
 function rejection(reason: string): PatientInteractionResult {
   return { ok: false, reason };
@@ -26,6 +26,7 @@ export class RoomPatients {
     state.healingMachine.status = 'empty';
     state.healingMachine.remainingMs = 0;
     state.dischargedCount = 0;
+    state.lostCount = 0;
     for (let index = 0; index < RECEPTION_SLOT_POSITIONS.length; index += 1) {
       state.receptionSlots.push('');
     }
@@ -47,14 +48,17 @@ export class RoomPatients {
     this.state.healingMachine.status = 'empty';
     this.state.healingMachine.remainingMs = 0;
     this.state.dischargedCount = 0;
+    this.state.lostCount = 0;
     this.recoveryEnteredAt.clear();
     this.nextId = 1;
   }
 
-  admit(species: PatientSpecies, requiredTreatments: number, slotIndex: number): PatientState | null {
+  admit(species: PatientSpecies, requiredTreatments: number, slotIndex: number,
+    location: 'reception' | 'waiting' = 'reception'): PatientState | null {
+    const slots = location === 'waiting' ? this.state.waitingSlots : this.state.receptionSlots;
     if (!PATIENT_SPECIES.includes(species) || !isValidTreatmentSet(requiredTreatments) ||
-      !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= this.state.receptionSlots.length ||
-      this.state.receptionSlots[slotIndex] !== '' ||
+      !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= slots.length ||
+      slots[slotIndex] !== '' ||
       [...this.state.patients.values()].filter((patient) => patient.lifecycle === 'active').length >= MAX_ACTIVE_PATIENTS) {
       return null;
     }
@@ -67,27 +71,88 @@ export class RoomPatients {
     patient.initialPatienceMs = PROTOTYPE_PATIENCE_MS;
     patient.remainingPatienceMs = PROTOTYPE_PATIENCE_MS;
     patient.lifecycle = 'active';
-    patient.location = 'reception';
+    patient.location = location;
     patient.slotIndex = slotIndex;
     patient.carrierId = '';
+    patient.travelKind = location === 'waiting' ? 'arriving' : '';
+    patient.travelElapsedMs = 0;
     this.state.patients.set(patient.id, patient);
-    this.state.receptionSlots[slotIndex] = patient.id;
+    slots[slotIndex] = patient.id;
     this.assertOwnership();
     return patient;
   }
 
   advance(elapsedMs: number): void {
+    if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return;
     const machine = this.state.healingMachine;
-    if (machine.status !== 'treating' || !Number.isFinite(elapsedMs) || elapsedMs <= 0) return;
-    machine.remainingMs = Math.max(0, machine.remainingMs - elapsedMs);
-    if (machine.remainingMs > 0) return;
-    const patient = this.state.patients.get(machine.patientId);
-    if (!patient || patient.lifecycle !== 'active' || patient.location !== 'healingMachine' ||
-      !(patient.requiredTreatments & TREATMENT.healing) ||
-      (patient.completedTreatments & TREATMENT.healing)) throw new Error('Invalid healing ownership');
-    patient.completedTreatments |= TREATMENT.healing;
-    machine.status = 'completed';
+    for (const patient of this.state.patients.values()) {
+      if (patient.lifecycle !== 'active') {
+        if (patient.travelKind !== 'leaving' && patient.travelKind !== 'fainting') continue;
+        patient.travelElapsedMs += elapsedMs;
+        if (patient.travelElapsedMs >= patientTravelDuration({ travelKind: patient.travelKind,
+          slotIndex: patient.slotIndex })) this.state.patients.delete(patient.id);
+        continue;
+      }
+      // Only the portion of this tick spent actively healing pauses patience.
+      const healing = patient.remainingPatienceMs > 0 && machine.patientId === patient.id &&
+        machine.status === 'treating' && (patient.requiredTreatments & TREATMENT.healing) !== 0 &&
+        (patient.completedTreatments & TREATMENT.healing) === 0;
+      const pausedMs = healing ? Math.min(elapsedMs, Math.max(0, machine.remainingMs)) : 0;
+      if (healing) {
+        machine.remainingMs = Math.max(0, machine.remainingMs - elapsedMs);
+        if (machine.remainingMs === 0) {
+          patient.completedTreatments |= TREATMENT.healing;
+          machine.status = 'completed';
+        }
+      }
+      if (patient.travelKind === 'arriving') {
+        patient.travelElapsedMs += Math.min(elapsedMs, patient.remainingPatienceMs);
+        if (patient.travelElapsedMs >= patientTravelDuration({ travelKind: 'arriving',
+          slotIndex: patient.slotIndex })) {
+          patient.travelKind = '';
+          patient.travelElapsedMs = 0;
+        }
+      }
+      patient.remainingPatienceMs = Math.max(0, patient.remainingPatienceMs - (elapsedMs - pausedMs));
+      if (patient.remainingPatienceMs === 0) this.lose(patient);
+    }
     this.assertOwnership();
+  }
+
+  private lose(patient: PatientState): void {
+    const travel = patient.travelKind === 'arriving' ? patientTravelPose({
+      travelKind: 'arriving', travelElapsedMs: patient.travelElapsedMs, slotIndex: patient.slotIndex,
+    }) : undefined;
+    const carrier = this.state.players.get(patient.carrierId);
+    const point = travel?.point ?? (patient.location === 'waiting' ? WAITING_SLOT_POSITIONS[patient.slotIndex] :
+      patient.location === 'reception' ? RECEPTION_SLOT_POSITIONS[patient.slotIndex] :
+      patient.location === 'healingMachine' ? HEALING_MACHINE_POSITION :
+      patient.location === 'recovery' ? RECOVERY_POSITION : carrier);
+    patient.faintX = point?.x ?? RECOVERY_POSITION.x;
+    patient.faintY = point?.y ?? RECOVERY_POSITION.y;
+    patient.faintElevation = travel?.elevation ?? PATIENT_ELEVATIONS[patient.location] ?? 0.03;
+    if (patient.location === 'reception') this.state.receptionSlots[patient.slotIndex] = '';
+    if (patient.location === 'waiting') this.state.waitingSlots[patient.slotIndex] = '';
+    if (patient.location === 'carrier' && carrier) carrier.carriedPatientId = '';
+    if (patient.location === 'recovery') {
+      this.state.recoveryQueue.splice(patient.slotIndex, 1);
+      this.recoveryEnteredAt.delete(patient.id);
+      for (let index = 0; index < this.state.recoveryQueue.length; index += 1) {
+        this.state.patients.get(this.state.recoveryQueue[index]!)!.slotIndex = index;
+      }
+    }
+    if (patient.location === 'healingMachine') {
+      this.state.healingMachine.patientId = '';
+      if (this.state.healingMachine.status !== 'broken') this.state.healingMachine.status = 'empty';
+      this.state.healingMachine.remainingMs = 0;
+    }
+    patient.lifecycle = 'lost';
+    patient.location = 'none';
+    patient.carrierId = '';
+    patient.slotIndex = -1;
+    patient.travelKind = 'fainting';
+    patient.travelElapsedMs = 0;
+    this.state.lostCount += 1;
   }
 
   interact(playerId: string, value: unknown, position: Point, facing: Direction): PatientInteractionResult {
@@ -95,7 +160,7 @@ export class RoomPatients {
     if (!player || !isInteractionRequest(value)) return rejection('Invalid interaction');
 
     const { targetId, expectedOccupantId } = value;
-    const match = /^(reception|waiting):([0-3])$/.exec(targetId);
+    const match = /^(reception|waiting):(0|[1-9]\d*)$/.exec(targetId);
     const kind = match?.[1];
     const index = match ? Number(match[2]) : -1;
     const point = kind === 'reception' ? RECEPTION_INTERACTION_POINTS[index] :
@@ -183,7 +248,7 @@ export class RoomPatients {
     }
     if (this.state.healingMachine.patientId) {
       verify(this.state.healingMachine.patientId, 'healingMachine', 0);
-    } else if (this.state.healingMachine.status !== 'empty' || this.state.healingMachine.remainingMs !== 0) {
+    } else if (!['empty', 'broken'].includes(this.state.healingMachine.status) || this.state.healingMachine.remainingMs !== 0) {
       throw new Error('Empty machine has treatment state');
     }
     for (const [playerId, player] of this.state.players) {
@@ -207,6 +272,7 @@ export class RoomPatients {
     const patient = this.state.patients.get(id);
     if (!patient || patient.lifecycle !== 'active' || patient.location !== location ||
       patient.slotIndex !== index) return rejection('Patient unavailable');
+    if (patient.travelKind) return rejection('Patient is walking to the waiting room');
     slots[index] = '';
     this.giveToPlayer(patient, playerId);
     this.assertOwnership();
@@ -279,7 +345,8 @@ export class RoomPatients {
     if (!patient || patient.lifecycle !== 'active' || patient.location !== 'carrier' ||
       patient.carrierId !== playerId) return rejection('Patient unavailable');
     if (!patientPresentation({ requiredTreatments: patient.requiredTreatments,
-      completedTreatments: patient.completedTreatments, lifecycle: 'active' }).readyForDischarge) {
+      completedTreatments: patient.completedTreatments, lifecycle: 'active',
+      initialPatienceMs: patient.initialPatienceMs, remainingPatienceMs: patient.remainingPatienceMs }).readyForDischarge) {
       return rejection('Treatment still required');
     }
     player.carriedPatientId = '';
@@ -287,6 +354,8 @@ export class RoomPatients {
     patient.location = 'none';
     patient.slotIndex = -1;
     patient.lifecycle = 'discharged';
+    patient.travelKind = 'leaving';
+    patient.travelElapsedMs = 0;
     this.state.dischargedCount += 1;
     this.assertOwnership();
     return { ok: true, reason: '' };

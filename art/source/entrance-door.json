@@ -1,0 +1,55 @@
+{
+  "id": "entrance-door",
+  "source": "art/source/entrance-door.blend",
+  "runtime": "apps/client/public/assets/original/models/entrance-door.glb",
+  "preview": "art/previews/entrance-door.png",
+  "status": "integrated-3d-runtime",
+  "origin": "original-project-geometry",
+  "externalResources": [],
+  "blenderVersion": "5.2.2 LTS",
+  "editableMeshes": 48,
+  "mapTilePixels": 48,
+  "root": "EntranceDoor",
+  "runtimeUpAxis": "+Y",
+  "runtimeFrontAxis": "+Z",
+  "originPlacement": "threshold-ground-center",
+  "runtimeBounds": {
+    "min": [
+      -3.08,
+      0,
+      -0.4
+    ],
+    "max": [
+      3.08,
+      2.85,
+      0.4
+    ]
+  },
+  "runtimeMeshes": 36,
+  "runtimeMaterials": 6,
+  "runtimeTriangles": 5184,
+  "runtimeBytes": 186440,
+  "anchors": [
+    "EntranceAnchor"
+  ],
+  "cutawayNodes": [
+    "EntranceHeader_Runtime"
+  ],
+  "exportNotes": "Original telescopic doorway exported closed, with six independent leaf groups. Header retained in source and GLB, hidden in gameplay. Evaluated geometry grouped by material and moving section. No external fonts, textures or studio objects.",
+  "movingNodes": [
+    "EntranceLeafL0_Runtime",
+    "EntranceLeafL1_Runtime",
+    "EntranceLeafL2_Runtime",
+    "EntranceLeafR0_Runtime",
+    "EntranceLeafR1_Runtime",
+    "EntranceLeafR2_Runtime"
+  ],
+  "leafFit": {
+    "width": 0.92,
+    "height": 2.28,
+    "bottom": 0.12,
+    "closedCenterGap": 0.01,
+    "railSpacing": 0.15,
+    "openClearWidth": 4.12
+  }
+}

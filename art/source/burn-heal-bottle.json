@@ -1,0 +1,36 @@
+{
+  "id": "burn-heal-bottle",
+  "source": "art/source/burn-heal-bottle.blend",
+  "runtime": "apps/client/public/assets/original/models/burn-heal-bottle.glb",
+  "preview": "art/previews/burn-heal-bottle.png",
+  "status": "integrated-3d-runtime",
+  "origin": "original-project-geometry",
+  "externalResources": [],
+  "blenderVersion": "5.2.2 LTS",
+  "editableMeshes": 17,
+  "mapTilePixels": 48,
+  "root": "BurnHealBottle",
+  "runtimeUpAxis": "+Y",
+  "runtimeFrontAxis": "+Z",
+  "originPlacement": "bottle-base-center",
+  "runtimeBounds": {
+    "min": [
+      -0.18,
+      0,
+      -0.15
+    ],
+    "max": [
+      0.18,
+      0.511,
+      0.184
+    ]
+  },
+  "runtimeMeshes": 4,
+  "runtimeMaterials": 4,
+  "runtimeTriangles": 1356,
+  "runtimeBytes": 58348,
+  "anchors": [
+    "BottleBaseAnchor"
+  ],
+  "exportNotes": "Original geometry and solid materials. Letter label modeled as strokes, no fonts or textures. Evaluated bevels grouped by material. Active scene selected hierarchy only; no studio or animation."
+}

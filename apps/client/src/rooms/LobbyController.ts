@@ -1,5 +1,5 @@
 import type { Room } from '@colyseus/sdk';
-import type { Direction, HealingMachineSnapshot, MedicineDoseRecord, PatientInteractionRequest,
+import type { Direction, HealingMachineSnapshot, MedicineDiscardEvent, MedicineDoseRecord, PatientInteractionRequest,
   PatientInteractionResult, PatientRecord, PlayerCharacter, PlayerPosition, PlayerPresence,
   RoomPhaseSnapshot } from '@pokecenter/shared';
 import type { JoinedRoom } from './RoomGateway.js';
@@ -16,9 +16,11 @@ export interface LobbyView {
   showPositions(positions: PlayerPosition[]): void;
   showPatients(patients: PatientRecord[]): void;
   showMedicines(doses: MedicineDoseRecord[], surfaces: string[], owners: string[], remainingMs: number[]): void;
+  showMedicineDiscard(event: MedicineDiscardEvent): void;
   showInteractionResult(result: PatientInteractionResult): void;
   showHealingMachine(machine: HealingMachineSnapshot): void;
   showDischargedCount(count: number): void;
+  showLostCount(count: number): void;
   showPhase(snapshot: RoomPhaseSnapshot, localId: string): void;
   showLobbyResult(reason: string): void;
   showMenu(message: string): void;
@@ -30,6 +32,7 @@ export class LobbyController {
   private reconnecting = false;
   private roomCode = '';
   private nextInputSequence = 0;
+  private readonly seenDiscards = new Set<string>();
   private phase: RoomPhaseSnapshot = { phase: 'lobby', hostId: '', countdownRemainingMs: 0,
     roundId: '' };
 
@@ -114,6 +117,7 @@ export class LobbyController {
     try {
       const { code, room } = await connect();
       this.room = room;
+      this.seenDiscards.clear();
       this.roomCode = code;
       this.reconnecting = false;
       this.nextInputSequence = resumeSequence;
@@ -133,6 +137,7 @@ export class LobbyController {
           medicinePreparationRemainingMs?: number[];
           healingMachine?: HealingMachineSnapshot;
           dischargedCount?: number;
+          lostCount?: number;
           phase?: RoomPhaseSnapshot['phase'];
           hostId?: string;
           countdownRemainingMs?: number;
@@ -151,8 +156,10 @@ export class LobbyController {
           snapshot.medicinePreparationRemainingMs ? [...snapshot.medicinePreparationRemainingMs] : []);
         if (snapshot.healingMachine) this.view.showHealingMachine(snapshot.healingMachine);
         if (typeof snapshot.dischargedCount === 'number') this.view.showDischargedCount(snapshot.dischargedCount);
+        if (typeof snapshot.lostCount === 'number') this.view.showLostCount(snapshot.lostCount);
         if (snapshot.phase && typeof snapshot.hostId === 'string' &&
           typeof snapshot.countdownRemainingMs === 'number' && typeof snapshot.roundId === 'string') {
+          if (this.phase.roundId !== snapshot.roundId) this.seenDiscards.clear();
           this.phase = { phase: snapshot.phase, hostId: snapshot.hostId,
             countdownRemainingMs: snapshot.countdownRemainingMs, roundId: snapshot.roundId };
           this.view.showPhase(this.phase, room.sessionId);
@@ -165,6 +172,12 @@ export class LobbyController {
       });
       room.onMessage('patient:result', (result: PatientInteractionResult) => {
         if (this.room === room) this.view.showInteractionResult(result);
+      });
+      room.onMessage('medicine:discarded', (event: MedicineDiscardEvent) => {
+        if (this.room !== room || this.reconnecting || this.phase.phase !== 'running' ||
+          event.roundId !== this.phase.roundId || this.seenDiscards.has(event.doseId)) return;
+        this.seenDiscards.add(event.doseId);
+        this.view.showMedicineDiscard(event);
       });
       room.onMessage('medicine:result', (result: PatientInteractionResult) => {
         if (this.room === room) this.view.showInteractionResult(result);
