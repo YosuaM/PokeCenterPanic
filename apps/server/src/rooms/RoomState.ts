@@ -7,6 +7,7 @@ export const PlayerState = schema({
   slot: t.uint8(),
   facing: t.string(),
   carriedPatientId: t.string(),
+  carriedMedicineId: t.string(),
   character: t.string(),
   ready: t.boolean(),
   connected: t.boolean(),
@@ -27,6 +28,15 @@ export const PatientState = schema({
 }, 'PrototypePatientState');
 export type PatientState = SchemaType<typeof PatientState>;
 
+export const MedicineDoseState = schema({
+  id: t.string(),
+  kind: t.string(),
+  location: t.string(),
+  carrierId: t.string(),
+  slotIndex: t.number(),
+}, 'PrototypeMedicineDoseState');
+export type MedicineDoseState = SchemaType<typeof MedicineDoseState>;
+
 export const HealingMachineState = schema({
   patientId: t.string(),
   status: t.string(),
@@ -37,6 +47,10 @@ export type HealingMachineState = SchemaType<typeof HealingMachineState>;
 export const RoomState = schema({
   players: t.map(PlayerState),
   patients: t.map(PatientState),
+  medicineDoses: t.map(MedicineDoseState),
+  medicineSurfaces: t.array('string'),
+  medicinePreparationOwners: t.array('string'),
+  medicinePreparationRemainingMs: t.array('number'),
   receptionSlots: t.array('string'),
   waitingSlots: t.array('string'),
   recoveryQueue: t.array('string'),

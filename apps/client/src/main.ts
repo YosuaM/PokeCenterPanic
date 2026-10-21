@@ -75,7 +75,7 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
     status.textContent = '';
     mapScene().setPlayers(connectedPlayers.filter((player) => player.connected !== false), localId);
     mapScene().setGameplayActive(currentPhase.phase === 'running');
-    mapScene().setInputSender((direction) => controller.sendInput(direction));
+    mapScene().setInputSender((direction, interactHeld) => controller.sendInput(direction, interactHeld));
     mapScene().setInteractionSender((request) => controller.sendInteraction(request));
   },
   showPositions(positions) {
@@ -83,6 +83,9 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
   },
   showPatients(patients) {
     mapScene().setPatients(patients);
+  },
+  showMedicines(doses, surfaces, owners, remainingMs) {
+    mapScene().setMedicines(doses, surfaces, owners, remainingMs);
   },
   showInteractionResult(result) {
     mapScene().setInteractionResult(result);

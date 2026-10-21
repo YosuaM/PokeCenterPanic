@@ -1,9 +1,10 @@
 import { ErrorCode, Room, ServerError, type Client } from 'colyseus';
-import { PLAYER_CHARACTERS, type PlayerCharacter, type PlayerPresence } from '@pokecenter/shared';
+import { PLAYER_CHARACTERS, type PlayerCharacter, type PlayerInput, type PlayerPresence } from '@pokecenter/shared';
 import { normalizeRoomCode, validatePlayerName, type RoomDirectory } from './RoomDirectory.js';
 import { RoomMovement } from './RoomMovement.js';
 import { RoomLobby, type LobbyResult } from './RoomLobby.js';
 import { RoomPatients, seedPrototypePatient } from './RoomPatients.js';
+import { RoomMedicine, isMedicineInteractionRequest } from './RoomMedicine.js';
 import { PlayerState, RoomState } from './RoomState.js';
 
 export interface PrivateRoomOptions {
@@ -23,6 +24,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
     private readonly movement = new RoomMovement();
     state = new RoomState();
     private readonly patients = new RoomPatients(this.state);
+    private readonly medicine = new RoomMedicine(this.state);
     private readonly lobby = new RoomLobby(this.state, countdownMs);
 
     private roster(): PlayerPresence[] {
@@ -63,6 +65,8 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
           directory.setPhase(this.roomId, 'running');
         }
         if (this.state.phase === 'running') {
+          this.medicine.advance(now, (id) => this.movement.position(id),
+            (id) => this.movement.facing(id));
           this.movement.advance(elapsedMs, now);
           this.patients.advance(elapsedMs);
         }
@@ -100,14 +104,35 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       });
       this.onMessage('player:input', (client, input: unknown) => {
         if (this.state.phase === 'running') {
-          this.movement.accept(client.sessionId, input, performance.now(), this.state.roundId);
+          const now = performance.now();
+          if (this.movement.accept(client.sessionId, input, now, this.state.roundId)) {
+            const accepted = input as PlayerInput;
+            this.medicine.onInput(client.sessionId, accepted.interactHeld === true,
+              accepted.direction, now);
+          }
         }
+      });
+      this.onMessage('medicine:interact', (client, input: unknown) => {
+        const playerId = client.sessionId;
+        const now = performance.now();
+        const player = this.state.players.get(playerId);
+        const position = this.movement.position(playerId);
+        const facing = this.movement.facing(playerId);
+        if (this.state.phase !== 'running' || !player || !position || !facing ||
+          !isMedicineInteractionRequest(input) ||
+          !this.movement.acceptAction(playerId, input.sequence, input.roundId, this.state.roundId)) {
+          client.send('medicine:result', { ok: false, reason: 'Interaction unavailable or stale' });
+          return;
+        }
+        client.send('medicine:result', this.medicine.interact(playerId, input, position, facing,
+          now, this.movement.isStationary(playerId, now)));
       });
       this.onMessage('patient:interact', (client, input: unknown) => {
         const player = this.state.players.get(client.sessionId);
         const position = this.movement.position(client.sessionId);
         const facing = this.movement.facing(client.sessionId);
-        if (this.state.phase !== 'running' || !player || !position || !facing) {
+        if (this.state.phase !== 'running' || !player || !position || !facing ||
+          player.carriedMedicineId || this.medicine.isPreparing(client.sessionId)) {
           client.send('patient:result', { ok: false, reason: 'Interaction unavailable' });
           return;
         }
@@ -138,6 +163,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       player.slot = slot;
       player.facing = 'up';
       player.carriedPatientId = '';
+      player.carriedMedicineId = '';
       player.character = '';
       player.ready = false;
       player.connected = true;
@@ -151,6 +177,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
       this.patients.releaseCarrier(client.sessionId);
+      this.medicine.releaseCarrier(client.sessionId);
       this.movement.suspend(client.sessionId);
       player.connected = false;
       this.reconnectUntil.set(client.sessionId, Date.now() + reconnectMs);
@@ -169,6 +196,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       player.y = position.y;
       player.facing = 'up';
       player.carriedPatientId = '';
+      player.carriedMedicineId = '';
       player.ready = false;
       player.connected = true;
       this.reconnectUntil.delete(client.sessionId);
@@ -180,6 +208,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
 
     onLeave(client: Client): void {
       this.patients.releaseCarrier(client.sessionId);
+      this.medicine.releaseCarrier(client.sessionId);
       this.movement.remove(client.sessionId);
       this.state.players.delete(client.sessionId);
       this.reconnectUntil.delete(client.sessionId);
@@ -187,6 +216,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       if (!this.state.players.size) {
         this.lobby.resetEmpty();
         this.patients.reset();
+        this.medicine.reset();
       }
       directory.setPhase(this.roomId, this.lobby.phase());
       this.broadcast('lobby:players', this.roster());

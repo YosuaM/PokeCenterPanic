@@ -1,6 +1,7 @@
 import type { Room } from '@colyseus/sdk';
-import type { Direction, HealingMachineSnapshot, PatientInteractionRequest, PatientInteractionResult,
-  PatientRecord, PlayerCharacter, PlayerPosition, PlayerPresence, RoomPhaseSnapshot } from '@pokecenter/shared';
+import type { Direction, HealingMachineSnapshot, MedicineDoseRecord, PatientInteractionRequest,
+  PatientInteractionResult, PatientRecord, PlayerCharacter, PlayerPosition, PlayerPresence,
+  RoomPhaseSnapshot } from '@pokecenter/shared';
 import type { JoinedRoom } from './RoomGateway.js';
 
 export interface LobbyGateway {
@@ -14,6 +15,7 @@ export interface LobbyView {
   showRoom(code: string, players: PlayerPresence[], localId: string): void;
   showPositions(positions: PlayerPosition[]): void;
   showPatients(patients: PatientRecord[]): void;
+  showMedicines(doses: MedicineDoseRecord[], surfaces: string[], owners: string[], remainingMs: number[]): void;
   showInteractionResult(result: PatientInteractionResult): void;
   showHealingMachine(machine: HealingMachineSnapshot): void;
   showDischargedCount(count: number): void;
@@ -60,17 +62,22 @@ export class LobbyController {
     this.view.showMenu('You left the room.');
   }
 
-  sendInput(direction: Direction | null): void {
+  sendInput(direction: Direction | null, interactHeld = false): void {
     if (!this.room || this.reconnecting || this.phase.phase !== 'running') return;
     this.room.send('player:input', {
       direction,
+      interactHeld,
       sequence: this.nextSequence(),
       roundId: this.phase.roundId,
     });
   }
 
   sendInteraction(request: PatientInteractionRequest): void {
-    if (!this.reconnecting && this.phase.phase === 'running') this.room?.send('patient:interact', request);
+    if (this.reconnecting || this.phase.phase !== 'running') return;
+    if (request.targetId.startsWith('medicine:')) this.room?.send('medicine:interact', {
+      ...request, sequence: this.nextSequence(), roundId: this.phase.roundId,
+    });
+    else this.room?.send('patient:interact', request);
   }
 
   selectCharacter(character: PlayerCharacter): void {
@@ -118,8 +125,12 @@ export class LobbyController {
         if (this.room !== room || !state || typeof state !== 'object' || !('players' in state)) return;
         const snapshot = state as {
           players: Map<string, { x: number; y: number; facing: Direction;
-            carriedPatientId: string; connected?: boolean }>;
+            carriedPatientId: string; carriedMedicineId?: string; connected?: boolean }>;
           patients?: Map<string, PatientRecord>;
+          medicineDoses?: Map<string, MedicineDoseRecord>;
+          medicineSurfaces?: string[];
+          medicinePreparationOwners?: string[];
+          medicinePreparationRemainingMs?: number[];
           healingMachine?: HealingMachineSnapshot;
           dischargedCount?: number;
           phase?: RoomPhaseSnapshot['phase'];
@@ -131,8 +142,13 @@ export class LobbyController {
         this.view.showPositions([...players].filter(([, player]) => player.connected !== false)
           .map(([id, player]) => ({
           id, x: player.x, y: player.y, facing: player.facing, carriedPatientId: player.carriedPatientId,
+          carriedMedicineId: player.carriedMedicineId ?? '',
           })));
         this.view.showPatients(snapshot.patients ? [...snapshot.patients.values()] : []);
+        this.view.showMedicines(snapshot.medicineDoses ? [...snapshot.medicineDoses.values()] : [],
+          snapshot.medicineSurfaces ? [...snapshot.medicineSurfaces] : [],
+          snapshot.medicinePreparationOwners ? [...snapshot.medicinePreparationOwners] : [],
+          snapshot.medicinePreparationRemainingMs ? [...snapshot.medicinePreparationRemainingMs] : []);
         if (snapshot.healingMachine) this.view.showHealingMachine(snapshot.healingMachine);
         if (typeof snapshot.dischargedCount === 'number') this.view.showDischargedCount(snapshot.dischargedCount);
         if (snapshot.phase && typeof snapshot.hostId === 'string' &&
@@ -148,6 +164,9 @@ export class LobbyController {
         if (this.room === room) this.view.showRoom(code, players, room.sessionId);
       });
       room.onMessage('patient:result', (result: PatientInteractionResult) => {
+        if (this.room === room) this.view.showInteractionResult(result);
+      });
+      room.onMessage('medicine:result', (result: PatientInteractionResult) => {
         if (this.room === room) this.view.showInteractionResult(result);
       });
       room.onMessage('lobby:result', (result: { ok: boolean; reason: string }) => {

@@ -306,6 +306,33 @@ describe('private room flow', () => {
     expect(state.players.get(host.sessionId)?.carriedPatientId).toBe('');
   });
 
+  it('rejects remote and replayed medicine actions without creating a dose', async () => {
+    const created = await reserve('/api/rooms', 'Red');
+    const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
+    joinedRooms.push(host);
+    const roundId = await startRound(host);
+    const results: Array<{ ok: boolean; reason: string }> = [];
+    host.onMessage('medicine:result', (result) => results.push(result));
+    host.send('medicine:interact', { targetId: 'medicine:prep:0', expectedOccupantId: '',
+      sequence: 4, roundId });
+    await vi.waitFor(() => expect(results).toHaveLength(1), { timeout: 2000 });
+    expect(results[0]).toEqual({ ok: false, reason: 'Target out of range' });
+    host.send('medicine:interact', { targetId: 'medicine:prep:0', expectedOccupantId: '',
+      sequence: 4, roundId });
+    host.send('medicine:interact', { targetId: 'medicine:prep:0', expectedOccupantId: '',
+      sequence: 5, roundId: 'old-round' });
+    await vi.waitFor(() => expect(results).toHaveLength(3), { timeout: 2000 });
+    expect(results.slice(1)).toEqual([
+      { ok: false, reason: 'Interaction unavailable or stale' },
+      { ok: false, reason: 'Interaction unavailable or stale' },
+    ]);
+    const state = host.state as { medicineDoses: Map<string, unknown>;
+      medicinePreparationOwners: string[]; medicineSurfaces: string[] };
+    expect(state.medicineDoses.size).toBe(0);
+    expect([...state.medicinePreparationOwners]).toEqual(['', '']);
+    expect([...state.medicineSurfaces]).toEqual(['', '', '', '']);
+  });
+
 });
 
 describe('capacity configuration', () => {

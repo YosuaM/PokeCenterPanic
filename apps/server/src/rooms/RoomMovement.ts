@@ -59,6 +59,19 @@ export class RoomMovement {
     return true;
   }
 
+  acceptAction(id: string, sequence: number, roundId: string, currentRoundId: string): boolean {
+    const player = this.players.get(id);
+    if (!player?.connected || roundId !== currentRoundId || !Number.isSafeInteger(sequence) ||
+      sequence <= player.sequence) return false;
+    player.sequence = sequence;
+    return true;
+  }
+
+  isStationary(id: string, now: number): boolean {
+    const player = this.players.get(id);
+    return Boolean(player?.connected && (!player.direction || now - player.lastInputAt >= 250));
+  }
+
   advance(elapsedMs: number, now: number): void {
     const distance = PLAYER_SPEED * Math.min(Math.max(elapsedMs, 0), 100) / 1000;
     for (const player of this.players.values()) {
@@ -86,6 +99,7 @@ function isPlayerInput(value: unknown): value is PlayerInput {
   const input = value as Partial<PlayerInput>;
   return (input.roundId === null || typeof input.roundId === 'string') &&
     Number.isSafeInteger(input.sequence) && Number(input.sequence) > 0 &&
+    (input.interactHeld === undefined || typeof input.interactHeld === 'boolean') &&
     (input.direction === null || input.direction === 'up' || input.direction === 'down' ||
       input.direction === 'left' || input.direction === 'right');
 }

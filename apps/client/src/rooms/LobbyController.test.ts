@@ -33,6 +33,7 @@ function setup(storage?: Storage) {
     showRoom: vi.fn(),
     showPositions: vi.fn(),
     showPatients: vi.fn(),
+    showMedicines: vi.fn(),
     showInteractionResult: vi.fn(),
     showHealingMachine: vi.fn(),
     showDischargedCount: vi.fn(),
@@ -44,6 +45,8 @@ function setup(storage?: Storage) {
     players: (roster: PlayerPresence[]) => messages.get('lobby:players')?.(roster as never),
     resume: (lastSequence: number) => messages.get('room:resume')?.({ lastSequence } as never),
     result: (result: { ok: boolean; reason: string }) => messages.get('patient:result')?.(result as never),
+    medicineResult: (result: { ok: boolean; reason: string }) =>
+      messages.get('medicine:result')?.(result as never),
     state: (positions: Map<string, { x: number; y: number; facing: 'up' | 'down' | 'left' | 'right';
       carriedPatientId: string }>, patients = new Map<string, PatientRecord>()) =>
       stateChange?.({ players: positions, patients,
@@ -95,7 +98,7 @@ describe('LobbyController', () => {
     expect(view.showRoom).toHaveBeenCalledWith('ABC234', roster, 'host-id');
     expect(view.setBusy).toHaveBeenLastCalledWith(false);
     expect(view.showPositions).toHaveBeenCalledWith([{
-      id: 'host-id', x: 456, y: 422, facing: 'up', carriedPatientId: '',
+      id: 'host-id', x: 456, y: 422, facing: 'up', carriedPatientId: '', carriedMedicineId: '',
     }]);
     expect(view.showPatients).toHaveBeenCalledWith([]);
   });
@@ -118,13 +121,15 @@ describe('LobbyController', () => {
     state(new Map([['host-id', { x: 456, y: 422, facing: 'up', carriedPatientId: '' }]]));
     controller.sendInput('right');
     controller.sendInput(null);
-    expect(room.send).toHaveBeenCalledWith('player:input', { direction: 'right', sequence: 1, roundId: 'round-1' });
-    expect(room.send).toHaveBeenCalledWith('player:input', { direction: null, sequence: 2, roundId: 'round-1' });
+    expect(room.send).toHaveBeenCalledWith('player:input', { direction: 'right', interactHeld: false,
+      sequence: 1, roundId: 'round-1' });
+    expect(room.send).toHaveBeenCalledWith('player:input', { direction: null, interactHeld: false,
+      sequence: 2, roundId: 'round-1' });
     state(new Map([['host-id', { x: 470, y: 422, facing: 'right', carriedPatientId: '' }],
       ['guest-id', { x: 504, y: 422, facing: 'left', carriedPatientId: '' }]]));
     expect(view.showPositions).toHaveBeenLastCalledWith([
-      { id: 'host-id', x: 470, y: 422, facing: 'right', carriedPatientId: '' },
-      { id: 'guest-id', x: 504, y: 422, facing: 'left', carriedPatientId: '' },
+      { id: 'host-id', x: 470, y: 422, facing: 'right', carriedPatientId: '', carriedMedicineId: '' },
+      { id: 'guest-id', x: 504, y: 422, facing: 'left', carriedPatientId: '', carriedMedicineId: '' },
     ]);
     const patient: PatientRecord = {
       id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 0,
@@ -165,6 +170,27 @@ describe('LobbyController', () => {
     expect(room.send).toHaveBeenCalledWith('game:start', { sequence: 3, roundId: null });
     expect(view.showPhase).toHaveBeenCalledWith({ phase: 'lobby', hostId: 'host-id',
       countdownRemainingMs: 0, roundId: '' }, 'host-id');
+  });
+
+  it('sends sequenced medicine interactions and held input, then shows server feedback', async () => {
+    const { controller, room, state, view, medicineResult } = setup();
+    await controller.create('Red');
+    state(new Map([['host-id', { x: 400, y: 350, facing: 'up', carriedPatientId: '' }]]));
+    controller.sendInteraction({ targetId: 'medicine:prep:0', expectedOccupantId: '' });
+    controller.sendInput(null, true);
+    controller.sendInput(null, false);
+    expect(room.send).toHaveBeenCalledWith('medicine:interact', {
+      targetId: 'medicine:prep:0', expectedOccupantId: '', sequence: 1, roundId: 'round-1',
+    });
+    expect(room.send).toHaveBeenCalledWith('player:input', {
+      direction: null, interactHeld: true, sequence: 2, roundId: 'round-1',
+    });
+    expect(room.send).toHaveBeenCalledWith('player:input', {
+      direction: null, interactHeld: false, sequence: 3, roundId: 'round-1',
+    });
+    medicineResult({ ok: false, reason: 'Preparation point occupied' });
+    expect(view.showInteractionResult).toHaveBeenCalledWith({ ok: false,
+      reason: 'Preparation point occupied' });
   });
 
   it('shows a server error and clears a disconnected room', async () => {

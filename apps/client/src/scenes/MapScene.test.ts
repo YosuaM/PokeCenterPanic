@@ -91,7 +91,7 @@ describe('MapScene', () => {
     scene.setGameplayActive(true);
     keyboardListeners.get('keydown')?.({ code: 'KeyD', preventDefault: vi.fn() } as unknown as KeyboardEvent);
     scene.update(50, 50);
-    expect(sendInput).toHaveBeenCalledWith('right');
+    expect(sendInput).toHaveBeenCalledWith('right', false);
   });
   it('renders all six patient species from a validated local sprite fixture', () => {
     const names = ['Pikachu', 'Bulbasaur', 'Charmander', 'Squirtle', 'Eevee', 'Psyduck'] as const;
@@ -108,6 +108,29 @@ describe('MapScene', () => {
       slotIndex: index < 4 ? index : index - 4, carrierId: '',
     })));
     expect(sprite.mock.calls.map((call) => call[2])).toEqual(names.map((name) => `${name}:idle`));
+  });
+  it('starts and releases a medicine hold and renders synchronized doses', () => {
+    const { scene, keyboardListeners, container } = setup();
+    const sendInput = vi.fn();
+    const interact = vi.fn();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setInputSender(sendInput);
+    scene.setInteractionSender(interact);
+    scene.setAuthoritativePositions([{ id: 'red', x: 400, y: 350, facing: 'up',
+      carriedPatientId: '', carriedMedicineId: '' }]);
+    scene.setMedicines([], ['', '', '', ''], ['', ''], [0, 0]);
+    keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false,
+      preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    expect(interact).toHaveBeenCalledWith({ targetId: 'medicine:prep:0', expectedOccupantId: '' });
+    expect(sendInput).toHaveBeenLastCalledWith(null, true);
+    scene.update(100, 50);
+    expect(sendInput).toHaveBeenLastCalledWith(null, true);
+    keyboardListeners.get('keyup')?.({ code: 'KeyE' } as KeyboardEvent);
+    expect(sendInput).toHaveBeenLastCalledWith(null, false);
+    scene.setMedicines([{ id: 'dose-1', kind: 'burnHeal', location: 'carrier',
+      carrierId: 'red', slotIndex: -1 }], ['', '', '', ''], ['', ''], [0, 0]);
+    expect(container).toHaveBeenCalledTimes(2);
+    scene.setMedicines([], ['', '', '', ''], ['', ''], [0, 0]);
   });
   it('renders the provisional stations and distinct avatars for the room roster', () => {
     const { scene, text, container } = setup();
@@ -131,7 +154,7 @@ describe('MapScene', () => {
     keyboardListeners.get('keydown')?.({ code: 'KeyD', preventDefault } as unknown as KeyboardEvent);
     scene.update(0, 16);
     expect(preventDefault).toHaveBeenCalled();
-    expect(sendInput).toHaveBeenCalledWith('right');
+    expect(sendInput).toHaveBeenCalledWith('right', false);
     scene.setAuthoritativePositions([
       { id: 'red', x: 470, y: 422, facing: 'right', carriedPatientId: '' },
       { id: 'blue', x: 518, y: 422, facing: 'left', carriedPatientId: '' },
@@ -141,7 +164,7 @@ describe('MapScene', () => {
     expect(containers[1]?.setPosition).toHaveBeenLastCalledWith(518, 422);
 
     windowListeners.get('blur')?.();
-    expect(sendInput).toHaveBeenLastCalledWith(null);
+    expect(sendInput).toHaveBeenLastCalledWith(null, false);
     scene.clearPlayers();
     expect(containers[0]?.destroy).toHaveBeenCalled();
     expect(containers[1]?.destroy).toHaveBeenCalled();

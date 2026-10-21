@@ -30,10 +30,12 @@ export interface PlayerPosition {
   y: number;
   facing: import('./map.js').Direction;
   carriedPatientId: string;
+  carriedMedicineId?: string;
 }
 
 export interface PlayerInput {
   direction: import('./map.js').Direction | null;
+  interactHeld?: boolean;
   sequence: number;
   roundId: string | null;
 }
@@ -41,6 +43,7 @@ export interface PlayerInput {
 export * from './map.js';
 export * from './interaction.js';
 export * from './patient.js';
+export * from './medicine.js';
 
 export const PROJECT_INFO = {
   title: 'PokéCenter Panic',

@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { DISCHARGE_INTERACTION_POINT, DISCHARGE_POSITION, HEALING_INTERACTION_POINT,
-  HEALING_MACHINE_POSITION, MAP_OBSTACLES, RECOVERY_INTERACTION_POINT, RECOVERY_POSITION,
+  HEALING_MACHINE_POSITION, MAP_OBSTACLES, MEDICINE_DISPOSAL_POINT,
+  MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, RECOVERY_INTERACTION_POINT, RECOVERY_POSITION,
   RECEPTION_INTERACTION_POINTS, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS, TILE_SIZE,
   TREATMENT, WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS, patientPresentation,
-  selectInteractionTarget, type Direction, type HealingMachineSnapshot,
+  selectInteractionTarget, type Direction, type HealingMachineSnapshot, type MedicineDoseRecord,
   type InteractionTarget, type MapObstacle, type PatientInteractionRequest,
   type PatientInteractionResult, type PatientRecord, type PlayerPosition, type PlayerPresence, type Point } from '@pokecenter/shared';
 import { MovementInput } from './movement.js';
@@ -30,11 +31,16 @@ export class MapScene extends Phaser.Scene {
   private readonly movement = new MovementInput();
   private readonly avatars = new Map<string, Avatar>();
   private readonly patientMarkers = new Map<string, PatientMarker>();
+  private readonly medicineMarkers = new Map<string, Phaser.GameObjects.Container>();
   private readonly authoritativePositions = new Map<string, PlayerPosition>();
   private players: PlayerPresence[] = [];
   private patients: PatientRecord[] = [];
+  private medicineDoses: MedicineDoseRecord[] = [];
+  private medicineSurfaces: string[] = [];
+  private medicineOwners: string[] = [];
+  private medicineRemainingMs: number[] = [];
   private localId = '';
-  private inputSender: ((direction: Direction | null) => void) | null = null;
+  private inputSender: ((direction: Direction | null, interactHeld: boolean) => void) | null = null;
   private interactionSender: ((request: PatientInteractionRequest) => void) | null = null;
   private interactionHint!: Phaser.GameObjects.Text;
   private targetHighlight!: Phaser.GameObjects.Rectangle;
@@ -46,6 +52,8 @@ export class MapScene extends Phaser.Scene {
   private interactionFeedback = '';
   private lastSentAt = -Infinity;
   private lastSentDirection: Direction | null = null;
+  private lastSentHeld = false;
+  private interactHeld = false;
   private spriteManifest: SpriteManifest | null = null;
   private spritesReady = false;
   private gameplayActive = true;
@@ -99,6 +107,8 @@ export class MapScene extends Phaser.Scene {
       this.movement.clear();
       this.authoritativePositions.clear();
       this.lastSentDirection = null;
+      this.lastSentHeld = false;
+      this.interactHeld = false;
       this.lastSentAt = -Infinity;
     }
     this.players = players;
@@ -113,6 +123,7 @@ export class MapScene extends Phaser.Scene {
   clearPlayers(): void {
     this.setPlayers([], '');
     this.setPatients([]);
+    this.setMedicines([], [], [], []);
     this.inputSender = null;
     this.interactionSender = null;
     this.interactionFeedback = '';
@@ -127,7 +138,18 @@ export class MapScene extends Phaser.Scene {
     }
   }
 
-  setInputSender(sender: (direction: Direction | null) => void): void {
+  setMedicines(doses: MedicineDoseRecord[], surfaces: string[], owners: string[], remainingMs: number[]): void {
+    this.medicineDoses = doses;
+    this.medicineSurfaces = surfaces;
+    this.medicineOwners = owners;
+    this.medicineRemainingMs = remainingMs;
+    if (this.sys.isActive()) {
+      this.renderMedicines();
+      this.refreshInteraction();
+    }
+  }
+
+  setInputSender(sender: (direction: Direction | null, interactHeld: boolean) => void): void {
     this.inputSender = sender;
   }
 
@@ -171,9 +193,11 @@ export class MapScene extends Phaser.Scene {
     const direction = this.movement.direction;
     if (this.gameplayActive && this.avatars.has(this.localId) && this.inputSender &&
       time - this.lastSentAt >= 50 &&
-      (direction !== this.lastSentDirection || direction !== null)) {
-      this.inputSender(direction);
+      (direction !== this.lastSentDirection || this.interactHeld !== this.lastSentHeld ||
+        direction !== null || this.interactHeld)) {
+      this.inputSender(direction, this.interactHeld);
       this.lastSentDirection = direction;
+      this.lastSentHeld = this.interactHeld;
       this.lastSentAt = time;
     }
     const blend = Math.min(1, Math.max(0, delta) / 70);
@@ -201,6 +225,15 @@ export class MapScene extends Phaser.Scene {
         }
       }
     }
+    for (const dose of this.medicineDoses) {
+      if (dose.location !== 'carrier') continue;
+      const avatar = this.avatars.get(dose.carrierId);
+      const marker = this.medicineMarkers.get(dose.id);
+      if (avatar && marker) {
+        marker.setPosition(avatar.position.x, avatar.position.y - 30);
+        marker.setDepth(avatar.position.y + 1);
+      }
+    }
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -208,6 +241,7 @@ export class MapScene extends Phaser.Scene {
     if (event.code === 'KeyE') {
       event.preventDefault();
       if (event.repeat) return;
+      this.interactHeld = true;
       if (this.selectedTarget) {
         this.interactionSender?.({
           targetId: this.selectedTarget.id,
@@ -217,20 +251,30 @@ export class MapScene extends Phaser.Scene {
         this.interactionFeedback = 'No target in range';
         this.refreshInteraction();
       }
+      this.inputSender?.(this.movement.direction, true);
+      this.lastSentDirection = this.movement.direction;
+      this.lastSentHeld = true;
       return;
     }
     if (this.movement.press(event.code)) event.preventDefault();
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
+    if (event.code === 'KeyE' && this.interactHeld) {
+      this.interactHeld = false;
+      this.inputSender?.(this.movement.direction, false);
+      this.lastSentHeld = false;
+    }
     this.movement.release(event.code);
   };
 
   private readonly clearMovement = (): void => {
     this.movement.clear();
-    if (this.lastSentDirection !== null) {
-      this.inputSender?.(null);
+    this.interactHeld = false;
+    if (this.lastSentDirection !== null || this.lastSentHeld) {
+      this.inputSender?.(null, false);
       this.lastSentDirection = null;
+      this.lastSentHeld = false;
     }
   };
 
@@ -321,6 +365,34 @@ export class MapScene extends Phaser.Scene {
       patient.lifecycle === 'active' && patient.location === 'recovery').length}`);
   }
 
+  private renderMedicines(): void {
+    const visible = new Set<string>();
+    for (const dose of this.medicineDoses) {
+      visible.add(dose.id);
+      if (this.medicineMarkers.has(dose.id)) continue;
+      const bottle = this.add.rectangle(0, 0, 16, 24,
+        dose.kind === 'burnHeal' ? 0xf28d66 : 0xa876d6).setStrokeStyle(2, 0x173440);
+      const icon = this.add.text(0, 0, dose.kind === 'burnHeal' ? 'B' : 'A', {
+        color: '#ffffff', fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold',
+      }).setOrigin(0.5);
+      const position = dose.location === 'surface' ? MEDICINE_SURFACE_POINTS[dose.slotIndex] :
+        this.avatars.get(dose.carrierId)?.position;
+      const marker = this.add.container(position?.x ?? 0, position?.y ?? 0, [bottle, icon]);
+      marker.setDepth((position?.y ?? 0) + 1);
+      this.medicineMarkers.set(dose.id, marker);
+    }
+    for (const [id, marker] of this.medicineMarkers) {
+      if (visible.has(id)) continue;
+      marker.destroy();
+      this.medicineMarkers.delete(id);
+    }
+    for (const dose of this.medicineDoses) {
+      if (dose.location !== 'surface') continue;
+      const point = MEDICINE_SURFACE_POINTS[dose.slotIndex];
+      if (point) this.medicineMarkers.get(dose.id)?.setPosition(point.x, point.y);
+    }
+  }
+
   private loadPmdSprites(): void {
     const value: unknown = this.cache?.json?.get('pmd-manifest');
     if (!value) return;
@@ -391,6 +463,28 @@ export class MapScene extends Phaser.Scene {
     const local = this.authoritativePositions.get(this.localId);
     const targets: InteractionTarget[] = [];
     if (local) {
+      for (let index = 0; index < MEDICINE_PREPARATION_POINTS.length; index += 1) {
+        const kind = index === 0 ? 'Burn Heal' : 'Antidote';
+        const owner = this.medicineOwners[index];
+        const remaining = this.medicineRemainingMs[index] ?? 0;
+        targets.push({ id: `medicine:prep:${index}`, position: MEDICINE_PREPARATION_POINTS[index]!,
+          expectedOccupantId: '', label: owner ? owner === this.localId ?
+            `Preparing ${kind} (${Math.ceil(remaining / 1000)}s)` : 'Preparation occupied' :
+            local.carriedMedicineId || local.carriedPatientId ? 'Hands must be empty' :
+              `Hold E: prepare ${kind}` });
+      }
+      for (let index = 0; index < MEDICINE_SURFACE_POINTS.length; index += 1) {
+        const occupantId = this.medicineSurfaces[index] ?? '';
+        const dose = this.medicineDoses.find((item) => item.id === occupantId);
+        targets.push({ id: `medicine:surface:${index}`, position: MEDICINE_SURFACE_POINTS[index]!,
+          expectedOccupantId: occupantId,
+          label: local.carriedPatientId ? 'Hands must be empty' : local.carriedMedicineId ?
+            occupantId ? 'Medicine surface occupied' : 'Place medicine' : dose ?
+              `Pick up ${dose.kind === 'burnHeal' ? 'Burn Heal' : 'Antidote'}` : 'Medicine surface empty' });
+      }
+      targets.push({ id: 'medicine:disposal', position: MEDICINE_DISPOSAL_POINT,
+        expectedOccupantId: local.carriedMedicineId ?? '',
+        label: local.carriedMedicineId ? 'Discard medicine' : 'No medicine to discard' });
       for (let index = 0; index < RECEPTION_INTERACTION_POINTS.length; index += 1) {
         const occupant = this.patients.find((patient) => patient.lifecycle === 'active' &&
           patient.location === 'reception' && patient.slotIndex === index);
@@ -432,7 +526,8 @@ export class MapScene extends Phaser.Scene {
     this.selectedTarget = selected;
     this.targetHighlight.setVisible(Boolean(selected));
     if (selected) this.targetHighlight.setPosition(selected.position.x, selected.position.y);
-    this.interactionHint.setText(this.interactionFeedback || (selected ? `E: ${selected.label}` : ''));
+    this.interactionHint.setText(this.interactionFeedback || (selected ?
+      selected.id.startsWith('medicine:prep:') ? selected.label : `E: ${selected.label}` : ''));
   }
 
   private updateMachineText(): void {
@@ -470,6 +565,19 @@ export class MapScene extends Phaser.Scene {
     this.station(MAP_OBSTACLES[1]!, 0x8abbd4, 'HEALING 01');
     this.station(MAP_OBSTACLES[2]!, 0x8abbd4, 'HEALING 02');
     this.station(MAP_OBSTACLES[3]!, 0xe3c58a, 'MEDICINE  ·  PREP × 2');
+    for (const [index, point] of MEDICINE_PREPARATION_POINTS.entries()) {
+      this.add.rectangle(point.x, point.y, 32, 12, index === 0 ? 0xf28d66 : 0xa876d6)
+        .setStrokeStyle(2, 0x244653);
+      this.add.text(point.x, point.y, index === 0 ? 'B' : 'A', {
+        color: '#ffffff', fontFamily: 'monospace', fontSize: '11px', fontStyle: 'bold',
+      }).setOrigin(0.5);
+    }
+    this.add.rectangle(MEDICINE_DISPOSAL_POINT.x, MEDICINE_DISPOSAL_POINT.y, 30, 12, 0x82545b)
+      .setStrokeStyle(2, 0x244653);
+    this.add.text(MEDICINE_DISPOSAL_POINT.x, MEDICINE_DISPOSAL_POINT.y, 'X', {
+      color: '#ffffff', fontFamily: 'monospace', fontSize: '11px', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    for (const [index, point] of MEDICINE_SURFACE_POINTS.entries()) this.slot(point.x, point.y, index + 1);
     this.station(MAP_OBSTACLES[4]!, 0xafa1c6, 'WAITING  ·  4 SLOTS');
     for (const [index, position] of WAITING_SLOT_POSITIONS.entries()) {
       this.slot(position.x, position.y, index + 1);
