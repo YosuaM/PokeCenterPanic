@@ -14,9 +14,9 @@ export interface MapObstacle {
 
 export const TILE_SIZE = 48;
 export const PLAYER_SPEED = TILE_SIZE * 3;
-export const PLAYER_HALF_WIDTH = 13;
+export const PLAYER_HALF_WIDTH = 40;
 export const PLAYER_HALF_HEIGHT = 16;
-export const WALK_BOUNDS = { left: 58, right: 902, top: 66, bottom: 478 } as const;
+export const WALK_BOUNDS = { left: -182, right: 1142, top: -174, bottom: 718 } as const;
 
 export const SPAWN_POINTS: readonly Point[] = [
   { x: 456, y: 422 }, { x: 504, y: 422 },
@@ -24,35 +24,46 @@ export const SPAWN_POINTS: readonly Point[] = [
 ];
 
 export const RECEPTION_SLOT_POSITIONS: readonly Point[] = [
-  { x: 177, y: 138 }, { x: 369, y: 138 },
-  { x: 561, y: 138 }, { x: 753, y: 138 },
+  { x: 177, y: 298 }, { x: 369, y: 298 },
+  { x: 561, y: 298 }, { x: 753, y: 298 },
 ];
 
 export const RECEPTION_INTERACTION_POINTS: readonly Point[] =
-  RECEPTION_SLOT_POSITIONS.map(({ x }) => ({ x, y: 184 }));
+  RECEPTION_SLOT_POSITIONS.map(({ x }) => ({ x, y: 344 }));
 
-export const WAITING_SLOT_POSITIONS: readonly Point[] = [
-  { x: 130, y: 425 }, { x: 184, y: 425 },
-  { x: 238, y: 425 }, { x: 292, y: 425 },
+export const WAITING_SEATS_PER_BENCH = 4;
+export const WAITING_BENCH_OBSTACLE_INDICES = [4, 7] as const;
+export const WAITING_BENCHES: readonly MapObstacle[] = [
+  { x: 82, y: 573, width: 240, height: 76 },
+  { x: 758, y: 573, width: 240, height: 76 },
 ];
+export const WAITING_SLOT_POSITIONS: readonly Point[] = WAITING_BENCHES.flatMap((bench) =>
+  Array.from({ length: WAITING_SEATS_PER_BENCH }, (_, index) =>
+    ({ x: bench.x + 48 + index * 54, y: bench.y + 32 })));
 
 export const WAITING_INTERACTION_POINTS: readonly Point[] =
-  WAITING_SLOT_POSITIONS.map(({ x }) => ({ x, y: 365 }));
+  WAITING_SLOT_POSITIONS.map(({ x, y }) => ({ x, y: y - 60 }));
 
-export const RECOVERY_POSITION: Point = { x: 752, y: 425 };
-export const RECOVERY_INTERACTION_POINT: Point = { x: 752, y: 365 };
-export const HEALING_MACHINE_POSITION: Point = { x: 160, y: 273 };
-export const HEALING_INTERACTION_POINT: Point = { x: 260, y: 273 };
-export const DISCHARGE_POSITION: Point = { x: 840, y: 138 };
-export const DISCHARGE_INTERACTION_POINT: Point = { x: 840, y: 184 };
+export const RECOVERY_POSITION: Point = { x: 872, y: 185 };
+export const RECOVERY_INTERACTION_POINT: Point = { x: 872, y: 125 };
+export const HEALING_MACHINE_POSITION: Point = { x: 40, y: 33 };
+export const HEALING_INTERACTION_POINT: Point = { x: 165, y: 33 };
+export const DISCHARGE_POSITION: Point = { x: 840, y: 298 };
+export const DISCHARGE_INTERACTION_POINT: Point = { x: 840, y: 344 };
+
+export const CLINIC_DIVIDER: MapObstacle = { x: WALK_BOUNDS.left, y: 248, width: 264, height: 68 };
+export const CLINIC_CORRIDOR: Point = { x: 1058, y: 344 };
+export const RECEPTION_CHECK_IN_POINT: Point = { x: 480, y: 344 };
 
 export const MAP_OBSTACLES: readonly MapObstacle[] = [
-  { x: 82, y: 88, width: 796, height: 68 },
-  { x: 82, y: 214, width: 155, height: 117 },
-  { x: 723, y: 214, width: 155, height: 117 },
-  { x: 342, y: 204, width: 276, height: 102 },
-  { x: 82, y: 393, width: 240, height: 76 },
-  { x: 638, y: 393, width: 240, height: 76 },
+  { x: 82, y: 248, width: 796, height: 68 },
+  { x: -38, y: -26, width: 155, height: 117 },
+  { x: 843, y: -26, width: 155, height: 117 },
+  { x: 342, y: -36, width: 276, height: 102 },
+  WAITING_BENCHES[0]!,
+  { x: 758, y: 153, width: 240, height: 76 },
+  CLINIC_DIVIDER,
+  WAITING_BENCHES[1]!,
 ];
 
 const DIRECTIONS: Record<Direction, Point> = {
@@ -84,7 +95,19 @@ export function moveWithinMap(position: Point, direction: Direction, distance: n
   while (remaining > 0) {
     const step = Math.min(remaining, 4);
     const next = { x: current.x + vector.x * step, y: current.y + vector.y * step };
-    if (!isWalkable(next)) break;
+    if (!isWalkable(next)) {
+      let allowed = 0;
+      let blocked = step;
+      for (let iteration = 0; iteration < 10; iteration += 1) {
+        const distanceToTest = (allowed + blocked) / 2;
+        if (isWalkable({
+          x: current.x + vector.x * distanceToTest,
+          y: current.y + vector.y * distanceToTest,
+        })) allowed = distanceToTest;
+        else blocked = distanceToTest;
+      }
+      return { x: current.x + vector.x * allowed, y: current.y + vector.y * allowed };
+    }
     current = next;
     remaining -= step;
   }

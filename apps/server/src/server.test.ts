@@ -1,5 +1,9 @@
 import type { AddressInfo } from 'node:net';
 import { Client } from '@colyseus/sdk';
+import { matchMaker } from 'colyseus';
+import { MedicineDoseState, type RoomState } from './rooms/RoomState.js';
+import type { RoomMovement } from './rooms/RoomMovement.js';
+import type { RoomPatients } from './rooms/RoomPatients.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PROJECT_INFO, type PlayerPresence } from '@pokecenter/shared';
 import { createGameServer, resolveCapacity, resolvePort } from './server.js';
@@ -209,7 +213,7 @@ describe('private room flow', () => {
     host.send('game:start', { sequence: 4, roundId: null });
     await vi.waitFor(() => expect(state().phase).toBe('running'), { timeout: 2000 });
     expect(state().roundId).toBeTruthy();
-    expect(state().patients.has('patient-1')).toBe(true);
+    expect(state().patients.size).toBe(0);
     expect(await reserve(`/api/rooms/${created.body.code}/join`, 'Late')).toEqual({
       status: 409, body: { error: 'Game in progress' },
     });
@@ -255,7 +259,7 @@ describe('private room flow', () => {
     await vi.waitFor(() => expect(player(host)?.y).toBe(player(guest)?.y), { timeout: 2000 });
   });
 
-  it('replicates the same controlled reception patient to both clients', async () => {
+  it('replicates automatic arrivals and reserved waiting seats to both clients', async () => {
     const created = await reserve('/api/rooms', 'Red');
     const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
     joinedRooms.push(host);
@@ -268,17 +272,17 @@ describe('private room flow', () => {
     const patientState = (room: typeof host) => room.state as {
       patients: Map<string, { id: string; species: string; location: string; slotIndex: number;
         requiredTreatments: number; completedTreatments: number }>;
-      receptionSlots: string[];
+      waitingSlots: string[];
       phase: string;
     };
-    await vi.waitFor(() => expect(patientState(host).patients?.get('patient-1')).toBeDefined(), { timeout: 2000 });
-    await vi.waitFor(() => expect(patientState(guest).patients?.get('patient-1')).toBeDefined(), { timeout: 2000 });
+    await vi.waitFor(() => expect(patientState(host).patients?.get('patient-1')).toBeDefined(), { timeout: 6500 });
+    await vi.waitFor(() => expect(patientState(guest).patients?.get('patient-1')).toBeDefined(), { timeout: 6500 });
     for (const room of [host, guest]) {
       expect(patientState(room).phase).toBe('running');
-      expect([...patientState(room).receptionSlots]).toEqual(['patient-1', '', '', '']);
+      expect([...patientState(room).waitingSlots]).toEqual(['patient-1', ...Array(7).fill('')]);
       expect(patientState(room).patients.get('patient-1')).toEqual(expect.objectContaining({
-        id: 'patient-1', species: 'Pikachu', location: 'reception', slotIndex: 0,
-        requiredTreatments: 1, completedTreatments: 0,
+        id: 'patient-1', species: 'Pikachu', location: 'waiting', slotIndex: 0,
+        requiredTreatments: 1, completedTreatments: 0, travelKind: 'arriving',
       }));
     }
   });
@@ -289,21 +293,90 @@ describe('private room flow', () => {
     joinedRooms.push(host);
     await startRound(host);
     await vi.waitFor(() => expect((host.state as { patients: Map<string, unknown> }).patients?.get('patient-1'))
-      .toBeDefined(), { timeout: 2000 });
+      .toBeDefined(), { timeout: 6500 });
     const result = new Promise<{ ok: boolean; reason: string }>((resolve) =>
       host.onMessage('patient:result', resolve));
-    host.send('patient:interact', { targetId: 'reception:0', expectedOccupantId: 'patient-1' });
+    host.send('patient:interact', { targetId: 'waiting:0', expectedOccupantId: 'patient-1' });
     expect(await result).toEqual({ ok: false, reason: 'Out of range or blocked' });
     const state = host.state as {
       patients: Map<string, { location: string; carrierId: string }>;
-      receptionSlots: string[];
+      waitingSlots: string[];
       players: Map<string, { carriedPatientId: string }>;
     };
     expect(state.patients.get('patient-1')).toEqual(expect.objectContaining({
-      location: 'reception', carrierId: '',
+      location: 'waiting', carrierId: '',
     }));
-    expect(state.receptionSlots[0]).toBe('patient-1');
+    expect(state.waitingSlots[0]).toBe('patient-1');
     expect(state.players.get(host.sessionId)?.carriedPatientId).toBe('');
+  });
+
+  it('replicates fainting and a single loss to both clients and rejects late discharge', async () => {
+    const created = await reserve('/api/rooms', 'Red');
+    const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
+    joinedRooms.push(host);
+    const joined = await reserve(`/api/rooms/${created.body.code}/join`, 'Blue');
+    const guest = await new Client(endpoint).consumeSeatReservation(joined.body.reservation);
+    joinedRooms.push(guest);
+    await startRound(host, [guest]);
+    const local = matchMaker.getLocalRoomById(host.roomId) as unknown as {
+      state: RoomState; movement: RoomMovement; patients: RoomPatients; lastPatientUpdateAt: number;
+    };
+    const patient = local.patients.admit('Pikachu', 1, 0)!;
+    local.patients.interact(host.sessionId, { targetId: 'reception:0', expectedOccupantId: patient.id },
+      { x: 177, y: 344 }, 'up');
+    patient.completedTreatments = 1;
+    patient.remainingPatienceMs = 1;
+    Object.assign(local.movement.position(host.sessionId)!, { x: 840, y: 344 });
+    local.lastPatientUpdateAt -= 100;
+    const results: Array<{ ok: boolean }> = [];
+    host.onMessage('patient:result', (result) => results.push(result));
+    const command = { targetId: 'discharge', expectedOccupantId: patient.id };
+    host.send('patient:interact', command);
+    host.send('patient:interact', command);
+    await vi.waitFor(() => expect(results.map((result) => result.ok)).toEqual([false, false]));
+    for (const client of [host, guest]) {
+      await vi.waitFor(() => {
+        const state = client.state as RoomState;
+        expect(state.lostCount).toBe(1);
+        expect(state.dischargedCount).toBe(0);
+        expect(state.players.get(host.sessionId)!.carriedPatientId).toBe('');
+        expect(state.patients.get(patient.id)).toMatchObject({ lifecycle: 'lost', travelKind: 'fainting',
+          remainingPatienceMs: 0, location: 'none' });
+      });
+    }
+  });
+
+  it('broadcasts a confirmed discard to both players and ignores replayed requests', async () => {
+    const created = await reserve('/api/rooms', 'Red');
+    const host = await new Client(endpoint).consumeSeatReservation(created.body.reservation);
+    joinedRooms.push(host);
+    const joined = await reserve(`/api/rooms/${created.body.code}/join`, 'Blue');
+    const guest = await new Client(endpoint).consumeSeatReservation(joined.body.reservation);
+    joinedRooms.push(guest);
+    const roundId = await startRound(host, [guest]);
+    const local = matchMaker.getLocalRoomById(host.roomId) as unknown as { state: RoomState; movement: RoomMovement };
+    Object.assign(local.movement.position(host.sessionId)!, { x: 480, y: 110 });
+    const dose = new MedicineDoseState();
+    Object.assign(dose, { id: 'discard-test', kind: 'antidote', location: 'carrier',
+      carrierId: host.sessionId, slotIndex: -1 });
+    local.state.medicineDoses.set(dose.id, dose);
+    local.state.players.get(host.sessionId)!.carriedMedicineId = dose.id;
+    const received: unknown[][] = [[], []];
+    host.onMessage('medicine:discarded', (event) => received[0]!.push(event));
+    guest.onMessage('medicine:discarded', (event) => received[1]!.push(event));
+    const results: Array<{ ok: boolean }> = [];
+    host.onMessage('medicine:result', (result) => results.push(result));
+    const request = { targetId: 'medicine:disposal', expectedOccupantId: dose.id, sequence: 4, roundId };
+    host.send('medicine:interact', request);
+    await vi.waitFor(() => expect(received.map((events) => events.length)).toEqual([1, 1]));
+    expect(received[0]).toEqual([{ roundId, doseId: dose.id, kind: 'antidote' }]);
+    expect(received[1]).toEqual(received[0]);
+    expect(local.state.medicineDoses.size).toBe(0);
+    host.send('medicine:interact', request);
+    host.send('medicine:interact', { ...request, sequence: 5 });
+    await vi.waitFor(() => expect(results).toHaveLength(3));
+    expect(results.map((result) => result.ok)).toEqual([true, false, false]);
+    expect(received.map((events) => events.length)).toEqual([1, 1]);
   });
 
   it('rejects remote and replayed medicine actions without creating a dose', async () => {

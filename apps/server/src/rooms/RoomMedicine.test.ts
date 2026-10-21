@@ -1,17 +1,17 @@
-import { describe, expect, it } from 'vitest';
-import { MEDICINE_PREPARATION_MS, TREATMENT } from '@pokecenter/shared';
+import { describe, expect, it, vi } from 'vitest';
+import { WAITING_INTERACTION_POINTS, patientTravelDuration, HEALING_INTERACTION_POINT, MEDICINE_PREPARATION_MS, TREATMENT } from '@pokecenter/shared';
 import { RoomMedicine } from './RoomMedicine.js';
 import { RoomMovement } from './RoomMovement.js';
 import { RoomPatients } from './RoomPatients.js';
 import { MedicineDoseState, PlayerState, RoomState } from './RoomState.js';
 
-const prepPosition = { x: 400, y: 350 };
-const surfacePosition = { x: 390, y: 400 };
-const disposalPosition = { x: 480, y: 350 };
+const prepPosition = { x: 400, y: 110 };
+const surfacePosition = { x: 390, y: 160 };
+const disposalPosition = { x: 480, y: 110 };
 
-function setup() {
+function setup(onDiscard = vi.fn()) {
   const state = new RoomState();
-  const medicine = new RoomMedicine(state);
+  const medicine = new RoomMedicine(state, onDiscard);
   const patients = new RoomPatients(state);
   for (const id of ['red', 'blue']) {
     const player = new PlayerState();
@@ -23,16 +23,16 @@ function setup() {
   }
   const prep = (id = 'red', now = 0, index = 0) => medicine.interact(id,
     { targetId: `medicine:prep:${index}`, expectedOccupantId: '', sequence: 1, roundId: 'round' },
-    index === 0 ? prepPosition : { x: 560, y: 350 }, 'up', now, true);
+    index === 0 ? prepPosition : { x: 560, y: 110 }, 'up', now, true);
   const tick = (now: number, id = 'red', index = 0) => {
     medicine.onInput(id, true, null, now);
     medicine.advance(now, (playerId) => playerId === 'blue' || index === 1 ?
-      { x: 560, y: 350 } : prepPosition, () => 'up');
+      { x: 560, y: 110 } : prepPosition, () => 'up');
   };
   const surface = (id: string, index: number, expectedOccupantId = '') => medicine.interact(id,
     { targetId: `medicine:surface:${index}`, expectedOccupantId, sequence: 1, roundId: 'round' },
-    { x: 390 + index * 60, y: 400 }, 'up', 0, true);
-  return { state, medicine, patients, prep, tick, surface };
+    { x: 390 + index * 60, y: 160 }, 'up', 0, true);
+  return { state, medicine, patients, prep, tick, surface, onDiscard };
 }
 
 function giveDose(state: RoomState, kind: 'burnHeal' | 'antidote', id = 'test-dose'): void {
@@ -53,6 +53,57 @@ function apply(medicine: RoomMedicine, targetId: string, patientId: string,
 }
 
 describe('RoomMedicine', () => {
+  it('rejects medicine after patience expires without consuming the dose or reviving the patient', () => {
+    const { state, medicine, patients } = setup();
+    const patient = patients.admit('Charmander', TREATMENT.burnHeal, 0)!;
+    patient.remainingPatienceMs = 10;
+    giveDose(state, 'burnHeal');
+    patients.advance(10);
+    expect(apply(medicine, 'reception:0', patient.id, { x: 177, y: 344 }).ok).toBe(false);
+    expect(state.players.get('red')!.carriedMedicineId).toBe('test-dose');
+    expect(patient).toMatchObject({ lifecycle: 'lost', completedTreatments: 0 });
+    expect(state.lostCount).toBe(1);
+  });
+  it('preserves the dose while a patient is arriving and allows medicine after seating', () => {
+    const { state, medicine, patients } = setup();
+    const patient = patients.admit('Charmander', TREATMENT.burnHeal, 0, 'waiting')!;
+    giveDose(state, 'burnHeal');
+    expect(apply(medicine, 'waiting:0', patient.id, { x: 130, y: 545 }, 'down').ok).toBe(false);
+    expect(state.players.get('red')!.carriedMedicineId).toBe('test-dose');
+    expect(patient.completedTreatments).toBe(0);
+    patients.advance(patientTravelDuration({ travelKind: 'arriving', slotIndex: patient.slotIndex }));
+    expect(apply(medicine, 'waiting:0', patient.id, { x: 130, y: 545 }, 'down').ok).toBe(true);
+    expect(patient.completedTreatments).toBe(TREATMENT.burnHeal);
+    expect(state.players.get('red')!.carriedMedicineId).toBe('');
+  });
+  it.each(['burnHeal', 'antidote'] as const)('confirms %s disposal exactly once after validating ownership', (kind) => {
+    const { state, medicine, onDiscard } = setup();
+    state.roundId = 'round';
+    giveDose(state, kind);
+    const request = { targetId: 'medicine:disposal', expectedOccupantId: 'test-dose', sequence: 1, roundId: 'round' };
+    expect(medicine.interact('blue', request, disposalPosition, 'up', 0, true).ok).toBe(false);
+    expect(medicine.interact('red', request, { x: 300, y: 350 }, 'up', 0, true).ok).toBe(false);
+    expect(onDiscard).not.toHaveBeenCalled();
+    expect(medicine.interact('red', request, disposalPosition, 'up', 10, true).ok).toBe(true);
+    expect(onDiscard).toHaveBeenCalledExactlyOnceWith({ roundId: 'round', doseId: 'test-dose', kind });
+    expect(state.medicineDoses.size).toBe(0);
+    expect(state.players.get('red')!.carriedMedicineId).toBe('');
+    expect(medicine.interact('red', request, disposalPosition, 'up', 20, true).ok).toBe(false);
+    medicine.onInput('red', false, null, 30);
+    expect(medicine.interact('red', request, disposalPosition, 'up', 40, true).ok).toBe(false);
+    expect(onDiscard).toHaveBeenCalledOnce();
+  });
+
+  it('does not signal disposal for reset or disconnected carriers', () => {
+    const { state, medicine, onDiscard } = setup();
+    giveDose(state, 'burnHeal');
+    medicine.releaseCarrier('red');
+    medicine.reset();
+    giveDose(state, 'antidote');
+    medicine.reset();
+    expect(onDiscard).not.toHaveBeenCalled();
+  });
+
   it('creates one carried dose only after a fresh uninterrupted two-second hold', () => {
     const { state, medicine, prep, tick } = setup();
     expect(prep().ok).toBe(true);
@@ -208,17 +259,17 @@ describe('RoomMedicine', () => {
 
   it('applies matching medicine once at reception, waiting, recovery front, and completed healing', () => {
     const cases = [
-      { target: 'reception:0', position: { x: 177, y: 194 }, facing: 'up' as const,
+      { target: 'reception:0', position: { x: 177, y: 354 }, facing: 'up' as const,
         location: 'reception' as const },
-      { target: 'waiting:0', position: { x: 130, y: 350 }, facing: 'down' as const,
+      { target: 'waiting:0', position: { x: 130, y: 530 }, facing: 'down' as const,
         location: 'waiting' as const },
-      { target: 'recovery', position: { x: 752, y: 350 }, facing: 'down' as const,
+      { target: 'recovery', position: { x: 872, y: 110 }, facing: 'down' as const,
         location: 'recovery' as const },
-      { target: 'healing:0', position: { x: 280, y: 273 }, facing: 'left' as const,
+      { target: 'healing:0', position: HEALING_INTERACTION_POINT, facing: 'left' as const,
         location: 'healingMachine' as const },
     ];
     for (const { target, position, facing, location } of cases) {
-      const { state, medicine, patients } = setup();
+      const { state, medicine, patients, onDiscard } = setup();
       const patient = patients.admit('Pikachu', TREATMENT.healing | TREATMENT.burnHeal, 0)!;
       state.receptionSlots[0] = '';
       patient.location = location;
@@ -236,6 +287,7 @@ describe('RoomMedicine', () => {
       expect(apply(medicine, target, patient.id, position, facing).ok, target).toBe(true);
       expect(patient.completedTreatments & TREATMENT.burnHeal, target).toBe(TREATMENT.burnHeal);
       expect(state.medicineDoses.size, target).toBe(0);
+      expect(onDiscard).not.toHaveBeenCalled();
       expect(state.players.get('red')?.carriedMedicineId, target).toBe('');
       medicine.onInput('red', false, null, 50);
       expect(apply(medicine, target, patient.id, position, facing).ok, target).toBe(false);
@@ -248,7 +300,7 @@ describe('RoomMedicine', () => {
     const { state, medicine, patients } = setup();
     const patient = patients.admit('Pikachu', TREATMENT.healing | TREATMENT.burnHeal, 0)!;
     giveDose(state, 'antidote');
-    const reception = { x: 177, y: 194 };
+    const reception = { x: 177, y: 354 };
     expect(apply(medicine, 'reception:0', patient.id, reception).reason).toBe('Wrong medicine');
     expect(state.players.get('red')?.carriedMedicineId).toBe('test-dose');
     expect(patient.completedTreatments).toBe(0);
@@ -269,7 +321,7 @@ describe('RoomMedicine', () => {
     state.healingMachine.patientId = patient.id;
     for (const status of ['treating', 'broken']) {
       state.healingMachine.status = status;
-      expect(apply(medicine, 'healing:0', patient.id, { x: 280, y: 273 }, 'left').reason)
+      expect(apply(medicine, 'healing:0', patient.id, HEALING_INTERACTION_POINT, 'left').reason)
         .toBe('Healing machine unavailable');
     }
     expect(state.medicineDoses.has('test-dose')).toBe(true);
@@ -282,28 +334,28 @@ describe('RoomMedicine', () => {
       const { state, medicine, patients } = setup();
       const patient = patients.admit('Pikachu', TREATMENT.healing | TREATMENT.burnHeal, 0)!;
       expect(patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
-        { x: 177, y: 194 }, 'up').ok).toBe(true);
+        { x: 177, y: 354 }, 'up').ok).toBe(true);
       if (medicineFirst) {
         expect(patients.interact('red', { targetId: 'waiting:0', expectedOccupantId: '' },
-          { x: 130, y: 350 }, 'down').ok).toBe(true);
+          { x: 130, y: 530 }, 'down').ok).toBe(true);
         giveDose(state, 'burnHeal');
-        expect(apply(medicine, 'waiting:0', patient.id, { x: 130, y: 350 }, 'down').ok).toBe(true);
+        expect(apply(medicine, 'waiting:0', patient.id, { x: 130, y: 530 }, 'down').ok).toBe(true);
         medicine.onInput('red', false, null, 50);
         expect(patients.interact('red', { targetId: 'waiting:0', expectedOccupantId: patient.id },
-          { x: 130, y: 350 }, 'down').ok).toBe(true);
+          { x: 130, y: 530 }, 'down').ok).toBe(true);
       }
       expect(patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
-        { x: 280, y: 273 }, 'left').ok).toBe(true);
+        HEALING_INTERACTION_POINT, 'left').ok).toBe(true);
       patients.advance(4_000);
       if (!medicineFirst) {
         giveDose(state, 'burnHeal');
-        expect(apply(medicine, 'healing:0', patient.id, { x: 280, y: 273 }, 'left').ok).toBe(true);
+        expect(apply(medicine, 'healing:0', patient.id, HEALING_INTERACTION_POINT, 'left').ok).toBe(true);
         medicine.onInput('red', false, null, 50);
       }
       expect(patients.interact('red', { targetId: 'healing:0', expectedOccupantId: patient.id },
-        { x: 280, y: 273 }, 'left').ok).toBe(true);
+        HEALING_INTERACTION_POINT, 'left').ok).toBe(true);
       expect(patients.interact('red', { targetId: 'discharge', expectedOccupantId: patient.id },
-        { x: 840, y: 180 }, 'down').ok).toBe(true);
+        { x: 840, y: 340 }, 'down').ok).toBe(true);
       expect(state.dischargedCount).toBe(1);
       expect(patient.completedTreatments).toBe(TREATMENT.healing | TREATMENT.burnHeal);
       expect(state.medicineDoses.size).toBe(0);
@@ -323,13 +375,34 @@ describe('RoomMedicine', () => {
     competing.slotIndex = -1;
     state.medicineDoses.set(competing.id, competing);
     state.players.get('blue')!.carriedMedicineId = competing.id;
-    expect(apply(medicine, 'reception:0', patient.id, { x: 177, y: 194 }).ok).toBe(true);
+    expect(apply(medicine, 'reception:0', patient.id, { x: 177, y: 354 }).ok).toBe(true);
     expect(medicine.interact('blue', { targetId: 'medicine:apply:reception:0',
       expectedOccupantId: patient.id, sequence: 2, roundId: 'round' },
-    { x: 177, y: 194 }, 'up', 100, true).reason).toBe('Treatment already complete');
+    { x: 177, y: 354 }, 'up', 100, true).reason).toBe('Treatment already complete');
     expect(patient.completedTreatments).toBe(TREATMENT.antidote);
     expect(state.medicineDoses.size).toBe(1);
     expect(state.players.get('blue')?.carriedMedicineId).toBe(competing.id);
     expect(() => medicine.assertOwnership()).not.toThrow();
   });
 });
+
+it.each([4, 5, 6, 7])('applies medicine once to expanded waiting seat %s after arrival', (slotIndex) => {
+  const { state, medicine, patients } = setup();
+  const patient = patients.admit('Charmander', TREATMENT.burnHeal, slotIndex, 'waiting')!;
+  const point = WAITING_INTERACTION_POINTS[slotIndex]!;
+  giveDose(state, 'burnHeal');
+  expect(apply(medicine, `waiting:${slotIndex}`, patient.id, point, 'down').ok).toBe(false);
+  patients.advance(patientTravelDuration({ travelKind: 'arriving', slotIndex }));
+  expect(apply(medicine, `waiting:${slotIndex}`, 'stale-id', point, 'down').ok).toBe(false);
+  expect(apply(medicine, `waiting:${slotIndex}`, patient.id, point, 'down').ok).toBe(true);
+  expect(patient.completedTreatments).toBe(TREATMENT.burnHeal);
+  expect(apply(medicine, `waiting:${slotIndex}`, patient.id, point, 'down').ok).toBe(false);
+  expect(state.medicineDoses.size).toBe(0);
+});
+it.each(['waiting:8', 'waiting:-1', 'waiting:07', 'waiting:7.5', 'reception:4'])(
+  'preserves medicine for invalid target %s', (targetId) => {
+    const { state, medicine } = setup();
+    giveDose(state, 'burnHeal');
+    expect(apply(medicine, targetId, 'patient', WAITING_INTERACTION_POINTS[7]!, 'down').ok).toBe(false);
+    expect(state.medicineDoses.size).toBe(1);
+  });

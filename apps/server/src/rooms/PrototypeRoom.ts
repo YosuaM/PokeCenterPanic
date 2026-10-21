@@ -3,7 +3,8 @@ import { PLAYER_CHARACTERS, type PlayerCharacter, type PlayerInput, type PlayerP
 import { normalizeRoomCode, validatePlayerName, type RoomDirectory } from './RoomDirectory.js';
 import { RoomMovement } from './RoomMovement.js';
 import { RoomLobby, type LobbyResult } from './RoomLobby.js';
-import { RoomPatients, seedPrototypePatient } from './RoomPatients.js';
+import { RoomPatients } from './RoomPatients.js';
+import { RoomArrivals } from './RoomArrivals.js';
 import { RoomMedicine, isMedicineInteractionRequest } from './RoomMedicine.js';
 import { PlayerState, RoomState } from './RoomState.js';
 
@@ -21,11 +22,20 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
     private readonly reconnectUntil = new Map<string, number>();
     private emptyRoomTimer: ReturnType<typeof setTimeout> | undefined;
     private lastReservationBroadcastAt = 0;
+    private lastPatientUpdateAt = 0;
     private readonly movement = new RoomMovement();
     state = new RoomState();
     private readonly patients = new RoomPatients(this.state);
-    private readonly medicine = new RoomMedicine(this.state);
+    private readonly arrivals = new RoomArrivals(this.state, this.patients);
+    private readonly medicine = new RoomMedicine(this.state,
+      (event) => this.broadcast('medicine:discarded', event));
     private readonly lobby = new RoomLobby(this.state, countdownMs);
+
+    private advancePatientClock(now: number): void {
+      if (this.state.phase !== 'running') return;
+      this.patients.advance(Math.max(0, now - this.lastPatientUpdateAt));
+      this.lastPatientUpdateAt = now;
+    }
 
     private roster(): PlayerPresence[] {
       return [...this.state.players].map(([id, player]) => ({ id, name: player.name, slot: player.slot,
@@ -61,14 +71,16 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       this.setTimestep((elapsedMs) => {
         const now = performance.now();
         if (this.lobby.advance(now)) {
-          seedPrototypePatient(this.patients);
+          this.lastPatientUpdateAt = now;
+          this.arrivals.reset();
           directory.setPhase(this.roomId, 'running');
         }
         if (this.state.phase === 'running') {
+          this.advancePatientClock(now);
           this.medicine.advance(now, (id) => this.movement.position(id),
             (id) => this.movement.facing(id));
           this.movement.advance(elapsedMs, now);
-          this.patients.advance(elapsedMs);
+          this.arrivals.advance(elapsedMs);
         }
         if (this.reconnectUntil.size && Date.now() - this.lastReservationBroadcastAt >= 1_000) {
           this.lastReservationBroadcastAt = Date.now();
@@ -115,6 +127,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       this.onMessage('medicine:interact', (client, input: unknown) => {
         const playerId = client.sessionId;
         const now = performance.now();
+        this.advancePatientClock(now);
         const player = this.state.players.get(playerId);
         const position = this.movement.position(playerId);
         const facing = this.movement.facing(playerId);
@@ -128,6 +141,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
           now, this.movement.isStationary(playerId, now)));
       });
       this.onMessage('patient:interact', (client, input: unknown) => {
+        this.advancePatientClock(performance.now());
         const player = this.state.players.get(client.sessionId);
         const position = this.movement.position(client.sessionId);
         const facing = this.movement.facing(client.sessionId);
@@ -174,6 +188,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
     }
 
     onDrop(client: Client): void {
+      this.advancePatientClock(performance.now());
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
       this.patients.releaseCarrier(client.sessionId);
@@ -207,6 +222,7 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
     }
 
     onLeave(client: Client): void {
+      this.advancePatientClock(performance.now());
       this.patients.releaseCarrier(client.sessionId);
       this.medicine.releaseCarrier(client.sessionId);
       this.movement.remove(client.sessionId);

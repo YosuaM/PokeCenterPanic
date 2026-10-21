@@ -14,6 +14,7 @@ export const TREATMENT = {
 
 export const HEALING_DURATION_MS = 4_000;
 export const REPAIR_DURATION_MS = 2_000;
+export const PATIENT_FAINT_DURATION_MS = 1_600;
 
 export interface PatientRecord {
   id: string;
@@ -26,6 +27,11 @@ export interface PatientRecord {
   location: PatientLocation;
   slotIndex: number;
   carrierId: string;
+  travelKind?: '' | 'arriving' | 'leaving' | 'fainting';
+  travelElapsedMs?: number;
+  faintX?: number;
+  faintY?: number;
+  faintElevation?: number;
 }
 
 export interface PatientPresentation {
@@ -62,12 +68,22 @@ export function isValidTreatmentSet(required: number): boolean {
 }
 
 export function patientPresentation(patient: Pick<PatientRecord,
-  'requiredTreatments' | 'completedTreatments' | 'lifecycle'>): PatientPresentation {
+  'requiredTreatments' | 'completedTreatments' | 'lifecycle'> &
+  Partial<Pick<PatientRecord, 'initialPatienceMs' | 'remainingPatienceMs'>>): PatientPresentation {
   const pending = patient.requiredTreatments & ~patient.completedTreatments;
+  const ratio = patientPatienceRatio(patient);
   return {
-    hp: pending & TREATMENT.healing ? 50 : 100,
+    hp: patient.lifecycle === 'lost' ? 0 : Math.ceil((pending & TREATMENT.healing ? 50 : 100) * ratio),
     maxHp: 100,
     status: pending & TREATMENT.burnHeal ? 'burned' : pending & TREATMENT.antidote ? 'poisoned' : null,
-    readyForDischarge: patient.lifecycle === 'active' && pending === 0,
+    readyForDischarge: patient.lifecycle === 'active' && pending === 0 && ratio > 0,
   };
+}
+
+export function patientPatienceRatio(patient: Partial<Pick<PatientRecord,
+  'initialPatienceMs' | 'remainingPatienceMs'>>): number {
+  if (patient.initialPatienceMs === undefined || patient.remainingPatienceMs === undefined) return 1;
+  if (!Number.isFinite(patient.initialPatienceMs) || patient.initialPatienceMs <= 0 ||
+    !Number.isFinite(patient.remainingPatienceMs)) return 0;
+  return Math.min(1, Math.max(0, patient.remainingPatienceMs / patient.initialPatienceMs));
 }
