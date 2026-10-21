@@ -1,4 +1,4 @@
-import { PLAYER_CHARACTERS, type Direction, type PatientRecord, type PlayerPresence,
+import { PLAYER_CHARACTERS, patientTravelPose, type Direction, type PatientRecord, type PlayerPresence,
   type PlayerPosition, type Point } from '@pokecenter/shared';
 
 export const PATIENT_SPRITES = {
@@ -41,6 +41,8 @@ export function patientRenderPosition(patient: PatientRecord, stations: {
   reception: readonly Point[]; waiting: readonly Point[]; recovery: Point;
   healingMachine: Point;
 }, carrier?: Point): Point | undefined {
+  const travel = patientTravelPose(patient);
+  if (travel) return travel.point;
   if (patient.lifecycle !== 'active') return undefined;
   if (patient.location === 'reception') return stations.reception[patient.slotIndex];
   if (patient.location === 'waiting') return stations.waiting[patient.slotIndex];

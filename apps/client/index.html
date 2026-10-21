@@ -14,6 +14,19 @@
         overflow: hidden;
       }
 
+      #game { position: relative; }
+      #game canvas { image-rendering: auto; }
+      #game > canvas:not(.center-3d-canvas) { position: relative; z-index: 1; }
+      .center-3d-canvas {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: min(100vw, 177.7778vh);
+        height: auto;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+
       body {
         background: #172d46;
         color: #f7f5e8;
@@ -24,7 +37,7 @@
         position: absolute;
         top: 50%;
         left: 50%;
-        z-index: 1;
+        z-index: 2;
         width: min(560px, calc(100% - 32px));
         max-height: calc(100dvh - 24px);
         transform: translate(-50%, -50%);
@@ -37,29 +50,45 @@
         box-shadow: 0 16px 48px #07131faa;
       }
 
+      /* Align room controls with the unused right margin of the fitted game canvas. */
       #room-panel.is-playing {
-        top: 12px;
-        right: 12px;
+        --game-unit: min(0.1041667vw, 0.1851852vh);
+        top: calc(50% - 178 * var(--game-unit));
+        right: calc(50% - 464 * var(--game-unit));
         left: auto;
-        width: min(650px, calc(100% - 24px));
-        padding: 8px 10px;
+        width: calc(116 * var(--game-unit));
+        max-height: calc(330 * var(--game-unit));
+        padding: calc(8 * var(--game-unit));
         transform: none;
-        background: #10243bec;
+        border-radius: calc(6 * var(--game-unit));
+        border-color: #456b70;
+        background: #102f39f5;
       }
-
-      #room-panel.is-playing h1 { display: none; }
-      #room-panel.is-playing #room-lobby { display: flex; align-items: center; gap: 12px; }
+      #room-panel.is-playing h1,
+      #room-panel.is-playing #lobby-controls,
+      #room-panel.is-playing #room-phase,
       #room-panel.is-playing #room-lobby > p:first-child { display: none; }
-      #room-panel.is-playing #lobby-controls { display: none; }
-      #room-panel.is-playing p { margin: 0; font-size: 12px; line-height: 1.2; }
-      #room-panel.is-playing #room-code { font-size: 18px; white-space: nowrap; }
-      #room-panel.is-playing #room-players { display: block; }
+      #room-panel.is-playing p {
+        margin: calc(8 * var(--game-unit)) 0;
+        font-size: calc(10 * var(--game-unit));
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+      }
+      #room-panel.is-playing #room-code {
+        font-size: calc(15 * var(--game-unit));
+        letter-spacing: .08em;
+      }
+      #room-panel.is-playing button {
+        padding: calc(7 * var(--game-unit)) calc(4 * var(--game-unit));
+        margin: calc(4 * var(--game-unit)) 0 0;
+        font-size: calc(10 * var(--game-unit));
+        background: #9cddc5;
+      }
+      #room-panel.is-playing #room-status:empty { display: none; }
       #room-players { display: block; margin-top: 8px; line-height: 1.6; }
       #room-phase { margin-top: 12px; font-weight: 700; }
       #lobby-controls { margin-top: 16px; }
       #lobby-controls select { width: 100%; padding: 10px; border-radius: 8px; font: inherit; }
-      #room-panel.is-playing button { width: auto; padding: 7px 10px; margin: 0; white-space: nowrap; }
-      #room-panel.is-playing #room-status:empty { display: none; }
 
       h1 { margin: 0 0 8px; font-size: 28px; }
       p { line-height: 1.5; }
@@ -76,6 +105,40 @@
       button:disabled { opacity: .6; cursor: wait; }
       #room-code { display: block; font-size: 32px; font-weight: 800; letter-spacing: .18em; }
       #room-status { min-height: 24px; color: #ffd587; }
+      #patient-audio {
+        --game-unit: min(0.1041667vw, 0.1851852vh);
+        position: absolute;
+        left: calc(50% - 464 * var(--game-unit));
+        top: calc(50% + 154 * var(--game-unit));
+        width: calc(130 * var(--game-unit));
+        height: calc(22 * var(--game-unit));
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        gap: calc(4 * var(--game-unit));
+      }
+      #room-panel:not(.is-playing):not([hidden]) ~ #patient-audio { display: none; }
+      #patient-audio button {
+        width: calc(64 * var(--game-unit));
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        border: 1px solid #456b70;
+        border-radius: 4px;
+        background: #234b55;
+        color: #fff1d5;
+        font: 700 calc(9 * var(--game-unit)) system-ui, sans-serif;
+      }
+      #patient-audio input {
+        width: calc(62 * var(--game-unit));
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        border: 0;
+        background: transparent;
+        accent-color: #9cddc5;
+      }
+      #patient-audio :focus-visible { outline: 2px solid #ffde8b; outline-offset: 2px; }
       [hidden] { display: none !important; }
     </style>
   </head>
@@ -114,6 +177,10 @@
         <button id="leave-room" type="button">Leave room</button>
       </div>
       <p id="room-status" role="status" aria-live="polite"></p>
+    </section>
+    <section id="patient-audio" aria-label="Patient alert sounds">
+      <button id="patient-audio-toggle" type="button" aria-label="Patient alert sounds" aria-pressed="true">SOUND ON</button>
+      <input id="patient-audio-volume" type="range" min="0" max="100" value="35" aria-label="Alert volume" />
     </section>
     <script type="module" src="/src/main.ts"></script>
   </body>

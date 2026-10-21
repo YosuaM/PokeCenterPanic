@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PokéCenter Panic · 3D environment preview</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+      body { background: #102239; color: #fff2d5; font: 14px ui-monospace, monospace; }
+      #scene { display: grid; place-items: center; width: 100%; height: 100%; }
+      #scene canvas { display: block; width: min(100vw, 177.777vh); height: auto; aspect-ratio: 16 / 9;
+        image-rendering: auto; cursor: grab; touch-action: none; }
+      #scene canvas:active { cursor: grabbing; }
+      #caption { position: fixed; left: 16px; bottom: 14px; padding: 8px 12px;
+        background: #102239d9; border: 1px solid #6a99a1; pointer-events: none; }
+      #status { position: fixed; left: 16px; top: 14px; padding: 8px 12px;
+        background: #102239d9; border: 1px solid #6a99a1; }
+    </style>
+  </head>
+  <body>
+    <main id="scene" aria-label="PokéCenter Panic 3D environment preview"></main>
+    <div id="status" role="status">Loading original 3D scenery…</div>
+    <div id="caption">DRAG TO ROTATE CAMERA · ORIGINAL 3D SCENERY + PMD SPRITES</div>
+    <script type="module" src="/src/scenes/center3dPreview.ts"></script>
+  </body>
+</html>

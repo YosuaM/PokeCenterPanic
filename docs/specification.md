@@ -6,7 +6,7 @@
 **Updated:** 2026-10-21\
 **Type:** Noncommercial cooperative fan game\
 **Primary platform:** Web browser\
-**Technologies:** Phaser, TypeScript, Vite, Node.js, Colyseus
+**Technologies:** Phaser, Three.js, TypeScript, Vite, Node.js, Colyseus
 
 Version 0.2 fixes the gameplay and lifecycle rules for the MVP. Values explicitly described as initial tuning values may change after playtesting; the rules and acceptance scenarios remain the implementation contract until this document is revised. No gameplay validation is implied by this specification update.
 
@@ -16,7 +16,7 @@ Version 0.2 fixes the gameplay and lifecycle rules for the MVP. Values explicitl
 
 ## 1.1. Concept
 
-PokéCenter Panic is a 2D cooperative multiplayer game inspired by the coordination and chaotic time management mechanics of *Overcooked*, set in a Pokémon Center.
+PokéCenter Panic is a cooperative multiplayer game inspired by the coordination and chaotic time management mechanics of *Overcooked*, set in a Pokémon Center. Its game rules use a 2D floor plan while the playable center uses a hybrid 3D view with PMD character sprites.
 
 Players control Pokémon working as medical staff and collaborate to care for other Pokémon arriving with injuries, illnesses, or status conditions.
 
@@ -40,8 +40,8 @@ As a round progresses, the pressure increases and unexpected situations force th
 |---|---|
 | Genre | Cooperative action and time management |
 | Players | 1–4, with a focus on 2–4 |
-| View | Top-down 2D |
-| Art style | Pixel art inspired by Pokémon Mystery Dungeon |
+| View | Fixed oblique 3D room with upright 2D character planes facing the camera horizontally |
+| Art style | Original low-poly geometry and pixel textures with PMD sprites |
 | Duration | 6 minutes per MVP round, plus lobby/countdown/results |
 | Initial platform | Desktop browser |
 | Controls | Keyboard |
@@ -114,11 +114,12 @@ Stations are interactive parts of the map with limited capacity and specific beh
 
 ### Reception
 
-- Generates new patients.
-- Maintains four arrival slots. Patients stay in their slot until picked up or lost.
-- Lets players pick up any occupied arrival slot, so the team can prioritize urgent patients.
+- Registers new patients into a free waiting-room seat before they enter through the front door.
+- Patients walk from the entrance to the public side of reception, pause for one second to check in, then follow the waiting-room aisle to their reserved seat. Reservations count toward capacity immediately; pickup, placement and medicine cannot intercept an incoming patient.
+- The former four counter arrival slots remain supported by prototype fixtures, but normal admissions use the benches rather than placing Pokémon on the counter.
 - Has a separate discharge interaction point that accepts a carried, fully treated patient immediately. Arrivals never occupy or block this point.
-- Skips arrivals when reception or the active-patient limit is full, according to section 5.3.
+- A discharged patient walks along the right aisle and out through the entrance. This animation has no inventory ownership, does not block admissions and cannot award a second discharge.
+- Skips arrivals when the waiting room or the active-patient limit is full, according to section 5.3.
 
 ### Healing machine
 
@@ -143,6 +144,7 @@ Stations are interactive parts of the map with limited capacity and specific beh
 ### Waiting area
 
 - Has four individually targetable patient slots, each holding one patient.
+- Receives automatic arrivals; players may pick up any seated patient to prioritize care. Incoming patients have a visible arrival label and a reserved seat.
 - Accepts patients regardless of their remaining treatments, including patients ready for discharge.
 - Allows a solo player to set down a patient, prepare and apply medicine, and pick the patient up again.
 - Does not pause patience or provide treatment by itself.
@@ -204,7 +206,7 @@ Treatments are defined as data rather than species-specific logic. Location, tre
 
 | Trigger | Patient transition | Related state change |
 |---|---|---|
-| Accepted arrival | New active patient in an empty reception slot | Increment admitted count |
+| Accepted arrival | New active patient reserves an empty waiting slot and walks inside | Increment admitted count |
 | Valid pickup | Stationary location → carrier | Clear previous slot and fill player's hand atomically |
 | Place in waiting | Carrier → waiting slot | Clear hand; retain medical progress and patience |
 | Place in working healing machine | Carrier → healing machine | Machine changes from empty to treating, with four seconds remaining |
@@ -240,7 +242,7 @@ A patient has exactly one or two medical needs. Allowed combinations are injury 
 
 For example, a burned and injured Pikachu needs a Burn Heal and a healing machine, in either order. One patient cannot receive two treatments concurrently. Medicine is instant; healing blocks medicine until it finishes.
 
-HP is a presentation value: 50/100 while healing is pending, otherwise 100/100. Burn and poison do not cause damage over time. Status icons disappear when their corresponding treatment is complete. There is no separate death or deterioration system.
+HP reflects both pending injury and deterioration while waiting: `ceil(baseHP × remainingPatience / initialPatience)`, where baseHP is 50 while healing is pending and 100 otherwise. The ratio is clamped to 0–1; an active patient with positive patience retains at least 1 HP. A lost patient has 0 HP. This decline does not add treatment requirements or refill patience when medicine is applied; the original checklist still determines eligibility for discharge. Status icons disappear when their corresponding treatment is complete.
 
 ## 3.3. Patience
 
@@ -249,9 +251,9 @@ Each patient receives the initial patience budget from the difficulty configurat
 - Patience decreases in reception, waiting, recovery, during transport, during an outage, and after treatment while awaiting pickup or discharge.
 - It pauses only while a working healing machine is advancing that patient's unfinished healing. Preparation and repair do not count as patient treatment; instant medicine does not create a pause interval.
 - A completed treatment cannot be repeated or restarted to pause patience again.
-- At zero patience, the server removes the patient, clears the carrier's hand or occupied slot, cancels any remaining treatment for that patient, and applies exactly one lost-patient penalty. A brief departure effect is cosmetic and does not retain ownership or block a corridor.
+- At zero patience, the server removes the patient, clears the carrier's hand or occupied slot, cancels any remaining treatment for that patient, and records exactly one lost-patient outcome. The Pokémon falls out of combat: a 1.6-second collapse and fade plays at its final authoritative position, without retaining ownership or blocking a corridor. The lost counter increments once; score penalties belong to the separately tracked scoring implementation.
 
-The patience bar remains visible after all treatments finish. Patients must reach the discharge point before either their patience or the round expires. Server boundary ordering is defined in section 9.8.
+Each visible patient has a patience bar and remaining-time/HP indicators. The warning state is amber at 50% patience or below, and critical is red at 25% or below with a slight unsteady pose. The selected patient HUD indicates when active healing pauses patience. The patience bar remains visible after all treatments finish. Patients must reach the discharge point before either their patience or the round expires. Server boundary ordering is defined in section 9.8.
 
 ## 3.4. Initial Pokémon roster
 
@@ -337,29 +339,37 @@ Duration is configurable internally for testing, but the first version does not 
 
 ## 5.3. Difficulty scaling
 
-The following are initial tuning values, not a claim of proven balance. Patient rules and map capacities are identical in solo and multiplayer; arrival frequency and the active-patient limit scale with the team.
+**Current playable prototype:** automatic admissions start after five seconds, then accelerate through three server-timed stages. The first patient is an injured Pikachu; subsequent species and the five valid treatment sets are sampled uniformly. The service loop continues while the room is running. All admitted patients retain 90-second initial patience; movement, treatment and expiry keep their existing rules.
 
-| Connected players | Base arrival interval | Maximum active patients |
-|---|---:|---:|
-| 1 | 24 seconds | 4 |
-| 2 | 16 seconds | 6 |
-| 3 | 12 seconds | 8 |
-| 4 | 10 seconds | 10 |
+The following are initial tuning values, not a claim of proven balance. Each table cell contains **arrival interval / maximum active patients**. Eight waiting seats are available throughout; the population cap also includes patients being carried, treated or held in recovery.
 
-| Elapsed round time | Interval multiplier | Chance of two treatments | Initial patience |
+| Connected players | Opening: 0–29.999 s | Growing: 30–59.999 s | Busy: 60 s onward |
 |---|---:|---:|---:|
-| 0–119.999 seconds | 1.00 | 10% | 90 seconds |
-| 120–239.999 seconds | 0.85 | 25% | 80 seconds |
-| 240–329.999 seconds | 0.70 | 40% | 70 seconds |
-| 330–359.999 seconds | No new arrivals | Not applicable | Existing budgets unchanged |
+| 1 | 18 s / 4 | 14 s / 6 | 10 s / 8 |
+| 2 | 16 s / 5 | 12 s / 7 | 9 s / 9 |
+| 3 | 14 s / 6 | 10 s / 8 | 8 s / 10 |
+| 4 | 12 s / 6 | 9 s / 8 | 7 s / 10 |
 
-The effective interval is the base interval multiplied by the current stage multiplier. The first arrival attempt occurs five seconds after the round starts. Each attempt schedules the next from the current server time; stage changes affect the next scheduled interval, without retroactively advancing an already scheduled attempt. No attempt is admitted at or after 330 seconds. A two-treatment patient is equally likely to need injury plus burn or injury plus poison; single treatments and the six patient species are selected uniformly within their respective groups.
+Each attempt schedules the next one full interval from the current server time. Stage boundaries affect the cap immediately and the interval scheduled by the next attempt; they never pull a pending arrival forward. For an uninterrupted solo session with capacity available, attempts occur at 5, 23, 41, 55, 69, 79, 89 and 99 seconds. This opens access to the second bench progressively instead of retaining the former four-patient solo ceiling. Patient loss can free seats before those attempts; full occupancy is not forced when staff keep up with care.
 
-**Saturation:** an attempt is skipped if all four reception slots are occupied or the active-patient limit has been reached. No patient entity, score penalty, or admitted-patient statistic is created. Skipped attempts are not queued or replayed in a burst. The same rule applies to missed scheduler intervals after a server stall: make at most one current attempt, then schedule ahead. Active patients include all locations, including carriers, machines, and recovery.
+Only positive, finite running-phase time advances the stage clock. Resetting the round resets the stage, first-arrival timer and introductory patient. No connected staff means no admissions, while stage time and existing patience continue. Reconnecting schedules a full interval at the current stage.
+
+**Planned timed-round work, not yet active:** the six-minute round deadline, 330-second final-arrival cutoff, scoring, weighted treatment selection and reduced patience budgets remain separately tracked. The proposed treatment/patience schedule below applies only when that work is implemented; it does not change current patient budgets or the implemented arrival table.
+
+| Elapsed round time | Chance of two treatments | Initial patience |
+|---|---:|---:|
+| 0–119.999 seconds | 10% | 90 seconds |
+| 120–239.999 seconds | 25% | 80 seconds |
+| 240–329.999 seconds | 40% | 70 seconds |
+| 330–359.999 seconds | No new arrivals | Existing budgets unchanged |
+
+Under that future schedule, a two-treatment patient is equally likely to need injury plus burn or injury plus poison; single treatments and the six patient species are selected uniformly within their respective groups.
+
+**Saturation:** an attempt is skipped if all eight waiting slots are occupied or reserved, or the active-patient limit has been reached. No patient entity, score penalty, or admitted-patient statistic is created. Skipped attempts are not queued or replayed in a burst. The same rule applies to missed scheduler intervals after a server stall: make at most one current attempt, then schedule ahead. Active patients include all locations, including carriers, machines, and recovery.
 
 **Team changes:** use currently connected players, excluding disconnected reservations. On a connection change, cancel the pending arrival and schedule a new attempt one full effective interval later. If the new active limit is below the current population, retain existing patients and skip arrivals until there is capacity. Do not alter existing patience budgets, treatment progress, or the round deadline. With zero connected players, suspend arrivals and new incidents; the round clock and existing patients continue under section 9.7.
 
-The final 30 seconds provide time to clear the center. Playtests must check service throughput and travel time for every team size; shorten routes or reduce arrivals before increasing caps. There is no guarantee that poor coordination, repeated absences, or a full queue can always be recovered from.
+Once timed rounds are implemented, the final 30 seconds will provide time to clear the center. Playtests must check service throughput and travel time for every team size; shorten routes or reduce arrivals before increasing caps. There is no guarantee that poor coordination, repeated absences, or a full queue can always be recovered from.
 
 ## 5.4. Scoring
 
@@ -445,16 +455,16 @@ Outages do not spread, destroy objects, or award points. A round may have no nat
 
 ## 7.1. Camera
 
-The MVP uses one fixed top-down camera showing the entire Pokémon Center and HUD. There is no camera following or scrolling. Preserve the map's aspect ratio when fitting the browser viewport.
+The MVP uses one fixed oblique camera showing the entire 3D Pokémon Center and HUD. There is no camera following or scrolling. The shared floor plan remains authoritative for movement, collision, and interactions. The enlarged clinic spans 1324 × 892 map units (x: −182 to 1142; y: −174 to 718), independently of the 960 × 540 logical presentation space. Both drawing buffers adapt to the fitted viewport and device pixel ratio, from 960 × 540 up to a 3840 × 2160 cap; logical camera framing and gameplay coordinates stay fixed. Preserve the view's 16:9 aspect ratio when fitting the browser viewport.
 
 ## 7.2. First map
 
-Use one small Pokémon Center.
+Use one clinic with a public lobby in front and a medical area behind reception. A low divider continues the counter to the left wall, and the right-hand corridor connects the two zones. Keep the entrance, check-in, waiting seats and discharge on the public side; healing, medicine preparation and recovery belong on the medical side. Furniture and character sizes remain unchanged as the room expands.
 
 Essential elements:
 
-- Entrance and four reception slots.
-- Four waiting slots and the pickup-only recovery area.
+- Entrance leading to eight waiting-room seats across two four-seat benches; reception has a separate discharge point.
+- Eight waiting slots and the pickup-only recovery area.
 - Two healing machines.
 - Medicine table with two preparation points and one disposal point.
 - Four surfaces for placing medicine.
@@ -465,14 +475,13 @@ All interaction points must be accessible without moving another patient or play
 
 ## 7.3. Graphics system
 
-- 2D pixel art.
-- Sprites with directional animations.
-- Rendering without texture smoothing.
-- Tileset for the map.
-- Separate floor, object, and collision layers.
-- Visual depth through Y-coordinate sorting.
+- Original 3D geometry for floor, walls, stations, and furniture.
+- Upright PMD planes facing the camera horizontally, with directional Idle and Walk animations.
+- Nearest-neighbor sampling for source pixel textures and sprites; smooth canvas scaling, antialiasing for 3D geometry, and high-resolution HUD text.
+- A shared 2D collision and interaction map projected onto the 3D floor.
+- Floor-order compositing keeps characters visible beside tall stations, with the HUD drawn above the room.
 
-The virtual resolution and final tile size will be decided after checking the actual dimensions of the selected assets.
+The logical presentation is 960 × 540 with a 48-unit tile; render density adapts to the display as described in section 7.1. Source sprite frames retain their native proportions.
 
 ## 7.4. Animations
 
@@ -533,16 +542,22 @@ Main elements:
 
 Information must remain readable without obscuring too much of the map.
 
+The current gameplay HUD reserves a top band for occupied/reserved waiting seats (out of eight), separate seated/arriving counts, recovery queue size, healing/repair status, and discharged/lost totals. A bottom action panel describes the selected E interaction or rejection; the adjacent patient file shows the selected or carried patient's name, unordered treatment checklist, HP, remaining patience in seconds and percent, and critical/paused states. With no patient selected, it explains how to inspect one. Full occupancy includes incoming reservations.
+
+A fixed eight-seat roster in the left margin names each waiting patient and shows numeric HP, remaining wait seconds, separate health/patience bars and only pending treatment icons. Reserved arrivals remain in their assigned row; empty or vacated seats show EMPTY. A gold outline connects the focused patient to the roster. World markers use matching seat numbers, compact pending/discharge icons, separate health and patience bars and an explicit critical marker; patients outside waiting show compact HP or READY labels. Full names and care details remain in the patient file. HUD bands use a fixed foreground layer above world labels, with matching clear space in both 3D and 2D. The in-game room code, roster and leave control occupy the right margin. The planned timer and score remain absent until their authoritative gameplay systems exist.
+
 ## 8.4. Patient indicators
 
 Display above each patient or in a nearby panel:
 
-- Medical condition icon.
-- Patience bar.
-- Pending treatments.
-- Treatment completion indicator.
+- Medical condition icons and pending treatment symbols.
+- Separate labeled health (HP) and patience (WAIT) values and bars.
+- Remaining patience in seconds; the focused patient also shows a percentage.
+- Explicit critical, healing-pause and discharge-ready states.
 
-Treatment icons show an unordered checklist, not a numbered recipe. A separate discharge icon appears when every required treatment is complete; the patience bar remains visible until the patient leaves.
+The focused checklist names only remaining care with NEEDS, or says ALL TREATMENTS COMPLETE. Muted completed icons retain completion ticks. Seat numbers identify patients and never imply treatment order. Treatment icons form an unordered checklist. A separate discharge icon appears when every required treatment is complete; the patience bar remains visible until the patient leaves.
+
+Critical indicators breathe slowly over a 1.8-second cycle without hiding HP, patience values or treatment names. Discharge-ready arrows and outlines pulse over 2.4 seconds; critical outlines take priority when both states apply. A known patient's transition from pending care to valid discharge creates a 3.2-second visual notice, grouping simultaneous completions. Duplicate snapshots and initially ready/reconnected patients do not replay it; removal or loss cancels obsolete notices. Respect the system reduced-motion setting by keeping cues and notices steady. Notices and transition history clear when play ends.
 
 Avoid long text during gameplay.
 
@@ -559,7 +574,11 @@ Use sound effects for:
 - Triggering incidents.
 - Ending rounds.
 
-Initially use original effects or resources with compatible licenses.
+The current patient alerts use original Web Audio sine effects: a short descending pair on critical entry and an ascending three-note cue on valid discharge readiness. Default alert volume is 35%, with mute and a keyboard-accessible volume slider below the waiting roster. Preferences persist locally when storage is available. Visual patient indicators remain sufficient when muted.
+
+Only transitions of already observed patients produce sound; initial/reconnected snapshots, repeated updates and expired patients stay quiet. Same-kind transitions are grouped, with a 1.25-second per-kind cooldown; critical and ready cues are serialized when both occur together. Browser interaction unlocks audio. Locked, muted, hidden or inactive gameplay never queues old sounds for later replay. Muting, hiding, stopping and leaving release active tones; scene shutdown removes listeners and owned audio nodes without closing Phaser's shared context.
+
+Other effects initially use original resources or resources with compatible licenses.
 
 ---
 
@@ -1005,7 +1024,7 @@ Consider these only after confirming that the core loop is fun.
 
 ## 16.2. Work that still needs evidence
 
-**Art sizing:** select the tileset, sprite scale, and virtual resolution after inspecting approved assets. Preserve the fixed camera, reachable interaction points, and minimum viewport contract. Validate the importer with one species before expanding the roster.
+**Art sizing:** tune the original geometry, enlarged PMD sprite scale, and virtual resolution after playtesting. Preserve the fixed camera, reachable interaction points, and minimum viewport contract. The 2D renderer remains available through `?render=2d` for comparison.
 
 **Balance:** playtest the explicitly specified arrival, patience, healing/preparation/repair, and star values with each team size. Tune numeric configuration while preserving the interaction and lifecycle rules; record changes in this document.
 

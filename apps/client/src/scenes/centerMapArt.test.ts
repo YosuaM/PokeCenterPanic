@@ -26,7 +26,7 @@ describe('original center environment art', () => {
   });
 
   it('keeps station art bounds aligned with the server collision geometry', () => {
-    const matches = [...source.matchAll(/<rect data-obstacle="(\d+)" x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)"/g)];
+    const matches = [...source.matchAll(/<rect data-obstacle="(\d+)" x="(-?\d+)" y="(-?\d+)" width="(\d+)" height="(\d+)"/g)];
     expect(matches).toHaveLength(MAP_OBSTACLES.length);
     for (const [index, obstacle] of MAP_OBSTACLES.entries()) {
       const match = matches[index]!;

@@ -88,6 +88,9 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
   showMedicines(doses, surfaces, owners, remainingMs) {
     mapScene().setMedicines(doses, surfaces, owners, remainingMs);
   },
+  showMedicineDiscard(event) {
+    mapScene().showMedicineDiscard(event);
+  },
   showInteractionResult(result) {
     mapScene().setInteractionResult(result);
   },
@@ -96,6 +99,9 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
   },
   showDischargedCount(count) {
     mapScene().setDischargedCount(count);
+  },
+  showLostCount(count) {
+    mapScene().setLostCount(count);
   },
   showPhase(snapshot) {
     currentPhase = snapshot;
