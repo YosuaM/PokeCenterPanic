@@ -15,7 +15,9 @@ npm ci
 npm run dev
 ```
 
-The client opens at `http://127.0.0.1:5173`; Colyseus listens on port `2567` by default. Set `PORT` when starting the server to use a different port. `npm run dev:client` and `npm run dev:server` start each app separately. The initial server exposes a minimal `prototype` room to verify the transport; private room codes and joining rules are planned in the next card.
+The client opens at `http://127.0.0.1:5173`; Colyseus listens on port `2567` by default. Set `PORT` when starting the server to use a different port, and set `VITE_SERVER_URL` to the matching server origin if the client must connect elsewhere. `npm run dev:client` and `npm run dev:server` start each app separately.
+
+Enter a player name and select **Create room**. Share the displayed six-character code; another player can open the client in a separate browser session, enter the code, and select **Join room**. Codes are case-insensitive. The prototype defaults to two seats; set `ROOM_CAPACITY=3` or `ROOM_CAPACITY=4` before starting the server to test a larger room. Invalid codes and full rooms show distinct errors. Rooms are held in memory and disappear when empty or when the server restarts. Gameplay and reconnection controls are planned for later tasks.
 
 Before handing off changes, run:
 

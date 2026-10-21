@@ -16,11 +16,68 @@
 
       body {
         background: #172d46;
+        color: #f7f5e8;
+        font-family: system-ui, sans-serif;
       }
+
+      #room-panel {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        z-index: 1;
+        width: min(560px, calc(100% - 32px));
+        max-height: calc(100dvh - 24px);
+        transform: translate(-50%, -50%);
+        box-sizing: border-box;
+        overflow-y: auto;
+        padding: 28px;
+        border: 1px solid #88a6c0;
+        border-radius: 18px;
+        background: #10243b;
+        box-shadow: 0 16px 48px #07131faa;
+      }
+
+      h1 { margin: 0 0 8px; font-size: 28px; }
+      p { line-height: 1.5; }
+      label { display: block; margin: 18px 0 6px; }
+      input, button {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 8px;
+        font: inherit;
+      }
+      input { border: 1px solid #88a6c0; background: #f7f5e8; color: #10243b; }
+      button { margin-top: 12px; border: 0; background: #f9cc5d; color: #10243b; font-weight: 700; cursor: pointer; }
+      button:disabled { opacity: .6; cursor: wait; }
+      #room-code { display: block; font-size: 32px; font-weight: 800; letter-spacing: .18em; }
+      #room-status { min-height: 24px; color: #ffd587; }
+      [hidden] { display: none !important; }
     </style>
   </head>
   <body>
     <main id="game" aria-label="PokéCenter Panic game"></main>
+    <section id="room-panel" aria-label="Private room">
+      <h1>PokéCenter Panic</h1>
+      <div id="room-menu">
+        <p>Create a private room or join a friend with their room code.</p>
+        <label for="player-name">Player name</label>
+        <input id="player-name" maxlength="16" autocomplete="nickname" />
+        <form id="create-room"><button type="submit">Create room</button></form>
+        <form id="join-room">
+          <label for="room-code-input">Room code</label>
+          <input id="room-code-input" maxlength="6" autocomplete="off" autocapitalize="characters" required />
+          <button type="submit">Join room</button>
+        </form>
+      </div>
+      <div id="room-lobby" hidden>
+        <p>Share this code with another player:</p>
+        <strong id="room-code"></strong>
+        <p>Connected players: <span id="room-players"></span></p>
+        <button id="leave-room" type="button">Leave room</button>
+      </div>
+      <p id="room-status" role="status" aria-live="polite"></p>
+    </section>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
