@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Box3, Mesh, Vector3 } from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { MAP_OBSTACLES, TILE_SIZE } from '@pokecenter/shared';
+import { DISCHARGE_POSITION, MAP_OBSTACLES, RECEPTION_COUNTER_BOUNDS, RECEPTION_SLOT_POSITIONS,
+  TILE_SIZE } from '@pokecenter/shared';
 
 const bytes = readFileSync(new URL(
   '../apps/client/public/assets/original/models/reception-counter.glb', import.meta.url));
@@ -46,12 +47,15 @@ describe('reception counter GLB', () => {
     }
     expect(bounds.min.y).toBeCloseTo(0);
     expect(bounds.max.y).toBeLessThanOrEqual(1.5);
-    for (const [name, x] of [['ReceptionAnchor1', -303/48], ['ReceptionAnchor2', -111/48],
-      ['ReceptionAnchor3', 81/48], ['ReceptionAnchor4', 273/48], ['DischargeAnchor', 360/48]] as const) {
+    const centerX = RECEPTION_COUNTER_BOUNDS.x + RECEPTION_COUNTER_BOUNDS.width / 2;
+    const centerY = RECEPTION_COUNTER_BOUNDS.y + RECEPTION_COUNTER_BOUNDS.height / 2;
+    const slots = [...RECEPTION_SLOT_POSITIONS.map((point, index) => [`ReceptionAnchor${index + 1}`, point] as const),
+      ['DischargeAnchor', DISCHARGE_POSITION] as const];
+    for (const [name, point] of slots) {
       const position = asset.scene.getObjectByName(name)!.getWorldPosition(new Vector3());
-      expect(position.x).toBeCloseTo(x);
+      expect(position.x).toBeCloseTo((point.x - centerX) / TILE_SIZE);
       expect(position.y).toBeCloseTo(0.93);
-      expect(position.z).toBeCloseTo(16/48);
+      expect(position.z).toBeCloseTo((point.y - centerY) / TILE_SIZE);
     }
   });
 
@@ -61,10 +65,10 @@ describe('reception counter GLB', () => {
     const triangles = meshes.reduce((count, mesh) => count +
       (mesh.geometry.index?.count ?? mesh.geometry.getAttribute('position').count) / 3, 0);
     expect(meshes.length).toBeGreaterThan(0);
-    expect(meshes.length).toBeLessThanOrEqual(15);
-    expect(manifest.materials.length).toBeLessThanOrEqual(15);
-    expect(triangles).toBeLessThanOrEqual(9_000);
-    expect(bytes.byteLength).toBeLessThanOrEqual(320_000);
+    expect(meshes.length).toBeLessThanOrEqual(20);
+    expect(manifest.materials.length).toBeLessThanOrEqual(20);
+    expect(triangles).toBeLessThanOrEqual(10_000);
+    expect(bytes.byteLength).toBeLessThanOrEqual(520_000);
     expect(asset.scene.getObjectByName('DischargeGreen')).toBeDefined();
     for (const name of ['ReceptionGlow1', 'ReceptionGlow2', 'ReceptionGlow3', 'ReceptionGlow4', 'DischargeGlow']) {
       expect(asset.scene.getObjectByName(name)).toBeDefined();

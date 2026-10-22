@@ -6,30 +6,29 @@ import { DISCHARGE_INTERACTION_POINT, RECOVERY_INTERACTION_POINT, RECEPTION_INTE
 import { MEDICINE_DISPOSAL_POINT, MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS } from './medicine.js';
 
 const approaches = [
-  { id: 'reception:0', position: { x: 177, y: 208 } },
-  { id: 'reception:0', position: { x: 177, y: 356 } },
-  { id: 'reception:1', position: { x: 369, y: 208 } },
-  { id: 'reception:2', position: { x: 561, y: 208 } },
-  { id: 'reception:3', position: { x: 690, y: 208 } },
-  { id: 'discharge', position: { x: 840, y: 356 } },
-  { id: 'discharge', position: { x: 942, y: 282 } },
-  { id: 'waiting:0', position: { x: 18, y: 605 } },
-  { id: 'waiting:3', position: { x: 386, y: 605 } },
-  { id: 'waiting:4', position: { x: 694, y: 605 } },
-  { id: 'waiting:7', position: { x: 1062, y: 605 } },
-  { id: 'waiting:0', position: { x: 18, y: 533 } },
-  { id: 'waiting:7', position: { x: 1062, y: 689 } },
-  { id: 'recovery', position: { x: 872, y: 113 } },
-  { id: 'recovery', position: { x: 960, y: 269 } },
-  { id: 'recovery', position: { x: 694, y: 185 } },
-  { id: 'recovery', position: { x: 1062, y: 185 } },
-  { id: 'medicine:prep:0', position: { x: 400, y: -76 } },
-  { id: 'medicine:prep:0', position: { x: 400, y: 95 } },
-  { id: 'medicine:prep:0', position: { x: 278, y: 15 } },
-  { id: 'medicine:prep:1', position: { x: 560, y: -76 } },
-  { id: 'medicine:prep:1', position: { x: 560, y: 95 } },
-  { id: 'medicine:prep:1', position: { x: 682, y: 15 } },
-  { id: 'medicine:disposal', position: { x: 480, y: -76 } },
+  { id: 'reception:0', position: { x: 348, y: 334 } },
+  { id: 'reception:0', position: { x: 348, y: 234 } },
+  { id: 'reception:1', position: { x: 412, y: 234 } },
+  { id: 'reception:2', position: { x: 548, y: 234 } },
+  { id: 'reception:3', position: { x: 612, y: 334 } },
+  { id: 'discharge', position: { x: 480, y: 334 } },
+  { id: 'discharge', position: { x: 480, y: 234 } },
+  { id: 'discharge', position: { x: 480, y: 380 } },
+  { id: 'waiting:0', position: { x: 20, y: 492 } },
+  { id: 'waiting:3', position: { x: 182, y: 492 } },
+  { id: 'waiting:3', position: { x: 252, y: 527 } },
+  { id: 'waiting:4', position: { x: 796, y: 492 } },
+  { id: 'waiting:4', position: { x: 708, y: 527 } },
+  { id: 'waiting:7', position: { x: 958, y: 492 } },
+  { id: 'recovery', position: { x: 888, y: 342 } },
+  { id: 'recovery', position: { x: 888, y: 234 } },
+  { id: 'recovery', position: { x: 728, y: 288 } },
+  { id: 'medicine:prep:0', position: { x: 400, y: 58 } },
+  { id: 'medicine:prep:0', position: { x: 400, y: 106 } },
+  { id: 'medicine:prep:0', position: { x: 302, y: 0 } },
+  { id: 'medicine:prep:1', position: { x: 560, y: 58 } },
+  { id: 'medicine:prep:1', position: { x: 658, y: 0 } },
+  { id: 'medicine:disposal', position: { x: 480, y: 58 } },
   { id: 'medicine:disposal', position: { x: 480, y: 106 } },
 ];
 
@@ -46,7 +45,7 @@ describe('station adjacency', () => {
     'selects waiting seat $index independently from the front and back', ({ point, index }) => {
       const targets = WAITING_INTERACTION_POINTS.map((position, slot) => ({ id: `waiting:${slot}`,
         position, bounds: stationInteractionBounds(`waiting:${slot}`), expectedOccupantId: '', label: 'Seat' }));
-      for (const y of [533, 689]) {
+      for (const y of [point.y, point.y - 12]) {
         expect(selectInteractionTarget({ x: point.x, y }, 'left', targets)?.id).toBe(`waiting:${index}`);
       }
     });
@@ -56,7 +55,9 @@ describe('station adjacency', () => {
       { id: 'discharge', position: DISCHARGE_INTERACTION_POINT }].map((target) => ({ ...target,
         bounds: stationInteractionBounds(target.id), expectedOccupantId: '', label: 'Counter' }));
     for (const target of targets) {
-      expect(selectInteractionTarget({ x: target.position.x, y: 356 }, 'right', targets)?.id).toBe(target.id);
+      for (const y of [340, 228]) {
+        expect(selectInteractionTarget({ x: target.position.x, y }, 'right', targets)?.id).toBe(target.id);
+      }
     }
   });
 
@@ -74,12 +75,13 @@ describe('station adjacency', () => {
   });
 
   it.each([
-    { id: 'reception:0', position: { x: 177, y: 298 } },
-    { id: 'waiting:0', position: { x: 130, y: 605 } },
-    { id: 'waiting:0', position: { x: 130, y: 501 } },
-    { id: 'recovery', position: { x: 872, y: 269 } },
-    { id: 'medicine:prep:0', position: { x: 400, y: 15 } },
-    { id: 'medicine:prep:0', position: { x: 400, y: -101 } },
+    { id: 'reception:0', position: { x: 348, y: 290 } },
+    { id: 'waiting:0', position: { x: 20, y: 552 } },
+    { id: 'waiting:0', position: { x: 20, y: 420 } },
+    { id: 'recovery', position: { x: 888, y: 288 } },
+    { id: 'recovery', position: { x: 888, y: 420 } },
+    { id: 'medicine:prep:0', position: { x: 400, y: 0 } },
+    { id: 'medicine:prep:0', position: { x: 400, y: -100 } },
   ])('rejects blocked or distant access to $id at $position', ({ id, position }) => {
     expect(isInteractionReachable(position, 'down', stationInteractionBounds(id)!)).toBe(false);
   });
@@ -98,7 +100,7 @@ describe('station adjacency', () => {
     ];
     const targets = points.map((target) => ({ ...target, bounds: stationInteractionBounds(target.id),
       expectedOccupantId: '', label: 'Unavailable' }));
-    expect(selectInteractionTarget({ x: 400, y: 95 }, 'down', targets)?.id).toBe('medicine:prep:0');
-    expect(selectInteractionTarget({ x: 400, y: 110 }, 'up', targets)?.id).toBe('medicine:surface:0');
+    expect(selectInteractionTarget({ x: 400, y: 70 }, 'down', targets)?.id).toBe('medicine:prep:0');
+    expect(selectInteractionTarget({ x: 400, y: 118 }, 'up', targets)?.id).toBe('medicine:surface:0');
   });
 });

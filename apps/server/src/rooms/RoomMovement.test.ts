@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HEALING_INTERACTION_POINT, MAP_OBSTACLES, isWalkable, PLAYER_HALF_WIDTH } from '@pokecenter/shared';
+import { MAP_OBSTACLES, MEDICINE_TABLE_BOUNDS, isWalkable, PLAYER_HALF_HEIGHT, PLAYER_HALF_WIDTH } from '@pokecenter/shared';
 import { RoomMovement } from './RoomMovement.js';
 
 describe('RoomMovement', () => {
@@ -41,7 +41,7 @@ describe('RoomMovement', () => {
     expect(movement.accept('red', { direction: 'right', sequence: 1, roundId: null }, 0)).toBe(true);
     expect(movement.facing('red')).toBe('right');
     movement.advance(50, 50);
-    expect(movement.position('red')).toEqual({ x: 463.2, y: 422 });
+    expect(movement.position('red')).toEqual({ x: 463.2, y: 190 });
   });
 
   it('ignores repeated or stale commands and stops movement after input timeout', () => {
@@ -52,7 +52,7 @@ describe('RoomMovement', () => {
     expect(movement.accept('red', { direction: 'left', sequence: 1, roundId: null }, 200)).toBe(false);
     expect(movement.facing('red')).toBe('right');
     movement.advance(50, 250);
-    expect(movement.position('red')).toEqual({ x: 456, y: 422 });
+    expect(movement.position('red')).toEqual({ x: 456, y: 190 });
     movement.accept('red', { direction: null, sequence: 3, roundId: null }, 260);
     expect(movement.facing('red')).toBe('right');
   });
@@ -68,11 +68,12 @@ describe('RoomMovement', () => {
     expect(movement.position('red')!.x).toBeGreaterThan(movement.position('blue')!.x);
 
     movement.accept('red', { direction: 'up', sequence: 2, roundId: null }, 200);
-    for (let tick = 1; tick <= 15; tick += 1) {
+    for (let tick = 1; tick <= 25; tick += 1) {
       movement.accept('red', { direction: 'up', sequence: 2 + tick, roundId: null }, 200 + tick * 50);
       movement.advance(50, 200 + tick * 50);
     }
-    expect(movement.position('red')!.y).toBeGreaterThanOrEqual(322);
+    // Moving up from the staff spawn stops at the front of the medicine table.
+    expect(movement.position('red')!.y).toBeCloseTo(MEDICINE_TABLE_BOUNDS.y + MEDICINE_TABLE_BOUNDS.height + PLAYER_HALF_HEIGHT, 1);
     movement.remove('red');
     expect(movement.position('red')).toBeUndefined();
     expect(movement.accept('red', { direction: 'up', sequence: 30, roundId: null }, 1000)).toBe(false);
@@ -92,12 +93,12 @@ describe('RoomMovement', () => {
         expect(isWalkable(movement.position('red')!)).toBe(true);
       }
     };
-    Object.assign(movement.position('red')!, { x: HEALING_INTERACTION_POINT.x + 40,
-      y: HEALING_INTERACTION_POINT.y });
+    const machine = MAP_OBSTACLES[1]!;
+    const sideY = machine.y + machine.height / 2;
+    Object.assign(movement.position('red')!, { x: machine.x + machine.width + 120, y: sideY });
     advance('left', 10);
     const position = movement.position('red')!;
-    const machine = MAP_OBSTACLES[1]!;
-    expect(position.y).toBe(HEALING_INTERACTION_POINT.y);
+    expect(position.y).toBe(sideY);
     expect(position.x).toBeCloseTo(machine.x + machine.width + PLAYER_HALF_WIDTH, 1);
   });
 
@@ -118,7 +119,7 @@ describe('RoomMovement', () => {
     expect(movement.position('red')).toBeUndefined();
     expect(movement.accept('red', { direction: 'left', sequence: 5, roundId: null }, 60)).toBe(false);
     expect(movement.add('blue').slot).toBe(1);
-    expect(movement.resume('red')).toEqual({ x: 456, y: 422 });
+    expect(movement.resume('red')).toEqual({ x: 456, y: 190 });
     expect(movement.lastSequence('red')).toBe(4);
     expect(movement.accept('red', { direction: 'left', sequence: 4, roundId: null }, 70)).toBe(false);
     expect(movement.accept('red', { direction: 'left', sequence: 5, roundId: null }, 70)).toBe(true);

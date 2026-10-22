@@ -16,10 +16,10 @@ function addPlayer(state: RoomState, id: string): void {
 
 describe('RoomPatients', () => {
   it.each([
-    { index: 0, position: { x: 177, y: 208 } },
-    { index: 1, position: { x: 369, y: 208 } },
-    { index: 2, position: { x: 561, y: 208 } },
-    { index: 3, position: { x: 690, y: 208 } },
+    { index: 0, position: { x: 348, y: 210 } },
+    { index: 1, position: { x: 412, y: 210 } },
+    { index: 2, position: { x: 548, y: 210 } },
+    { index: 3, position: { x: 612, y: 210 } },
   ])('claims reception patient $index from behind without requiring facing', ({ index, position }) => {
     for (const facing of ['up', 'down', 'left', 'right'] as const) {
       const state = new RoomState();
@@ -44,8 +44,8 @@ describe('RoomPatients', () => {
       addPlayer(state, 'blue');
       const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
       patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
-        { x: 177, y: 354 }, 'down');
-      const position = { x: point.x, y: 689 };
+        { x: 348, y: 344 }, 'down');
+      const position = { x: point.x, y: point.y - 12 };
       const targetId = `waiting:${index}`;
       expect(patients.interact('red', { targetId, expectedOccupantId: '' }, position, 'down').ok).toBe(true);
       expect(patients.interact('blue', { targetId, expectedOccupantId: 'stale' }, position, 'left').ok).toBe(false);
@@ -58,7 +58,7 @@ describe('RoomPatients', () => {
     });
 
   it.each([
-    { x: 872, y: 113 }, { x: 960, y: 269 }, { x: 694, y: 185 }, { x: 1062, y: 185 },
+    { x: 888, y: 342 }, { x: 888, y: 234 }, { x: 728, y: 288 }, { x: 888, y: 380 },
   ])('exposes only the expected recovery front from adjacent position %j', (position) => {
     const state = new RoomState();
     const patients = new RoomPatients(state);
@@ -75,7 +75,7 @@ describe('RoomPatients', () => {
     expect(() => patients.assertOwnership()).not.toThrow();
   });
 
-  it.each([{ x: 840, y: 356 }, { x: 942, y: 282 }])(
+  it.each([{ x: 480, y: 346 }, { x: 480, y: 210 }])(
     'discharges once from an adjacent counter position %j regardless of facing', (position) => {
       const state = new RoomState();
       const patients = new RoomPatients(state);
@@ -83,7 +83,7 @@ describe('RoomPatients', () => {
       const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
       patient.completedTreatments = TREATMENT.healing;
       patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
-        { x: 177, y: 354 }, 'down');
+        { x: 348, y: 344 }, 'down');
       const request = { targetId: 'discharge', expectedOccupantId: patient.id };
       expect(patients.interact('red', request, position, 'right').ok).toBe(true);
       expect(patients.interact('red', request, position, 'up').ok).toBe(false);
@@ -92,9 +92,9 @@ describe('RoomPatients', () => {
     });
 
   it.each([
-    { x: 40, y: -66 }, { x: 40, y: 131 },
-    { x: -102, y: 33 }, { x: 181, y: 33 },
-    { x: -102, y: -66 }, { x: 181, y: 131 },
+    { x: 50, y: 74 }, { x: 50, y: 122 },
+    { x: 167, y: 0 }, { x: 215, y: 0 },
+    { x: 167, y: 74 }, { x: 191, y: 98 },
   ])('places and claims a healing patient once from adjacent position %j', (position) => {
     const state = new RoomState();
     const patients = new RoomPatients(state);
@@ -102,7 +102,7 @@ describe('RoomPatients', () => {
     addPlayer(state, 'blue');
     const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
     expect(patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
-      { x: 177, y: 354 }, 'up').ok).toBe(true);
+      { x: 348, y: 344 }, 'up').ok).toBe(true);
     const place = { targetId: 'healing:0', expectedOccupantId: '' };
     const pickup = { targetId: 'healing:0', expectedOccupantId: patient.id };
     expect(patients.interact('red', place, position, 'up').ok).toBe(true);
@@ -117,14 +117,14 @@ describe('RoomPatients', () => {
     expect(() => patients.assertOwnership()).not.toThrow();
   });
 
-  it.each([{ x: 40, y: 156 }, { x: 206, y: 33 }, { x: 40, y: 33 }])(
+  it.each([{ x: 50, y: 123 }, { x: 216, y: 0 }, { x: 50, y: 0 }])(
     'rejects machine placement outside adjacent walkable space %j without transferring ownership', (position) => {
       const state = new RoomState();
       const patients = new RoomPatients(state);
       addPlayer(state, 'red');
       const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
       patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
-        { x: 177, y: 354 }, 'up');
+        { x: 348, y: 344 }, 'up');
       expect(patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
         position, 'up').reason).toBe('Out of range or blocked');
       expect(state.players.get('red')!.carriedPatientId).toBe(patient.id);
@@ -189,10 +189,10 @@ describe('RoomPatients', () => {
     const first = patients.admit('Pikachu', TREATMENT.healing, 0)!;
     const second = patients.admit('Eevee', TREATMENT.healing, 1)!;
     const request = { targetId: 'reception:0', expectedOccupantId: first.id };
-    expect(patients.interact('red', request, { x: 177, y: 354 }, 'up')).toEqual({ ok: true, reason: '' });
-    expect(patients.interact('blue', request, { x: 177, y: 354 }, 'up'))
+    expect(patients.interact('red', request, { x: 348, y: 344 }, 'up')).toEqual({ ok: true, reason: '' });
+    expect(patients.interact('blue', request, { x: 348, y: 344 }, 'up'))
       .toEqual({ ok: false, reason: 'Patient already claimed or removed' });
-    expect(patients.interact('red', request, { x: 177, y: 354 }, 'up').ok).toBe(false);
+    expect(patients.interact('red', request, { x: 348, y: 344 }, 'up').ok).toBe(false);
     expect(state.players.get('red')?.carriedPatientId).toBe(first.id);
     expect(state.players.get('blue')?.carriedPatientId).toBe('');
     expect(first).toMatchObject({ location: 'carrier', carrierId: 'red', slotIndex: -1 });
@@ -207,14 +207,14 @@ describe('RoomPatients', () => {
     addPlayer(state, 'red');
     const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
     const request = { targetId: 'reception:0', expectedOccupantId: patient.id };
-    expect(patients.interact('red', request, { x: 177, y: 298 }, 'down').ok).toBe(false);
-    expect(patients.interact('red', request, { x: 456, y: 422 }, 'up').ok).toBe(false);
+    expect(patients.interact('red', request, { x: 348, y: 290 }, 'down').ok).toBe(false);
+    expect(patients.interact('red', request, { x: 480, y: 450 }, 'up').ok).toBe(false);
     expect(patients.interact('red', { targetId: 'reception:9', expectedOccupantId: patient.id },
-      { x: 177, y: 354 }, 'up').ok).toBe(false);
+      { x: 348, y: 344 }, 'up').ok).toBe(false);
     expect(patients.interact('red', { targetId: 'reception:0', expectedOccupantId: 'other' },
-      { x: 177, y: 354 }, 'up').ok).toBe(false);
+      { x: 348, y: 344 }, 'up').ok).toBe(false);
     expect(patients.interact('red', { targetId: 'reception:0', expectedOccupantId: 4 },
-      { x: 177, y: 354 }, 'up').ok).toBe(false);
+      { x: 348, y: 344 }, 'up').ok).toBe(false);
     expect(state.receptionSlots[0]).toBe(patient.id);
     expect(state.players.get('red')?.carriedPatientId).toBe('');
   });
@@ -226,16 +226,16 @@ describe('RoomPatients', () => {
     addPlayer(state, 'blue');
     const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
     patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
-      { x: 177, y: 354 }, 'up');
+      { x: 348, y: 344 }, 'up');
     expect(patients.interact('red', { targetId: 'waiting:0', expectedOccupantId: '' },
-      { x: 130, y: 530 }, 'down').ok).toBe(true);
+      { x: 20, y: 477 }, 'down').ok).toBe(true);
     expect(patient).toMatchObject({ location: 'waiting', slotIndex: 0, carrierId: '',
       requiredTreatments: TREATMENT.healing, completedTreatments: 0 });
     expect(state.players.get('red')?.carriedPatientId).toBe('');
     expect(patients.interact('blue', { targetId: 'waiting:0', expectedOccupantId: patient.id },
-      { x: 130, y: 530 }, 'down').ok).toBe(true);
+      { x: 20, y: 477 }, 'down').ok).toBe(true);
     expect(patients.interact('red', { targetId: 'waiting:0', expectedOccupantId: patient.id },
-      { x: 130, y: 530 }, 'down').ok).toBe(false);
+      { x: 20, y: 477 }, 'down').ok).toBe(false);
     expect(patient).toMatchObject({ location: 'carrier', carrierId: 'blue' });
     expect(() => patients.assertOwnership()).not.toThrow();
   });
@@ -247,7 +247,7 @@ describe('RoomPatients', () => {
     addPlayer(state, 'blue');
     const first = patients.admit('Pikachu', TREATMENT.healing, 0)!;
     patients.interact('red', { targetId: 'reception:0', expectedOccupantId: first.id },
-      { x: 177, y: 354 }, 'up');
+      { x: 348, y: 344 }, 'up');
     patients.releaseCarrier('red');
     expect(first).toMatchObject({ location: 'waiting', slotIndex: 0, carrierId: '' });
     expect(state.players.get('red')?.carriedPatientId).toBe('');
@@ -257,16 +257,16 @@ describe('RoomPatients', () => {
     }
     const fifth = patients.admit('Psyduck', TREATMENT.healing, 0)!;
     patients.interact('red', { targetId: 'reception:0', expectedOccupantId: fifth.id },
-      { x: 177, y: 354 }, 'up');
+      { x: 348, y: 344 }, 'up');
     expect(patients.interact('red', { targetId: 'waiting:0', expectedOccupantId: '' },
-      { x: 130, y: 530 }, 'down').reason).toBe('Slot is occupied');
+      { x: 20, y: 477 }, 'down').reason).toBe('Slot is occupied');
     expect(state.players.get('red')?.carriedPatientId).toBe(fifth.id);
     patients.releaseCarrier('red');
     expect([...state.recoveryQueue]).toEqual([fifth.id]);
     expect(fifth).toMatchObject({ location: 'recovery', slotIndex: 0, carrierId: '' });
     const pickup = { targetId: 'recovery', expectedOccupantId: fifth.id };
-    expect(patients.interact('blue', pickup, { x: 872, y: 110 }, 'down').ok).toBe(true);
-    expect(patients.interact('red', pickup, { x: 872, y: 110 }, 'down').ok).toBe(false);
+    expect(patients.interact('blue', pickup, { x: 888, y: 346 }, 'down').ok).toBe(true);
+    expect(patients.interact('red', pickup, { x: 888, y: 346 }, 'down').ok).toBe(false);
     expect([...state.recoveryQueue]).toEqual([]);
     expect(fifth).toMatchObject({ location: 'carrier', carrierId: 'blue' });
     expect(() => patients.assertOwnership()).not.toThrow();
@@ -283,18 +283,18 @@ describe('RoomPatients', () => {
     const later = patients.admit('Eevee', TREATMENT.healing, 0)!;
     const earlier = patients.admit('Psyduck', TREATMENT.healing, 1)!;
     patients.interact('red', { targetId: 'reception:0', expectedOccupantId: later.id },
-      { x: 177, y: 340 }, 'down');
+      { x: 348, y: 340 }, 'down');
     patients.interact('blue', { targetId: 'reception:1', expectedOccupantId: earlier.id },
-      { x: 369, y: 340 }, 'down');
+      { x: 412, y: 340 }, 'down');
     patients.releaseCarrier('blue');
     patients.releaseCarrier('red');
     expect([...state.recoveryQueue]).toEqual([earlier.id, later.id]);
     expect(earlier.slotIndex).toBe(0);
     expect(later.slotIndex).toBe(1);
     expect(patients.interact('blue', { targetId: 'recovery', expectedOccupantId: earlier.id },
-      { x: 872, y: 110 }, 'down').ok).toBe(true);
+      { x: 888, y: 346 }, 'down').ok).toBe(true);
     expect(patients.interact('red', { targetId: 'recovery', expectedOccupantId: earlier.id },
-      { x: 872, y: 110 }, 'down').ok).toBe(false);
+      { x: 888, y: 346 }, 'down').ok).toBe(false);
     expect([...state.recoveryQueue]).toEqual([later.id]);
     expect(later.slotIndex).toBe(0);
     expect(() => patients.assertOwnership()).not.toThrow();
@@ -307,9 +307,9 @@ describe('RoomPatients', () => {
     addPlayer(state, 'blue');
     const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
     patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
-      { x: 177, y: 340 }, 'down');
+      { x: 348, y: 340 }, 'down');
     expect(patients.interact('red', { targetId: 'discharge', expectedOccupantId: patient.id },
-      { x: 840, y: 340 }, 'down').reason).toBe('Treatment still required');
+      { x: 480, y: 340 }, 'down').reason).toBe('Treatment still required');
     expect(state.players.get('red')?.carriedPatientId).toBe(patient.id);
 
     expect(patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
@@ -332,12 +332,12 @@ describe('RoomPatients', () => {
     expect(patients.interact('red', { targetId: 'healing:0', expectedOccupantId: patient.id },
       HEALING_INTERACTION_POINT, 'left').ok).toBe(false);
     expect(patients.interact('blue', { targetId: 'discharge', expectedOccupantId: 'stale-id' },
-      { x: 840, y: 340 }, 'down').reason).toBe('Carried patient changed');
+      { x: 480, y: 340 }, 'down').reason).toBe('Carried patient changed');
     expect(state.players.get('blue')?.carriedPatientId).toBe(patient.id);
     expect(patients.interact('blue', { targetId: 'discharge', expectedOccupantId: patient.id },
-      { x: 840, y: 340 }, 'down').ok).toBe(true);
+      { x: 480, y: 340 }, 'down').ok).toBe(true);
     expect(patients.interact('blue', { targetId: 'discharge', expectedOccupantId: patient.id },
-      { x: 840, y: 340 }, 'down').ok).toBe(false);
+      { x: 480, y: 340 }, 'down').ok).toBe(false);
     expect(state.dischargedCount).toBe(1);
     expect(patient).toMatchObject({ lifecycle: 'discharged', location: 'none',
       slotIndex: -1, carrierId: '' });
@@ -353,9 +353,9 @@ describe('RoomPatients', () => {
     const injured = patients.admit('Pikachu', TREATMENT.healing, 0)!;
     const burned = patients.admit('Eevee', TREATMENT.burnHeal, 1)!;
     patients.interact('red', { targetId: 'reception:0', expectedOccupantId: injured.id },
-      { x: 177, y: 340 }, 'down');
+      { x: 348, y: 340 }, 'down');
     patients.interact('blue', { targetId: 'reception:1', expectedOccupantId: burned.id },
-      { x: 369, y: 340 }, 'down');
+      { x: 412, y: 340 }, 'down');
     patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
       HEALING_INTERACTION_POINT, 'left');
     expect(patients.interact('blue', { targetId: 'healing:0', expectedOccupantId: injured.id },
@@ -376,7 +376,7 @@ describe('RoomPatients', () => {
     addPlayer(state, 'red');
     const patient = patients.admit('Pikachu', TREATMENT.healing | TREATMENT.burnHeal, 0)!;
     patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
-      { x: 177, y: 340 }, 'down');
+      { x: 348, y: 340 }, 'down');
     patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
       HEALING_INTERACTION_POINT, 'left');
     patients.advance(4000);
@@ -384,7 +384,7 @@ describe('RoomPatients', () => {
       HEALING_INTERACTION_POINT, 'left');
     expect(patient.completedTreatments).toBe(TREATMENT.healing);
     expect(patients.interact('red', { targetId: 'discharge', expectedOccupantId: patient.id },
-      { x: 840, y: 340 }, 'down').reason).toBe('Treatment still required');
+      { x: 480, y: 340 }, 'down').reason).toBe('Treatment still required');
     expect(patient).toMatchObject({ lifecycle: 'active', location: 'carrier', carrierId: 'red' });
     expect(state.dischargedCount).toBe(0);
   });
@@ -397,7 +397,7 @@ describe('RoomPatients', () => {
   addPlayer(state, 'blue');
   const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
   patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
-    { x: 177, y: 344 }, 'up');
+    { x: 348, y: 334 }, 'up');
   const point = WAITING_INTERACTION_POINTS[slotIndex]!;
   const targetId = `waiting:${slotIndex}`;
   expect(patients.interact('red', { targetId, expectedOccupantId: '' }, point, 'down').ok).toBe(true);

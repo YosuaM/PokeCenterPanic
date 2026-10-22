@@ -136,9 +136,9 @@ describe('RoomRound', () => {
 
   it('keeps advancing without connected staff and clears held actions, inventory and movement at results', () => {
     const { state, medicine, movement, round, player } = setup();
-    Object.assign(movement.position('red')!, { x: 400, y: 114 });
+    Object.assign(movement.position('red')!, { x: 400, y: 100 });
     expect(medicine.interact('red', { targetId: 'medicine:prep:0', expectedOccupantId: '',
-      sequence: 1, roundId: 'round' }, { x: 400, y: 114 }, 'up', 1000, true).ok).toBe(true);
+      sequence: 1, roundId: 'round' }, { x: 400, y: 100 }, 'up', 1000, true).ok).toBe(true);
     player.connected = false;
     round.advance(2000);
     expect(state.roundRemainingMs).toBe(9000);

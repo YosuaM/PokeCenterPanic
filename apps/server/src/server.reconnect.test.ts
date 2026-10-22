@@ -58,7 +58,7 @@ describe('room reconnection', () => {
       .toBe(true), { timeout: 2000 });
     expect(state().players.get(host.sessionId)).toEqual(expect.objectContaining({
       name: 'Red', slot: 0, character: 'Chansey', ready: false,
-      x: 456, y: 422, carriedPatientId: '',
+      x: 456, y: 190, carriedPatientId: '',
     }));
     expect(state().hostId).toBe(guest.sessionId);
   });

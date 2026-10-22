@@ -16,52 +16,63 @@ export const TILE_SIZE = 48;
 export const PLAYER_SPEED = TILE_SIZE * 3;
 export const PLAYER_HALF_WIDTH = 40;
 export const PLAYER_HALF_HEIGHT = 16;
-export const WALK_BOUNDS = { left: -182, right: 1142, top: -174, bottom: 718 } as const;
+// Compact 22 × 14 tile clinic centered on the 960 × 540 presentation origin (480, 270).
+export const WALK_BOUNDS = { left: -48, right: 1008, top: -66, bottom: 606 } as const;
 
 export const SPAWN_POINTS: readonly Point[] = [
-  { x: 456, y: 422 }, { x: 504, y: 422 },
-  { x: 408, y: 422 }, { x: 552, y: 422 },
+  { x: 456, y: 190 }, { x: 504, y: 190 },
+  { x: 408, y: 190 }, { x: 552, y: 190 },
 ];
 
+/** The central counter separates the public lobby (front) from treatment (back). */
+export const RECEPTION_COUNTER_BOUNDS: MapObstacle = { x: 312, y: 250, width: 336, height: 68 };
 export const RECEPTION_SLOT_POSITIONS: readonly Point[] = [
-  { x: 177, y: 298 }, { x: 369, y: 298 },
-  { x: 561, y: 298 }, { x: 753, y: 298 },
+  { x: 348, y: 290 }, { x: 412, y: 290 },
+  { x: 548, y: 290 }, { x: 612, y: 290 },
 ];
-
 export const RECEPTION_INTERACTION_POINTS: readonly Point[] =
-  RECEPTION_SLOT_POSITIONS.map(({ x }) => ({ x, y: 344 }));
-export const RECEPTION_COUNTER_BOUNDS: MapObstacle = { x: 82, y: 248, width: 796, height: 68 };
+  RECEPTION_SLOT_POSITIONS.map(({ x }) => ({ x, y: 334 }));
+export const DISCHARGE_POSITION: Point = { x: 480, y: 290 };
+export const DISCHARGE_INTERACTION_POINT: Point = { x: 480, y: 334 };
+export const RECEPTION_CHECK_IN_POINT: Point = { x: 480, y: 334 };
 
 export const WAITING_SEATS_PER_BENCH = 4;
 export const WAITING_BENCH_OBSTACLE_INDICES = [4, 7] as const;
 export const WAITING_BENCHES: readonly MapObstacle[] = [
-  { x: 82, y: 573, width: 240, height: 76 },
-  { x: 758, y: 573, width: 240, height: 76 },
+  { x: -28, y: 520, width: 240, height: 76 },
+  { x: 748, y: 520, width: 240, height: 76 },
 ];
 export const WAITING_SLOT_POSITIONS: readonly Point[] = WAITING_BENCHES.flatMap((bench) =>
   Array.from({ length: WAITING_SEATS_PER_BENCH }, (_, index) =>
-    ({ x: bench.x + 48 + index * 54, y: bench.y + 32 })));
-
+    ({ x: bench.x + 39 + index * 54, y: bench.y + 32 })));
 export const WAITING_INTERACTION_POINTS: readonly Point[] =
   WAITING_SLOT_POSITIONS.map(({ x, y }) => ({ x, y: y - 60 }));
 
-export const RECOVERY_POSITION: Point = { x: 872, y: 185 };
-export const RECOVERY_AREA_BOUNDS: MapObstacle = { x: 758, y: 153, width: 240, height: 76 };
-export const RECOVERY_INTERACTION_POINT: Point = { x: 872, y: 125 };
-export const HEALING_MACHINE_POSITION: Point = { x: 40, y: 33 };
-export const HEALING_MACHINE_BOUNDS: MapObstacle = { x: -38, y: -26, width: 155, height: 117 };
-export const HEALING_INTERACTION_POINT: Point = { x: 165, y: 33 };
-export const HEALING_MACHINE_POSITIONS: readonly Point[] = [HEALING_MACHINE_POSITION, { x: 920, y: 33 }];
-export const HEALING_MACHINE_FOOTPRINTS: readonly MapObstacle[] = [HEALING_MACHINE_BOUNDS,
-  { x: 843, y: -26, width: 155, height: 117 }];
-export const HEALING_INTERACTION_POINTS: readonly Point[] = [HEALING_INTERACTION_POINT, { x: 795, y: 33 }];
-export const DISCHARGE_POSITION: Point = { x: 840, y: 298 };
-export const DISCHARGE_INTERACTION_POINT: Point = { x: 840, y: 344 };
-export const MEDICINE_TABLE_BOUNDS: MapObstacle = { x: 342, y: -36, width: 276, height: 102 };
+/** Recovery closes the right end of the counter row; the PC corner closes the left end. */
+export const RECOVERY_AREA_BOUNDS: MapObstacle = { x: 768, y: 250, width: 240, height: 76 };
+export const RECOVERY_POSITION: Point = { x: 882, y: 282 };
+export const RECOVERY_INTERACTION_POINT: Point = { x: 882, y: 342 };
+export const PC_CORNER_BOUNDS: MapObstacle = { x: -48, y: 250, width: 240, height: 68 };
+/** Walkable gaps through the counter row, between the PC corner, counter and recovery. */
+export const CLINIC_PASSAGES: readonly MapObstacle[] = [
+  { x: 192, y: 250, width: 120, height: 68 },
+  { x: 648, y: 250, width: 120, height: 76 },
+];
 
-export const CLINIC_DIVIDER: MapObstacle = { x: WALK_BOUNDS.left, y: 248, width: 264, height: 68 };
-export const CLINIC_CORRIDOR: Point = { x: 1058, y: 344 };
-export const RECEPTION_CHECK_IN_POINT: Point = { x: 480, y: 344 };
+export const HEALING_MACHINE_BOUNDS: MapObstacle = { x: -28, y: -59, width: 155, height: 117 };
+export const HEALING_MACHINE_POSITION: Point = { x: 50, y: 0 };
+export const HEALING_INTERACTION_POINT: Point = { x: 50, y: 74 };
+export const HEALING_MACHINE_POSITIONS: readonly Point[] = [HEALING_MACHINE_POSITION, { x: 910, y: 0 }];
+export const HEALING_MACHINE_FOOTPRINTS: readonly MapObstacle[] = [HEALING_MACHINE_BOUNDS,
+  { x: 833, y: -59, width: 155, height: 117 }];
+export const HEALING_INTERACTION_POINTS: readonly Point[] = [HEALING_INTERACTION_POINT, { x: 910, y: 74 }];
+export const MEDICINE_TABLE_BOUNDS: MapObstacle = { x: 342, y: -60, width: 276, height: 102 };
+
+/** Potted plants flanking the entrance. */
+export const LOBBY_PLANTS: readonly MapObstacle[] = [
+  { x: 258, y: 544, width: 56, height: 56 },
+  { x: 646, y: 544, width: 56, height: 56 },
+];
 
 export const MAP_OBSTACLES: readonly MapObstacle[] = [
   RECEPTION_COUNTER_BOUNDS,
@@ -70,8 +81,9 @@ export const MAP_OBSTACLES: readonly MapObstacle[] = [
   MEDICINE_TABLE_BOUNDS,
   WAITING_BENCHES[0]!,
   RECOVERY_AREA_BOUNDS,
-  CLINIC_DIVIDER,
+  PC_CORNER_BOUNDS,
   WAITING_BENCHES[1]!,
+  ...LOBBY_PLANTS,
 ];
 
 const DIRECTIONS: Record<Direction, Point> = {

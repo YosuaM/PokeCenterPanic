@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { CLINIC_DIVIDER, WALK_BOUNDS, WAITING_BENCH_OBSTACLE_INDICES, WAITING_SEATS_PER_BENCH } from '@pokecenter/shared';
+import { LOBBY_PLANTS, PC_CORNER_BOUNDS, WALK_BOUNDS, WAITING_BENCH_OBSTACLE_INDICES, WAITING_SEATS_PER_BENCH } from '@pokecenter/shared';
 import { ENTRANCE_3D_POSITION, ENTRANCE_3D_WIDTH, CENTER_3D_FOOTPRINTS, RECEPTION_3D_SLOTS, WAITING_3D_SLOTS,
   type WorldFootprint, worldFootprint, worldPosition } from './center3dLayout.js';
 
@@ -126,15 +126,17 @@ export function createCenter3DEnvironment(scene: THREE.Scene): Center3DEnvironme
     const step = shape(ENTRANCE_3D_POSITION.x, -0.1, ENTRANCE_3D_POSITION.z,
       ENTRANCE_3D_WIDTH, 0.2, 0.8, colors.base, 0.025);
     step.name = 'EntranceStep';
-    for (const x of [-6.7, -2.25, 2.25, 6.7]) {
-      shape(x, 1.49, back + 0.06, 2.38, 0.7, 0.08, colors.base, 0.08);
-      shape(x, 1.49, back + 0.12, 2.17, 0.53, 0.07, colors.tealLight, 0.07);
-      shape(x, 1.49, back + 0.18, 0.12, 0.32, 0.045, colors.cream, 0.02);
-      shape(x, 1.49, back + 0.185, 0.35, 0.1, 0.045, colors.cream, 0.02);
+    for (const x of [-5.15, 5.15]) {
+      shape(x, 1.52, back + 0.06, 2.46, 1.31, 0.08, colors.cream, 0.04);
+      shape(x, 1.52, back + 0.12, 2.2, 1.05, 0.05, colors.tealLight, 0.02);
     }
-    const divider = worldFootprint(CLINIC_DIVIDER);
-    shape(divider.x, 0.45, divider.z, divider.width, 0.9, divider.depth, colors.wallLight);
-    shape(divider.x, 0.93, divider.z, divider.width, 0.08, divider.depth, colors.cream);
+    const desk = worldFootprint(PC_CORNER_BOUNDS);
+    shape(desk.x, 0.38, desk.z, desk.width - 0.06, 0.76, desk.depth - 0.12, colors.cream);
+    shape(desk.x, 0.8, desk.z, desk.width, 0.08, desk.depth, colors.wood, 0.035);
+    for (const planter of LOBBY_PLANTS.map(worldFootprint)) {
+      disk(planter.x, 0.45, planter.z, 0.5, 0.9, colors.coral);
+      disk(planter.x, 1.2, planter.z, 0.55, 0.6, colors.green);
+    }
     const room = new THREE.Group();
     room.name = 'CenterRoomFallback';
     room.add(...scene.children.slice(firstChild));

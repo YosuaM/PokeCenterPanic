@@ -304,13 +304,12 @@ export class MapScene extends Phaser.Scene {
       color: '#a7c8c4', fontFamily: 'Trebuchet MS, sans-serif', fontSize: '10px',
     }).setDepth(2001);
     for (const zone of [
-      { label: 'WAITING ROOM', x: this.center3D ? 202 : 480,
-        y: this.center3D ? 665 : 500, height: 0.08 },
-      { label: 'TREATMENT', x: -110, y: -20, height: 1.7 },
-      { label: 'MEDICINES', x: 480, y: -25, height: 1.35 },
-      { label: 'RECOVERY', x: 872, y: 175, height: 1.3 },
-      { label: 'RECEPTION', x: 480, y: 260, height: 1.15 },
-      { label: 'DISCHARGE', x: 840, y: 315, height: 1.05 },
+      { label: 'WAITING ROOM', x: 92, y: 640, height: 0.08 },
+      { label: 'TREATMENT', x: 50, y: -40, height: 1.9 },
+      { label: 'MEDICINES', x: 480, y: -45, height: 1.5 },
+      { label: 'RECOVERY', x: 888, y: 262, height: 1.25 },
+      { label: 'RECEPTION', x: 480, y: 318, height: 0.3 },
+      { label: 'DISCHARGE', x: 480, y: 262, height: 1.25 },
     ]) {
       const point = this.center3D?.project(zone, zone.height) ?? mapViewportPoint(zone);
       this.createText(point.x, point.y, zone.label, { color: '#fff4df',

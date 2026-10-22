@@ -21,3 +21,6 @@ vendor-assets/
 
 # Operating system files
 .DS_Store
+
+# Python bytecode from the Blender asset generators
+__pycache__/

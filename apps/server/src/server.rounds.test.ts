@@ -54,7 +54,7 @@ describe('timed rounds and replay over the network', () => {
     };
     const patient = local.patients.admit('Eevee', TREATMENT.healing, 0)!;
     local.patients.interact(host.sessionId, { targetId: 'reception:0', expectedOccupantId: patient.id },
-      { x: 177, y: 344 }, 'up');
+      { x: 348, y: 334 }, 'up');
     patient.completedTreatments = TREATMENT.healing;
     Object.assign(local.movement.position(host.sessionId)!, DISCHARGE_INTERACTION_POINT);
     const command = { targetId: 'discharge', expectedOccupantId: patient.id, sequence: 4, roundId: firstRoundId };
@@ -100,7 +100,7 @@ describe('timed rounds and replay over the network', () => {
       roundRemainingMs: 1000, roundId: '' });
     expect([...state().players.values()].map((player) => [player.character, player.ready]))
       .toEqual([['Chansey', false], ['Audino', false]]);
-    expect(state().players.get(host.sessionId)).toMatchObject({ x: 456, y: 422, carriedPatientId: '' });
+    expect(state().players.get(host.sessionId)).toMatchObject({ x: 456, y: 190, carriedPatientId: '' });
     host.send('player:ready', { sequence: 8, roundId: null, ready: true });
     resumed.send('player:ready', { sequence: 4, roundId: null, ready: true });
     await vi.waitFor(() => expect([...state().players.values()].every((player) => player.ready)).toBe(true));
@@ -109,7 +109,7 @@ describe('timed rounds and replay over the network', () => {
     expect(state().roundId).not.toBe(firstRoundId);
     const second = local.patients.admit('Eevee', TREATMENT.healing, 0)!;
     expect(second.id).toBe(patient.id);
-    Object.assign(local.movement.position(host.sessionId)!, { x: 177, y: 344 });
+    Object.assign(local.movement.position(host.sessionId)!, { x: 348, y: 334 });
     const stale = { targetId: 'reception:0', expectedOccupantId: second.id, sequence: 10, roundId: firstRoundId };
     const count = lateResults.length;
     host.send('patient:interact', stale);

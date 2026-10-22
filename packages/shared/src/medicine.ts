@@ -5,12 +5,12 @@ export type MedicineKind = typeof MEDICINE_KINDS[number];
 export type MedicineLocation = 'carrier' | 'surface';
 
 export const MEDICINE_PREPARATION_POINTS: readonly Point[] = [
-  { x: 400, y: 82 }, { x: 560, y: 82 },
+  { x: 400, y: 58 }, { x: 560, y: 58 },
 ];
-export const MEDICINE_DISPOSAL_POINT: Point = { x: 480, y: 82 };
+export const MEDICINE_DISPOSAL_POINT: Point = { x: 480, y: 58 };
 export const MEDICINE_SURFACE_POINTS: readonly Point[] = [
-  { x: 390, y: 125 }, { x: 450, y: 125 },
-  { x: 510, y: 125 }, { x: 570, y: 125 },
+  { x: 390, y: 132 }, { x: 450, y: 132 },
+  { x: 510, y: 132 }, { x: 570, y: 132 },
 ];
 export const MEDICINE_PREPARATION_MS = 2_000;
 

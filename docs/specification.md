@@ -1,7 +1,7 @@
 # PokéCenter Panic
 **Functional and technical specification**
 
-**Version:** 0.3 — Difficulty schedule, guided opening, streaks and first-use tips\
+**Version:** 0.4 — Compact clinic layout with a central counter\
 **Status:** Implementation baseline; balance values pending playtests\
 **Updated:** 2026-10-22\
 **Type:** Noncommercial cooperative fan game\
@@ -462,20 +462,28 @@ Outages do not spread, destroy objects, or award points. A round may have no nat
 
 ## 7.1. Camera
 
-The MVP uses one fixed oblique camera showing the entire 3D Pokémon Center and HUD. There is no camera following or scrolling. The shared floor plan remains authoritative for movement, collision, and interactions. The enlarged clinic spans 1324 × 892 map units (x: −182 to 1142; y: −174 to 718), independently of the 960 × 540 logical presentation space. Both drawing buffers adapt to the fitted viewport and device pixel ratio, from 960 × 540 up to a 3840 × 2160 cap; logical camera framing and gameplay coordinates stay fixed. Preserve the view's 16:9 aspect ratio when fitting the browser viewport.
+The MVP uses one fixed oblique camera showing the entire 3D Pokémon Center and HUD. There is no camera following or scrolling. The shared floor plan remains authoritative for movement, collision, and interactions. The compact clinic spans 1056 × 672 map units, 22 × 14 tiles (x: −48 to 1008; y: −66 to 606), centered on the 960 × 540 logical presentation space so stations read larger on screen. Both drawing buffers adapt to the fitted viewport and device pixel ratio, from 960 × 540 up to a 3840 × 2160 cap; logical camera framing and gameplay coordinates stay fixed. Preserve the view's 16:9 aspect ratio when fitting the browser viewport.
 
 ## 7.2. First map
 
-Use one clinic with a public lobby in front and a medical area behind reception. A low divider continues the counter to the left wall, and the right-hand corridor connects the two zones. Keep the entrance, check-in, waiting seats and discharge on the public side; healing, medicine preparation and recovery belong on the medical side. Furniture and character sizes remain unchanged as the room expands.
+Use one compact clinic with a public lobby in front and a treatment area behind a counter row. From left to right the row holds a PC corner desk, a 2.5-tile passage, the central reception counter, a second 2.5-tile passage and the recovery bay, so both sides of the clinic have equally short routes. The discharge desk sits in the middle of the counter and accepts patients from either side, letting staff discharge without leaving the treatment area. Healing machines stand in the back corners with the medicine table between them; waiting sofas and potted plants flank the entrance, and a carpet runner leads from the door to the counter. Staff start behind the counter.
+
+| Route (walking distance) | Tiles |
+|---|---:|
+| Nearest waiting seat to the healing machine on the same side | 13.5–14 |
+| Healing machine to discharge from behind the counter | ≤ 13 |
+| Preparation point to the farthest seat on its side | ≤ 18 |
+
+Furniture and character sizes are unchanged; the map test suite pins the passages, solid counter row and these route budgets.
 
 Essential elements:
 
-- Entrance leading to eight waiting-room seats across two four-seat benches; reception has a separate discharge point.
+- Entrance leading to eight waiting-room seats across two four-seat sofas; the central counter has a separate discharge point.
 - Eight waiting slots and the pickup-only recovery area.
 - Two healing machines.
 - Medicine table with two preparation points and one disposal point.
 - Four surfaces for placing medicine.
-- Corridors and obstacles.
+- Two passages through the counter row, plus decorative PC desk and entrance planters as solid obstacles.
 - Discharge area.
 
 All interaction points must be accessible without moving another patient or player. The recovery area and discharge point remain accessible when every ordinary slot is occupied. The layout should create route choices and competition for station access; players do not physically obstruct one another.
@@ -1025,7 +1033,7 @@ Consider these only after confirming that the core loop is fun.
 
 ## 16.1. Decisions fixed for the MVP
 
-| Topic | Version 0.3 decision |
+| Topic | Version 0.4 decision |
 |---|---|
 | Treatment order | Any compatible order; all required treatments must finish before discharge |
 | Patient state | Separate location, medical progress, and lifecycle; discharge readiness is derived |
@@ -1074,5 +1082,6 @@ The priority is to produce a playable prototype for friends quickly, learn from 
 | 0.1 | Initial functional and technical draft |
 | 0.2 | Resolved treatment order and player collisions; separated patient state dimensions; added interaction and transition tables, solo medicine rules, patience and outage semantics, difficulty/saturation defaults, exact scoring and deadline behavior, room/reconnect/replay rules, measurable acceptance scenarios, and the prototype-to-four-player milestone |
 | 0.3 | Activated the timed two-treatment and patience schedule; added the four-patient guided opening, the discharge streak bonus with best streak in results, and first-use contextual tips |
+| 0.4 | Replaced the enlarged clinic with a compact 22 × 14 tile layout: central counter with discharge in the middle, two passages through the counter row, PC corner and recovery at its ends, sofas and planters by the entrance, staff spawning behind the counter, and route budgets pinned by tests |
 
-**End of document — Version 0.3**
+**End of document — Version 0.4**

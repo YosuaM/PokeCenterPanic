@@ -46,7 +46,7 @@ describe('waiting benches model', () => {
         expect(position.y).toBeCloseTo(0.5);
         expect(position.z).toBeCloseTo(expected.z);
         const ray = new THREE.Raycaster(new THREE.Vector3(position.x, 2, position.z), new THREE.Vector3(0, -1, 0));
-        const hit = ray.intersectObject(bench.getObjectByName('LavenderEnamel')!)[0];
+        const hit = ray.intersectObject(bench.getObjectByName('SofaLavender')!)[0];
         expect(hit?.point.y).toBeCloseTo(position.y);
       }
     }

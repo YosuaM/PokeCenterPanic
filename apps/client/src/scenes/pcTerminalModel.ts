@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { CENTER_3D_FOOTPRINTS } from './center3dLayout.js';
+import { PC_CORNER_BOUNDS } from '@pokecenter/shared';
+import { worldFootprint } from './center3dLayout.js';
 import { disposeModelResources } from './modelResources.js';
 
 const MODEL_URL = `${import.meta.env.BASE_URL}assets/original/models/pc-terminal.glb`;
@@ -84,10 +85,9 @@ export class PcTerminalModel {
   }
 
   private place(model: THREE.Object3D): void {
-    const reception = CENTER_3D_FOOTPRINTS[0]!;
-    // Reserve the left end of the existing counter, clear of the first arrival pad.
-    model.position.set(reception.x - reception.width / 2 + 0.57,
-      PC_TERMINAL_SURFACE_HEIGHT, reception.z);
+    const desk = worldFootprint(PC_CORNER_BOUNDS);
+    // The PC stands on the left end of the corner desk; desk props occupy the right end.
+    model.position.set(desk.x - desk.width / 2 + 0.8, PC_TERMINAL_SURFACE_HEIGHT, desk.z);
     this.displays = [];
     model.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;

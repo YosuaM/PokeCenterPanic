@@ -5,7 +5,7 @@ import { MedicineDoseState, type RoomState } from './rooms/RoomState.js';
 import type { RoomMovement } from './rooms/RoomMovement.js';
 import type { RoomPatients } from './rooms/RoomPatients.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { PLAYER_CHARACTERS, PROJECT_INFO, type PlayerPresence } from '@pokecenter/shared';
+import { MEDICINE_TABLE_BOUNDS, PLAYER_CHARACTERS, PROJECT_INFO, type PlayerPresence } from '@pokecenter/shared';
 import { createGameServer, resolveCapacity, resolvePort } from './server.js';
 
 describe('resolvePort', () => {
@@ -235,8 +235,8 @@ describe('private room flow', () => {
     };
     await vi.waitFor(() => expect(player(host)).toBeDefined(), { timeout: 2000 });
     await vi.waitFor(() => expect(player(guest)).toBeDefined(), { timeout: 2000 });
-    expect(player(host)).toEqual(expect.objectContaining({ x: 456, y: 422 }));
-    expect(player(guest)).toEqual(expect.objectContaining({ x: 456, y: 422 }));
+    expect(player(host)).toEqual(expect.objectContaining({ x: 456, y: 190 }));
+    expect(player(guest)).toEqual(expect.objectContaining({ x: 456, y: 190 }));
     host.send('player:input', { direction: 'right', sequence: 1, roundId });
     await vi.waitFor(() => expect(player(guest)?.x).toBeGreaterThan(456), { timeout: 2000 });
     await vi.waitFor(() => expect(player(host)?.x).toBe(player(guest)?.x), { timeout: 2000 });
@@ -254,8 +254,8 @@ describe('private room flow', () => {
       host.send('player:input', { direction: 'up', sequence, roundId, y: 100 });
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    await vi.waitFor(() => expect(player(guest)?.y).toBeLessThan(422), { timeout: 2000 });
-    expect(player(guest)?.y).toBeGreaterThanOrEqual(322);
+    await vi.waitFor(() => expect(player(guest)?.y).toBeLessThan(190), { timeout: 2000 });
+    expect(player(guest)?.y).toBeGreaterThanOrEqual(MEDICINE_TABLE_BOUNDS.y + MEDICINE_TABLE_BOUNDS.height + 16);
     await vi.waitFor(() => expect(player(host)?.y).toBe(player(guest)?.y), { timeout: 2000 });
   });
 
@@ -324,10 +324,10 @@ describe('private room flow', () => {
     };
     const patient = local.patients.admit('Pikachu', 1, 0)!;
     local.patients.interact(host.sessionId, { targetId: 'reception:0', expectedOccupantId: patient.id },
-      { x: 177, y: 344 }, 'up');
+      { x: 348, y: 334 }, 'up');
     patient.completedTreatments = 1;
     patient.remainingPatienceMs = 1;
-    Object.assign(local.movement.position(host.sessionId)!, { x: 840, y: 344 });
+    Object.assign(local.movement.position(host.sessionId)!, { x: 480, y: 334 });
     const results: Array<{ ok: boolean }> = [];
     host.onMessage('patient:result', (result) => results.push(result));
     const command = { targetId: 'discharge', expectedOccupantId: patient.id,
@@ -356,7 +356,7 @@ describe('private room flow', () => {
     joinedRooms.push(guest);
     const roundId = await startRound(host, [guest]);
     const local = matchMaker.getLocalRoomById(host.roomId) as unknown as { state: RoomState; movement: RoomMovement };
-    Object.assign(local.movement.position(host.sessionId)!, { x: 480, y: 110 });
+    Object.assign(local.movement.position(host.sessionId)!, { x: 480, y: 106 });
     const dose = new MedicineDoseState();
     Object.assign(dose, { id: 'discard-test', kind: 'antidote', location: 'carrier',
       carrierId: host.sessionId, slotIndex: -1 });

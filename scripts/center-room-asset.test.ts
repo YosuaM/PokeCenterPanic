@@ -67,7 +67,8 @@ describe('center room GLB', () => {
     expect(sign.toArray()).toEqual([0, expect.closeTo(2.36),
       expect.closeTo(worldPosition({ x: 480, y: WALK_BOUNDS.top }).z - 0.02)]);
     expect(new THREE.Box3().setFromObject(model).max.y).toBeCloseTo(2.36);
-    for (const x of [-13.87, 13.87]) {
+    const sideWall = worldPosition({ x: WALK_BOUNDS.right, y: 0 }).x + 0.11;
+    for (const x of [-sideWall, sideWall]) {
       const ray = new THREE.Raycaster(new THREE.Vector3(x, 3, 0), new THREE.Vector3(0, -1, 0));
       expect(ray.intersectObject(model)[0]!.point.y).toBeCloseTo(1.48);
     }
@@ -76,10 +77,10 @@ describe('center room GLB', () => {
   it('stays within geometry and download budgets', () => {
     const meshes: THREE.Mesh[] = [];
     model.traverse((object) => { if (object instanceof THREE.Mesh) meshes.push(object); });
-    expect(meshes).toHaveLength(10);
-    expect(manifest.materials).toHaveLength(9);
+    expect(meshes.length).toBeLessThanOrEqual(30);
+    expect(manifest.materials.length).toBeLessThanOrEqual(28);
     expect(meshes.reduce((sum, mesh) => sum +
-      (mesh.geometry.index?.count ?? mesh.geometry.getAttribute('position').count) / 3, 0)).toBeLessThanOrEqual(10500);
-    expect(bytes.byteLength).toBeLessThan(410_000);
+      (mesh.geometry.index?.count ?? mesh.geometry.getAttribute('position').count) / 3, 0)).toBeLessThanOrEqual(22_000);
+    expect(bytes.byteLength).toBeLessThan(1_200_000);
   });
 });

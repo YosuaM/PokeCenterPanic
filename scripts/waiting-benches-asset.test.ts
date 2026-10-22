@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Box3, Mesh, Vector3 } from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { MAP_OBSTACLES, TILE_SIZE } from '@pokecenter/shared';
+import { MAP_OBSTACLES, TILE_SIZE, WAITING_BENCHES, WAITING_SLOT_POSITIONS } from '@pokecenter/shared';
 
 const bytes = readFileSync(new URL(
   '../apps/client/public/assets/original/models/waiting-benches.glb', import.meta.url));
@@ -46,10 +46,10 @@ describe('waiting benches GLB', () => {
     }
     expect(bounds.min.y).toBeCloseTo(0);
     expect(bounds.max.y).toBeLessThanOrEqual(1.04);
-    for (const [name, x] of [['WaitingAnchor1', -72/48], ['WaitingAnchor2', -18/48],
-      ['WaitingAnchor3', 36/48], ['WaitingAnchor4', 90/48]] as const) {
-      const position = asset.scene.getObjectByName(name)!.getWorldPosition(new Vector3());
-      expect(position.x).toBeCloseTo(x);
+    const bench = WAITING_BENCHES[0]!;
+    for (let seat = 0; seat < 4; seat++) {
+      const position = asset.scene.getObjectByName(`WaitingAnchor${seat + 1}`)!.getWorldPosition(new Vector3());
+      expect(position.x).toBeCloseTo((WAITING_SLOT_POSITIONS[seat]!.x - bench.x - bench.width / 2) / TILE_SIZE);
       expect(position.y).toBeCloseTo(0.5);
       expect(position.z).toBeCloseTo(-6/48);
     }
@@ -61,11 +61,11 @@ describe('waiting benches GLB', () => {
     const triangles = meshes.reduce((count, mesh) => count +
       (mesh.geometry.index?.count ?? mesh.geometry.getAttribute('position').count) / 3, 0);
     expect(meshes.length).toBeGreaterThan(0);
-    expect(meshes.length).toBeLessThanOrEqual(10);
-    expect(manifest.materials.length).toBeLessThanOrEqual(10);
-    expect(triangles).toBeLessThanOrEqual(8_000);
-    expect(bytes.byteLength).toBeLessThanOrEqual(280_000);
-    expect(asset.scene.getObjectByName('LavenderEnamel')).toBeDefined();
+    expect(meshes.length).toBeLessThanOrEqual(12);
+    expect(manifest.materials.length).toBeLessThanOrEqual(12);
+    expect(triangles).toBeLessThanOrEqual(4_000);
+    expect(bytes.byteLength).toBeLessThanOrEqual(200_000);
+    expect(asset.scene.getObjectByName('SofaLavender')).toBeDefined();
     for (let slot = 1; slot <= 4; slot++) {
       const light = asset.scene.getObjectByName(`WaitingGlow${slot}`)!;
       expect(light).toBeInstanceOf(Mesh);

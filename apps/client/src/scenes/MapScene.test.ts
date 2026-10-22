@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TREATMENT, isWalkable } from '@pokecenter/shared';
+import { TREATMENT, WAITING_INTERACTION_POINTS, isWalkable } from '@pokecenter/shared';
 
 vi.mock('phaser', () => ({ default: { Scene: class {}, Textures: { FilterMode: { NEAREST: 0 } } } }));
 
@@ -126,7 +126,7 @@ describe('MapScene', () => {
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
     scene.setGameplayActive(true);
     scene.setInteractionSender(send);
-    scene.setAuthoritativePositions([{ id: 'red', x: 795, y: 33, facing: 'down', carriedPatientId: '' }]);
+    scene.setAuthoritativePositions([{ id: 'red', x: 778, y: 0, facing: 'down', carriedPatientId: '' }]);
     const patient = { id: 'right-patient', species: 'Eevee' as const, requiredTreatments: 5,
       completedTreatments: 1, initialPatienceMs: 90000, remainingPatienceMs: 40000,
       lifecycle: 'active' as const, location: 'healingMachine' as const, slotIndex: 1, carrierId: '' };
@@ -140,7 +140,7 @@ describe('MapScene', () => {
     keyboardListeners.get('keyup')?.({ code: 'KeyE' } as KeyboardEvent);
     scene.setMedicines([{ id: 'dose', kind: 'antidote', location: 'carrier', carrierId: 'red', slotIndex: -1 }],
       [], [], []);
-    scene.setAuthoritativePositions([{ id: 'red', x: 795, y: 33, facing: 'left', carriedPatientId: '', carriedMedicineId: 'dose' }]);
+    scene.setAuthoritativePositions([{ id: 'red', x: 778, y: 0, facing: 'left', carriedPatientId: '', carriedMedicineId: 'dose' }]);
     scene.setHealingMachine({ patientId: '', status: 'empty', remainingMs: 0 },
       { patientId: patient.id, status: 'completed', remainingMs: 0 });
     keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
@@ -189,29 +189,29 @@ describe('MapScene', () => {
   });
 
   it.each([
-    { id: 'reception:0', position: { x: 177, y: 208 } },
-    { id: 'reception:1', position: { x: 369, y: 208 } },
-    { id: 'reception:2', position: { x: 561, y: 208 } },
-    { id: 'reception:3', position: { x: 690, y: 208 } },
-    { id: 'discharge', position: { x: 840, y: 356 } },
-    { id: 'discharge', position: { x: 942, y: 282 } },
-    { id: 'waiting:0', position: { x: 18, y: 605 } },
-    { id: 'waiting:3', position: { x: 386, y: 605 } },
-    { id: 'waiting:4', position: { x: 694, y: 605 } },
-    { id: 'waiting:7', position: { x: 1062, y: 605 } },
-    ...[130, 184, 238, 292, 806, 860, 914, 968].flatMap((x, index) =>
-      [533, 689].map((y) => ({ id: `waiting:${index}`, position: { x, y } }))),
-    { id: 'healing:1', position: { x: 872, y: 113 } },
-    { id: 'recovery', position: { x: 960, y: 269 } },
-    { id: 'recovery', position: { x: 694, y: 185 } },
-    { id: 'recovery', position: { x: 1062, y: 185 } },
-    { id: 'medicine:prep:0', position: { x: 400, y: -76 } },
-    { id: 'medicine:prep:0', position: { x: 278, y: 15 } },
-    { id: 'medicine:prep:1', position: { x: 560, y: -76 } },
-    { id: 'medicine:prep:1', position: { x: 682, y: 15 } },
-    { id: 'medicine:disposal', position: { x: 480, y: -76 } },
-    { id: 'medicine:disposal', position: { x: 480, y: 106 } },
-    ...[390, 450, 510, 570].map((x, index) => ({ id: `medicine:surface:${index}`, position: { x, y: 149 } })),
+    { id: 'reception:0', position: { x: 348, y: 210 } },
+    { id: 'reception:1', position: { x: 412, y: 210 } },
+    { id: 'reception:2', position: { x: 548, y: 210 } },
+    { id: 'reception:3', position: { x: 612, y: 210 } },
+    { id: 'discharge', position: { x: 480, y: 346 } },
+    { id: 'discharge', position: { x: 480, y: 210 } },
+    { id: 'waiting:0', position: { x: 20, y: 492 } },
+    { id: 'waiting:3', position: { x: 252, y: 527 } },
+    { id: 'waiting:4', position: { x: 708, y: 527 } },
+    { id: 'waiting:7', position: { x: 958, y: 492 } },
+    ...WAITING_INTERACTION_POINTS.flatMap(({ x, y }, index) =>
+      [y, y - 12].map((top) => ({ id: `waiting:${index}`, position: { x, y: top } }))),
+    { id: 'healing:1', position: { x: 910, y: 74 } },
+    { id: 'recovery', position: { x: 888, y: 234 } },
+    { id: 'recovery', position: { x: 728, y: 288 } },
+    { id: 'recovery', position: { x: 888, y: 380 } },
+    { id: 'medicine:prep:0', position: { x: 400, y: 58 } },
+    { id: 'medicine:prep:0', position: { x: 302, y: 0 } },
+    { id: 'medicine:prep:1', position: { x: 560, y: 58 } },
+    { id: 'medicine:prep:1', position: { x: 658, y: 0 } },
+    { id: 'medicine:disposal', position: { x: 480, y: 58 } },
+    { id: 'medicine:disposal', position: { x: 480, y: 90 } },
+    ...[390, 450, 510, 570].map((x, index) => ({ id: `medicine:surface:${index}`, position: { x, y: 156 } })),
   ])('sends the same adjacent $id target from $position for every facing', ({ id, position }) => {
     const { scene, keyboardListeners } = setup();
     const send = vi.fn();
@@ -228,9 +228,9 @@ describe('MapScene', () => {
   });
 
   it.each([
-    { id: 'reception:0', position: { x: 177, y: 208 }, location: 'reception' as const, index: 0 },
-    { id: 'waiting:7', position: { x: 968, y: 689 }, location: 'waiting' as const, index: 7 },
-    { id: 'recovery', position: { x: 1062, y: 185 }, location: 'recovery' as const, index: 0 },
+    { id: 'reception:0', position: { x: 348, y: 210 }, location: 'reception' as const, index: 0 },
+    { id: 'waiting:7', position: { x: 958, y: 480 }, location: 'waiting' as const, index: 7 },
+    { id: 'recovery', position: { x: 888, y: 380 }, location: 'recovery' as const, index: 0 },
   ])('keeps the patient target and medicine action at $id reachable from $position', ({ id, position, location, index }) => {
     const { scene, keyboardListeners, text } = setup();
     const send = vi.fn();
@@ -251,12 +251,12 @@ describe('MapScene', () => {
   });
 
   it.each([
-    { position: { x: 40, y: -66 }, perimeter: { x: 40, y: -42 } },
-    { position: { x: 40, y: 131 }, perimeter: { x: 40, y: 107 } },
-    { position: { x: -102, y: 33 }, perimeter: { x: -78, y: 33 } },
-    { position: { x: 181, y: 33 }, perimeter: { x: 157, y: 33 } },
-    { position: { x: -102, y: -66 }, perimeter: { x: -78, y: -42 } },
-    { position: { x: 181, y: 131 }, perimeter: { x: 157, y: 107 } },
+    { position: { x: 50, y: 74 }, perimeter: { x: 50, y: 74 } },
+    { position: { x: 50, y: 122 }, perimeter: { x: 50, y: 74 } },
+    { position: { x: 167, y: 0 }, perimeter: { x: 167, y: 0 } },
+    { position: { x: 215, y: 0 }, perimeter: { x: 167, y: 0 } },
+    { position: { x: 167, y: 74 }, perimeter: { x: 167, y: 74 } },
+    { position: { x: 191, y: 98 }, perimeter: { x: 167, y: 74 } },
   ])('targets machine placement, pickup, and medicine from $position', ({ position, perimeter }) => {
     const { scene, keyboardListeners } = setup();
     const send = vi.fn();
@@ -294,7 +294,7 @@ describe('MapScene', () => {
     expect(setTarget).toHaveBeenLastCalledWith(perimeter);
   });
 
-  it.each([{ x: 40, y: 156 }, { x: 206, y: 33 }, { x: 40, y: 33 }])(
+  it.each([{ x: 50, y: 123 }, { x: 216, y: 0 }, { x: 50, y: 0 }])(
     'does not send a machine interaction outside adjacent walkable space %j', (position) => {
       const { scene, keyboardListeners } = setup();
       const send = vi.fn();
@@ -433,13 +433,13 @@ describe('MapScene', () => {
       24 * 0.1, 3, 0xe87970);
     scene.setPatients([{ ...patient, lifecycle: 'lost', location: 'none', slotIndex: -1,
       remainingPatienceMs: 0, travelKind: 'fainting', travelElapsedMs: 800,
-      faintX: 130, faintY: 605, faintElevation: 0.5 }]);
+      faintX: 20, faintY: 552, faintElevation: 0.5 }]);
     scene.setLostCount(1);
     scene.update(0, 0);
     expect(text.mock.calls.some((call) => call[2] === 'Pikachu · FAINTED')).toBe(true);
     if (threeDimensional) {
       expect(view.syncCharacters).toHaveBeenLastCalledWith([expect.objectContaining({
-        point: { x: 130, y: 605 }, elevation: 0.5, carried: false, patienceRatio: 0, faintProgress: 0.5,
+        point: { x: 20, y: 552 }, elevation: 0.5, carried: false, patienceRatio: 0, faintProgress: 0.5,
       })], 0);
     } else {
       expect(container.mock.results.at(-1)!.value.setRotation).toHaveBeenCalledWith(-Math.PI / 2);
@@ -522,7 +522,7 @@ describe('MapScene', () => {
     expect(entries).toEqual(expect.arrayContaining(['1>', 'PIKACHU', '+', 'B', 'WAIT 60s']));
     const previous = hudContainers.at(-1)!;
     scene.setPatients([{ ...patient, lifecycle: 'lost', location: 'none', travelKind: 'fainting',
-      faintX: 130, faintY: 605, remainingPatienceMs: 0 }]);
+      faintX: 20, faintY: 552, remainingPatienceMs: 0 }]);
     expect(previous.destroy).toHaveBeenCalledOnce();
     children = new Set(hudContainer.mock.calls.at(-1)![2] as unknown[]);
     entries = text.mock.results.filter(({ value }) => children.has(value)).map(({ value }) => value.content);
@@ -562,7 +562,7 @@ describe('MapScene', () => {
     scene.update(50, 50);
     expect(view.syncCharacters).toHaveBeenLastCalledWith([
       expect.objectContaining({ id: 'patient:arrival', facing: 'up', moving: true, elevation: 0.03,
-        point: { x: 480, y: 693.9 } }),
+        point: { x: 480, y: 581.9 } }),
     ], 50);
     expect(text.mock.results.some(({ value }) => value.setText.mock.calls.some(
       ([label]: string[]) => label!.includes('0 seated · 1 arriving')))).toBe(true);
@@ -570,12 +570,12 @@ describe('MapScene', () => {
       'WAITING ROOM', 'TREATMENT', 'MEDICINES', 'RECOVERY', 'DISCHARGE',
     ]));
     const waitingSign = text.mock.calls.find((call) => call[2] === 'WAITING ROOM')!;
-    expect(waitingSign[1]).toBeLessThan(mapViewportPoint({ x: 130, y: 605 }).y - 30);
+    expect(waitingSign[1]).toBeLessThan(mapViewportPoint({ x: 20, y: 552 }).y - 30);
     scene.setPatients([{ ...arrival, lifecycle: 'discharged', location: 'none', slotIndex: -1,
       travelKind: 'leaving', travelElapsedMs: 0, completedTreatments: 1 }]);
     scene.update(50, 0);
     expect(view.syncCharacters).toHaveBeenLastCalledWith([
-      expect.objectContaining({ id: 'patient:arrival', point: { x: 840, y: 344 },
+      expect.objectContaining({ id: 'patient:arrival', point: { x: 480, y: 334 },
         facing: 'down', moving: true, carried: false }),
     ], 50);
     scene.setPatients([]);
@@ -653,7 +653,7 @@ describe('MapScene', () => {
     };
     (scene as unknown as { center3D: typeof view }).center3D = view;
     scene.setPlayers([{ id: 'staff', name: 'Staff', slot: 0, character: 'Chansey' }], 'staff');
-    scene.setAuthoritativePositions([{ id: 'staff', x: 177, y: 354, facing: 'up',
+    scene.setAuthoritativePositions([{ id: 'staff', x: 348, y: 344, facing: 'up',
       carriedPatientId: '', carriedMedicineId: '' }]);
     scene.setPatients([{ id: 'arrival', species: 'Pikachu', requiredTreatments: 1,
       completedTreatments: 0, initialPatienceMs: 90_000, remainingPatienceMs: 90_000,
@@ -661,16 +661,16 @@ describe('MapScene', () => {
     scene.setMedicines([{ id: 'dose', kind: 'burnHeal', location: 'surface',
       carrierId: '', slotIndex: 0 }], ['dose', '', '', ''], ['', ''], [0, 0]);
     scene.update(100, 70);
-    expect(view.setTarget).toHaveBeenLastCalledWith({ x: 177, y: 332 });
+    expect(view.setTarget).toHaveBeenLastCalledWith({ x: 348, y: 334 });
     expect(view.syncCharacters).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'player:staff', species: 'Chansey',
-        point: { x: 177, y: 354 }, facing: 'up', elevation: 0.03 }),
+        point: { x: 348, y: 344 }, facing: 'up', elevation: 0.03 }),
       expect.objectContaining({ id: 'patient:arrival', species: 'Pikachu',
-        point: { x: 177, y: 298 }, elevation: 0.93 }),
+        point: { x: 348, y: 290 }, elevation: 0.93 }),
     ], 100);
     expect(view.syncMedicines).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'dose' }),
-    ], new Map([['staff', { x: 177, y: 354 }]]), 100);
+    ], new Map([['staff', { x: 348, y: 344 }]]), 100);
     expect(view.render).toHaveBeenCalledOnce();
     expect(view.render).toHaveBeenLastCalledWith(100, ['empty', 'empty'], ['', ''],
       [expect.objectContaining({ id: 'arrival', location: 'reception', slotIndex: 0 })]);
@@ -698,11 +698,11 @@ describe('MapScene', () => {
       setTarget: vi.fn(), syncCharacters: vi.fn(), syncMedicines: vi.fn(), render: vi.fn() };
     (scene as unknown as { center3D: typeof view }).center3D = view;
     scene.setPlayers([{ id: 'staff', name: 'Staff', slot: 0, character: 'Audino' }], 'staff');
-    const first = { x: 285, y: 347 };
-    const second = { x: 177, y: 198 };
+    const first = { x: 412, y: 344 };
+    const second = { x: 348, y: 210 };
     expect(isWalkable(first)).toBe(true);
     expect(isWalkable(second)).toBe(true);
-    expect(isWalkable({ x: 231, y: 272.5 })).toBe(false);
+    expect(isWalkable({ x: 380, y: 277 })).toBe(false);
     scene.setAuthoritativePositions([{ id: 'staff', ...first, facing: 'up',
       carriedPatientId: '', carriedMedicineId: '' }]);
     scene.update(100, 70);
@@ -799,7 +799,7 @@ describe('MapScene', () => {
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
     scene.setInputSender(sendInput);
     scene.setInteractionSender(interact);
-    scene.setAuthoritativePositions([{ id: 'red', x: 400, y: 95, facing: 'down',
+    scene.setAuthoritativePositions([{ id: 'red', x: 400, y: 70, facing: 'down',
       carriedPatientId: '', carriedMedicineId: '' }]);
     scene.setMedicines([], ['', '', '', ''], ['', ''], [0, 0]);
     keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false,
@@ -820,8 +820,8 @@ describe('MapScene', () => {
     const { scene, rectangle, text } = setup();
     const healingFill = rectangle.mock.results.find((result) => result.value.x === 500 &&
       result.value.y === 65 && result.value.color === 0xb6db9d)?.value;
-    const preparationFill = rectangle.mock.results.find((result) => result.value.x === mapViewportPoint({ x: 400, y: 82 }).x - 30 &&
-      result.value.y === mapViewportPoint({ x: 400, y: 82 }).y && result.value.color === 0xb6db9d)?.value;
+    const preparationFill = rectangle.mock.results.find((result) => result.value.x === mapViewportPoint({ x: 400, y: 58 }).x - 30 &&
+      result.value.y === mapViewportPoint({ x: 400, y: 58 }).y && result.value.color === 0xb6db9d)?.value;
     scene.setHealingMachine({ patientId: 'patient', status: 'treating', remainingMs: 2_000 });
     expect(healingFill?.setVisible).toHaveBeenLastCalledWith(true);
     expect(healingFill?.setDisplaySize).toHaveBeenLastCalledWith(62.5, 6);
@@ -867,7 +867,7 @@ describe('MapScene', () => {
   it('renders a browser QA fixture through the real scene in development', () => {
     vi.stubGlobal('location', { search: '?artFixture=repair' });
     const { rectangle, text, container } = setup();
-    expect(container).toHaveBeenCalledWith(...Object.values(mapViewportPoint({ x: 40, y: 33 })), expect.any(Array));
+    expect(container).toHaveBeenCalledWith(...Object.values(mapViewportPoint({ x: 50, y: 0 })), expect.any(Array));
     const warning = rectangle.mock.results.find((result) => result.value.color === 0xd74242)?.value;
     const repairText = text.mock.results.find((result) => result.value.x === 500 &&
       result.value.y === 51)?.value;
@@ -877,7 +877,7 @@ describe('MapScene', () => {
   it('explains why a player carrying a patient cannot repair an outage', () => {
     const { scene, text } = setup();
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
-    scene.setAuthoritativePositions([{ id: 'red', x: 180, y: 33, facing: 'left',
+    scene.setAuthoritativePositions([{ id: 'red', x: 182, y: 0, facing: 'left',
       carriedPatientId: 'patient' }]);
     scene.setHealingMachine({ patientId: '', status: 'broken', remainingMs: 0 });
     const hint = text.mock.results.find((result) => result.value.x === 32 &&
@@ -894,7 +894,7 @@ describe('MapScene', () => {
     scene.setGameplayActive(true);
     const send = vi.fn();
     scene.setInteractionSender(send);
-    scene.setAuthoritativePositions([{ id: 'red', x: 180, y: 33, facing: 'left', carriedPatientId: '' }]);
+    scene.setAuthoritativePositions([{ id: 'red', x: 182, y: 0, facing: 'left', carriedPatientId: '' }]);
     scene.setHealingMachine({ patientId: '', status: 'broken', remainingMs: 0 });
     expect(tip.setText).toHaveBeenLastCalledWith(HINT_TEXT.repair);
     expect(tip.setVisible).toHaveBeenLastCalledWith(true);
@@ -915,12 +915,12 @@ describe('MapScene', () => {
     const hint = text.mock.results.find((result) => result.value.x === 32 &&
       result.value.y === 477)?.value;
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
-    scene.setAuthoritativePositions([{ id: 'red', x: 177, y: 354, facing: 'up',
+    scene.setAuthoritativePositions([{ id: 'red', x: 348, y: 344, facing: 'up',
       carriedPatientId: '' }]);
     scene.setInteractionResult({ ok: false, reason: 'Patient already claimed or removed' });
     expect(hint?.setText).toHaveBeenLastCalledWith('REJECTED: Patient already claimed or removed');
     expect(hint?.setStyle).toHaveBeenLastCalledWith({ backgroundColor: '#8a2222', color: '#ffffff' });
-    scene.setAuthoritativePositions([{ id: 'red', x: 456, y: 422, facing: 'up',
+    scene.setAuthoritativePositions([{ id: 'red', x: 456, y: 190, facing: 'up',
       carriedPatientId: '' }]);
     expect(hint?.setText).not.toHaveBeenLastCalledWith('REJECTED: Patient already claimed or removed');
     expect(hint?.setStyle).toHaveBeenLastCalledWith({ backgroundColor: '#10243bcc', color: '#ffffff' });
@@ -930,7 +930,7 @@ describe('MapScene', () => {
     const interact = vi.fn();
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
     scene.setInteractionSender(interact);
-    scene.setAuthoritativePositions([{ id: 'red', x: 177, y: 354, facing: 'up',
+    scene.setAuthoritativePositions([{ id: 'red', x: 348, y: 344, facing: 'up',
       carriedPatientId: '', carriedMedicineId: 'dose-1' }]);
     scene.setMedicines([{ id: 'dose-1', kind: 'burnHeal', location: 'carrier',
       carrierId: 'red', slotIndex: -1 }], ['', '', '', ''], ['', ''], [0, 0]);
@@ -958,8 +958,8 @@ describe('MapScene', () => {
 
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }, { id: 'blue', name: 'Blue', slot: 1 }], 'red');
     expect(container).toHaveBeenCalledTimes(2);
-    expect(container.mock.calls[0]?.slice(0, 2)).toEqual(Object.values(mapViewportPoint({ x: 456, y: 422 })));
-    expect(container.mock.calls[1]?.slice(0, 2)).toEqual(Object.values(mapViewportPoint({ x: 504, y: 422 })));
+    expect(container.mock.calls[0]?.slice(0, 2)).toEqual(Object.values(mapViewportPoint({ x: 456, y: 190 })));
+    expect(container.mock.calls[1]?.slice(0, 2)).toEqual(Object.values(mapViewportPoint({ x: 504, y: 190 })));
     expect(text).toHaveBeenCalledWith(0, -31, 'Red', expect.any(Object));
     expect(text).toHaveBeenCalledWith(0, -31, 'Blue', expect.any(Object));
   });
@@ -989,12 +989,12 @@ describe('MapScene', () => {
     expect(preventDefault).toHaveBeenCalled();
     expect(sendInput).toHaveBeenCalledWith('right', false);
     scene.setAuthoritativePositions([
-      { id: 'red', x: 470, y: 422, facing: 'right', carriedPatientId: '' },
-      { id: 'blue', x: 518, y: 422, facing: 'left', carriedPatientId: '' },
+      { id: 'red', x: 470, y: 190, facing: 'right', carriedPatientId: '' },
+      { id: 'blue', x: 518, y: 190, facing: 'left', carriedPatientId: '' },
     ]);
     scene.update(50, 70);
-    expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(...Object.values(mapViewportPoint({ x: 470, y: 422 })));
-    expect(containers[1]?.setPosition).toHaveBeenLastCalledWith(...Object.values(mapViewportPoint({ x: 518, y: 422 })));
+    expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(...Object.values(mapViewportPoint({ x: 470, y: 190 })));
+    expect(containers[1]?.setPosition).toHaveBeenLastCalledWith(...Object.values(mapViewportPoint({ x: 518, y: 190 })));
 
     windowListeners.get('blur')?.();
     expect(sendInput).toHaveBeenLastCalledWith(null, false);
@@ -1011,7 +1011,7 @@ describe('MapScene', () => {
     (document as unknown as { activeElement: unknown }).activeElement = new InputElement();
     keyboardListeners.get('keydown')?.({ code: 'ArrowUp', preventDefault: vi.fn() } as unknown as KeyboardEvent);
     scene.update(0, 100);
-    expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(...Object.values(mapViewportPoint({ x: 456, y: 422 })));
+    expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(...Object.values(mapViewportPoint({ x: 456, y: 190 })));
     expect(sendInput).not.toHaveBeenCalled();
   });
 
@@ -1019,7 +1019,7 @@ describe('MapScene', () => {
     const { scene, container, text } = setup();
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }, { id: 'blue', name: 'Blue', slot: 1 }], 'blue');
     scene.setPlayers([{ id: 'blue', name: 'Blue', slot: 1 }, { id: 'green', name: 'Green', slot: 0 }], 'blue');
-    expect(container.mock.calls[2]?.slice(0, 2)).toEqual(Object.values(mapViewportPoint({ x: 456, y: 422 })));
+    expect(container.mock.calls[2]?.slice(0, 2)).toEqual(Object.values(mapViewportPoint({ x: 456, y: 190 })));
     expect(text).toHaveBeenCalledWith(0, 0, '1', expect.any(Object));
     expect(text).toHaveBeenCalledWith(0, 0, '2', expect.any(Object));
   });
@@ -1027,9 +1027,9 @@ describe('MapScene', () => {
   it('uses an authoritative snapshot received before the roster', () => {
     const { scene, container } = setup();
     scene.setPlayers([], 'red');
-    scene.setAuthoritativePositions([{ id: 'red', x: 480, y: 422, facing: 'up', carriedPatientId: '' }]);
+    scene.setAuthoritativePositions([{ id: 'red', x: 480, y: 190, facing: 'up', carriedPatientId: '' }]);
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
-    expect(container.mock.calls[0]?.slice(0, 2)).toEqual(Object.values(mapViewportPoint({ x: 480, y: 422 })));
+    expect(container.mock.calls[0]?.slice(0, 2)).toEqual(Object.values(mapViewportPoint({ x: 480, y: 190 })));
   });
 
   it('renders and removes a synchronized reception patient', () => {
@@ -1039,7 +1039,7 @@ describe('MapScene', () => {
       initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active',
       location: 'reception', slotIndex: 0, carrierId: '',
     }]);
-    expect(container).toHaveBeenCalledWith(...Object.values(mapViewportPoint({ x: 177, y: 298 })), expect.any(Array));
+    expect(container).toHaveBeenCalledWith(...Object.values(mapViewportPoint({ x: 348, y: 290 })), expect.any(Array));
     expect(text).toHaveBeenCalledWith(0, -37, 'HP 50', expect.any(Object));
     scene.setPatients([]);
     expect(containers[0]?.destroy).toHaveBeenCalledOnce();
@@ -1048,7 +1048,7 @@ describe('MapScene', () => {
   it('keeps the carried patient attached to its carrier and raises the player label', () => {
     const { scene, image, containers, text } = setup();
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
-    scene.setAuthoritativePositions([{ id: 'red', x: 470, y: 410, facing: 'right',
+    scene.setAuthoritativePositions([{ id: 'red', x: 470, y: 178, facing: 'right',
       carriedPatientId: 'patient-1' }]);
     scene.setPatients([{
       id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 0,
@@ -1057,9 +1057,9 @@ describe('MapScene', () => {
     }]);
     scene.update(50, 70);
     expect(image).toHaveBeenCalledWith(0, 9, 'stretcher');
-    expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(...Object.values(mapViewportPoint({ x: 470, y: 410 })));
-    expect(containers[1]?.setPosition).toHaveBeenLastCalledWith(mapViewportPoint({ x: 470, y: 410 }).x,
-      mapViewportPoint({ x: 470, y: 410 }).y - 28);
+    expect(containers[0]?.setPosition).toHaveBeenLastCalledWith(...Object.values(mapViewportPoint({ x: 470, y: 178 })));
+    expect(containers[1]?.setPosition).toHaveBeenLastCalledWith(mapViewportPoint({ x: 470, y: 178 }).x,
+      mapViewportPoint({ x: 470, y: 178 }).y - 28);
     const playerName = text.mock.results.find((result) => result.value.setY.mock.calls.length);
     expect(playerName?.value.setY).toHaveBeenLastCalledWith(-77);
     const patientInfo = text.mock.results.find((result) => result.value.x === 492 && result.value.y === 480)?.value;
@@ -1069,7 +1069,7 @@ describe('MapScene', () => {
   it('clears the treatment checklist when its patient leaves the scene', () => {
     const { scene, image, rectangle, text } = setup();
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
-    scene.setAuthoritativePositions([{ id: 'red', x: 177, y: 354, facing: 'up',
+    scene.setAuthoritativePositions([{ id: 'red', x: 348, y: 344, facing: 'up',
       carriedPatientId: '' }]);
     scene.setPatients([{ id: 'patient', species: 'Pikachu', requiredTreatments: 3,
       completedTreatments: TREATMENT.burnHeal, initialPatienceMs: 90_000,
@@ -1108,7 +1108,7 @@ describe('MapScene', () => {
   it('keeps the treatment checklist readable when icon textures are unavailable', () => {
     const { scene, image, text } = setup(undefined, true, true, true, false);
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
-    scene.setAuthoritativePositions([{ id: 'red', x: 177, y: 354, facing: 'up',
+    scene.setAuthoritativePositions([{ id: 'red', x: 348, y: 344, facing: 'up',
       carriedPatientId: '' }]);
     scene.setPatients([{ id: 'patient', species: 'Pikachu', requiredTreatments: TREATMENT.healing,
       completedTreatments: 0, initialPatienceMs: 90_000, remainingPatienceMs: 90_000,
@@ -1147,7 +1147,7 @@ describe('MapScene', () => {
     const { scene, keyboardListeners } = setup();
     const send = vi.fn();
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
-    scene.setAuthoritativePositions([{ id: 'red', x: 177, y: 354, facing: 'up', carriedPatientId: '' }]);
+    scene.setAuthoritativePositions([{ id: 'red', x: 348, y: 344, facing: 'up', carriedPatientId: '' }]);
     scene.setPatients([{
       id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 0,
       initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active',
@@ -1165,7 +1165,8 @@ describe('MapScene', () => {
     const send = vi.fn();
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
     scene.setInteractionSender(send);
-    scene.setAuthoritativePositions([{ id: 'red', x: [130, 184, 238, 292, 806, 860, 914, 968][slotIndex]!, y: 530, facing: 'down',
+    const seat = WAITING_INTERACTION_POINTS[slotIndex]!;
+    scene.setAuthoritativePositions([{ id: 'red', x: seat.x, y: seat.y - 12, facing: 'down',
       carriedPatientId: 'patient-1' }]);
     scene.setPatients([{
       id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 0,
@@ -1175,7 +1176,7 @@ describe('MapScene', () => {
     keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
     expect(send).toHaveBeenLastCalledWith({ targetId: `waiting:${slotIndex}`, expectedOccupantId: '' });
 
-    scene.setAuthoritativePositions([{ id: 'red', x: 960, y: 269, facing: 'down', carriedPatientId: '' }]);
+    scene.setAuthoritativePositions([{ id: 'red', x: 888, y: 234, facing: 'down', carriedPatientId: '' }]);
     scene.setPatients([
       { id: 'patient-2', species: 'Eevee', requiredTreatments: 1, completedTreatments: 0,
         initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active',
@@ -1193,7 +1194,7 @@ describe('MapScene', () => {
     const send = vi.fn();
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
     scene.setInteractionSender(send);
-    scene.setAuthoritativePositions([{ id: 'red', x: 157, y: 530, facing: 'down',
+    scene.setAuthoritativePositions([{ id: 'red', x: 38, y: 480, facing: 'down',
       carriedPatientId: 'patient-1' }]);
     scene.setPatients([{
       id: 'patient-2', species: 'Eevee', requiredTreatments: 1, completedTreatments: 0,
@@ -1209,7 +1210,7 @@ describe('MapScene', () => {
     const send = vi.fn();
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
     scene.setInteractionSender(send);
-    scene.setAuthoritativePositions([{ id: 'red', x: 180, y: 33, facing: 'left',
+    scene.setAuthoritativePositions([{ id: 'red', x: 182, y: 0, facing: 'left',
       carriedPatientId: 'patient-1' }]);
     scene.setPatients([{
       id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 0,
@@ -1219,18 +1220,18 @@ describe('MapScene', () => {
     keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
     expect(send).toHaveBeenLastCalledWith({ targetId: 'healing:0', expectedOccupantId: '' });
 
-    scene.setAuthoritativePositions([{ id: 'red', x: 180, y: 33, facing: 'left', carriedPatientId: '' }]);
+    scene.setAuthoritativePositions([{ id: 'red', x: 182, y: 0, facing: 'left', carriedPatientId: '' }]);
     scene.setHealingMachine({ patientId: 'patient-1', status: 'completed', remainingMs: 0 });
     scene.setPatients([{
       id: 'patient-1', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 1,
       initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active',
       location: 'healingMachine', slotIndex: 0, carrierId: '',
     }]);
-    expect(container).toHaveBeenCalledWith(...Object.values(mapViewportPoint({ x: 40, y: 33 })), expect.any(Array));
+    expect(container).toHaveBeenCalledWith(...Object.values(mapViewportPoint({ x: 50, y: 0 })), expect.any(Array));
     keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
     expect(send).toHaveBeenLastCalledWith({ targetId: 'healing:0', expectedOccupantId: 'patient-1' });
 
-    scene.setAuthoritativePositions([{ id: 'red', x: 840, y: 340, facing: 'down',
+    scene.setAuthoritativePositions([{ id: 'red', x: 480, y: 340, facing: 'down',
       carriedPatientId: 'patient-1' }]);
     scene.setHealingMachine({ patientId: '', status: 'empty', remainingMs: 0 });
     scene.setPatients([{

@@ -58,9 +58,9 @@ describe('recovery area GLB', () => {
     const triangles = meshes.reduce((count, mesh) => count +
       (mesh.geometry.index?.count ?? mesh.geometry.getAttribute('position').count) / 3, 0);
     expect(meshes.length).toBeGreaterThan(0);
-    expect(meshes.length).toBeLessThanOrEqual(11);
-    expect(manifest.materials.length).toBeLessThanOrEqual(11);
-    expect(triangles).toBeLessThanOrEqual(4_500);
+    expect(meshes.length).toBeLessThanOrEqual(15);
+    expect(manifest.materials.length).toBeLessThanOrEqual(15);
+    expect(triangles).toBeLessThanOrEqual(3_000);
     expect(bytes.byteLength).toBeLessThanOrEqual(160_000);
     expect(asset.scene.getObjectByName('MintCushion')).toBeDefined();
     expect(asset.scene.getObjectByName('ScreenTrace')).toBeDefined();

@@ -11,8 +11,7 @@ export const PATIENT_CHECK_IN_MS = 1000;
 
 function route(patient: Pick<PatientRecord, 'travelKind' | 'slotIndex'>): Point[] {
   if (patient.travelKind === 'leaving') {
-    return [DISCHARGE_INTERACTION_POINT, { x: 840, y: 500 },
-      { x: PATIENT_ENTRANCE.x, y: 500 }, PATIENT_ENTRANCE];
+    return [DISCHARGE_INTERACTION_POINT, PATIENT_ENTRANCE];
   }
   const seat = WAITING_SLOT_POSITIONS[patient.slotIndex];
   return patient.travelKind === 'arriving' && seat ?

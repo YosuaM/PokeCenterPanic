@@ -2,7 +2,8 @@ import type { AddressInfo } from 'node:net';
 import { Client, type Room } from '@colyseus/sdk';
 import { matchMaker } from 'colyseus';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { PLAYER_CHARACTERS, HEALING_INTERACTION_POINTS, HEALING_MACHINE_POSITIONS, TREATMENT } from '@pokecenter/shared';
+import { PLAYER_CHARACTERS, HEALING_INTERACTION_POINTS, HEALING_MACHINE_POSITIONS, RECEPTION_INTERACTION_POINTS,
+  TREATMENT } from '@pokecenter/shared';
 import { createGameServer } from './server.js';
 import { MedicineDoseState, type RoomState } from './rooms/RoomState.js';
 import type { RoomMovement } from './rooms/RoomMovement.js';
@@ -72,7 +73,7 @@ describe('outages and repair over the network', () => {
   function place(local: LocalRoom, carrier: Room, index: number, receptionIndex: number, treatment: number = TREATMENT.healing) {
     const patient = local.patients.admit('Eevee', treatment, receptionIndex)!;
     local.patients.interact(carrier.sessionId, { targetId: `reception:${receptionIndex}`, expectedOccupantId: patient.id },
-      { x: 177 + receptionIndex * 192, y: 344 }, 'up');
+      RECEPTION_INTERACTION_POINTS[receptionIndex]!, 'up');
     expect(local.patients.interact(carrier.sessionId, { targetId: `healing:${index}`, expectedOccupantId: '' },
       HEALING_INTERACTION_POINTS[index]!, 'down').ok).toBe(true);
     return patient;

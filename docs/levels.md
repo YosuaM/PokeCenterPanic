@@ -62,6 +62,7 @@ One character represents one 48-unit tile. Footprints are approximate; final coo
 | `S` | Medicine surface |
 | `O` | Decorative obstacle (plants, island counter) |
 | `P` | Player spawn |
+| `c` | Carpet runner (walkable) |
 
 ---
 
@@ -153,28 +154,25 @@ One character represents one 48-unit tile. Footprints are approximate; final coo
 **Goal:** play the full MVP center: eight seats, the recovery queue and the first incident.
 
 ```
-############################
-#..........................#
-#..........................#
-#..HHH....MMBMTMAMM...HHH..#
-#..HHH....MMMMMMMMM...HHH..#
-#..HHH................HHH..#
-#..........SSSS............#
-#...................VVVVV..#
-#..........................#
-#====RRRRRRRRRRRR==XX......#
-#..........................#
-#...........PPPP...........#
-#..........................#
-#..........................#
-#..........................#
-#..........................#
-#....WWWW...........WWWW...#
-#..........................#
-############DDDD############
+########################
+#HHH.....MMMMMM.....HHH#
+#HHH.....MMMMMM.....HHH#
+#.........BT.A.........#
+#......................#
+#.........SSSS.........#
+#........PPPP..........#
+#......................#
+#=====..RRRXRRR..VVVVVV#
+#.........cccc.........#
+#.........cccc.........#
+#.........cccc.........#
+#.........cccc.........#
+#WWWWW.O..cccc.O..WWWWW#
+#WWWWW.O..cccc.O..WWWWW#
+#########DDDDDD#########
 ```
 
-**Layout:** approximates the implemented clinic in `packages/shared/src/map.ts`. A divider continues the counter to the left wall, so the only route between the lobby and the medical area is the wide right-hand corridor beside discharge.
+**Layout:** approximates the implemented 22 × 14 tile clinic in `packages/shared/src/map.ts`. The counter row holds the PC corner desk (`=`), the central counter with discharge in the middle, and recovery, separated by two 2.5-tile passages. Waiting sofas and planters (`O`) flank the entrance; a carpet runner (`c`) leads from the door to the counter.
 
 | Setting | Value |
 |---|---|
@@ -188,7 +186,7 @@ One character represents one 48-unit tile. Footprints are approximate; final coo
 
 **Guided opening (implemented):** an injured Pikachu, a burned Charmander, a poisoned Bulbasaur and an injured, burned Squirtle arrive first, so the team meets the healing machine, both preparation points and a two-treatment patient before random admissions start. First-use tips and the discharge streak from specification sections 8.3 and 5.4 are active on this map.
 
-**Design intent:** the single corridor creates real travel cost, and the outage is the first time a station disappears mid-round. This level is the MVP acceptance target, so its values must stay aligned with the specification.
+**Design intent:** two symmetric passages let a team split left and right without long detours, while discharging across the counter rewards staff who stay in the treatment area. The outage is the first time a station disappears mid-round. This level is the MVP acceptance target, so its values must stay aligned with the specification.
 
 ## Level 4 — Lavender Split Wing
 
@@ -317,5 +315,5 @@ The current code hard-codes one map and one difficulty schedule. Making levels p
 
 - Move station positions, obstacles, seats and spawn points from module constants in `packages/shared/src/map.ts` and `medicine.ts` into a level definition. Support a variable number of healing machines, preparation points, disposal points and surfaces.
 - Drive `RoomArrivals` from per-level arrival stages, species pools, treatment weights, patience schedules, scripted openings and the final-arrival cutoff.
-- Build the client 3D room and 2D collision projection from level data rather than a single fixed layout. Frame the camera so smaller rooms are not lost in the 1324 × 892 clinic frame.
+- Build the client 3D room and 2D collision projection from level data rather than a single fixed layout. Frame the camera per level, as the compact 22 × 14 tile MVP clinic already does.
 - Add automated level validation: every station and recovery area is reachable from every spawn, corridors fit the player body, the discharge point stays reachable with all seats occupied, and every treatment in a level's pool has a matching station.

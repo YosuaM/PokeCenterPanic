@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { RECEPTION_SLOT_POSITIONS } from '@pokecenter/shared';
+import { PC_CORNER_BOUNDS } from '@pokecenter/shared';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { PcTerminalModel, PC_TERMINAL_SURFACE_HEIGHT } from './pcTerminalModel.js';
-import { CAMERA_HALF_HEIGHT, CAMERA_HALF_WIDTH, CENTER_3D_FOOTPRINTS, cameraPosition, worldPosition } from './center3dLayout.js';
+import { CAMERA_HALF_HEIGHT, CAMERA_HALF_WIDTH, cameraPosition, worldFootprint } from './center3dLayout.js';
 
 async function asset() {
   const bytes = await readFile('apps/client/public/assets/original/models/pc-terminal.glb');
@@ -94,7 +94,7 @@ describe('PC terminal model', () => {
     terminal.dispose();
   });
 
-  it('places the PC on the counter with clearance from the first patient and inside the camera', async () => {
+  it('places the PC on the corner desk with clearance from its props and inside the camera', async () => {
     const scene = new THREE.Scene();
     const model = await asset();
     const terminal = new PcTerminalModel(scene, async () => model);
@@ -104,19 +104,19 @@ describe('PC terminal model', () => {
     for (const spy of fallbackSpies) expect(spy).toHaveBeenCalledOnce();
     const bounds = new THREE.Box3().setFromObject(model);
     expect(bounds.min.y).toBeCloseTo(PC_TERMINAL_SURFACE_HEIGHT);
-    const reception = CENTER_3D_FOOTPRINTS[0]!;
-    expect(bounds.min.x).toBeGreaterThan(reception.x - reception.width / 2);
-    expect(bounds.max.x).toBeLessThan(worldPosition(RECEPTION_SLOT_POSITIONS[0]!).x - 40 / 48);
-    expect(bounds.min.z).toBeGreaterThan(reception.z - reception.depth / 2);
-    expect(bounds.max.z).toBeLessThan(reception.z + reception.depth / 2);
-    const counterBytes = await readFile('apps/client/public/assets/original/models/reception-counter.glb');
-    const counter = (await new GLTFLoader().parseAsync(new Uint8Array(counterBytes).buffer, '')).scene;
-    counter.position.set(reception.x, 0, reception.z);
-    counter.updateMatrixWorld(true);
+    const desk = worldFootprint(PC_CORNER_BOUNDS);
+    expect(bounds.min.x).toBeGreaterThan(desk.x - desk.width / 2);
+    expect(bounds.max.x).toBeLessThan(desk.x);
+    expect(bounds.min.z).toBeGreaterThan(desk.z - desk.depth / 2);
+    expect(bounds.max.z).toBeLessThan(desk.z + desk.depth / 2);
+    // The desk is part of the room shell, exported in shared-map coordinates.
+    const roomBytes = await readFile('apps/client/public/assets/original/models/center-room.glb');
+    const room = (await new GLTFLoader().parseAsync(new Uint8Array(roomBytes).buffer, '')).scene;
+    room.updateMatrixWorld(true);
     for (const x of [bounds.min.x + 0.04, bounds.max.x - 0.04]) {
       for (const z of [bounds.min.z + 0.04, bounds.max.z - 0.04]) {
         const ray = new THREE.Raycaster(new THREE.Vector3(x, 3, z), new THREE.Vector3(0, -1, 0));
-        expect(ray.intersectObject(counter)[0]!.point.y).toBeCloseTo(bounds.min.y);
+        expect(ray.intersectObject(room)[0]!.point.y).toBeCloseTo(bounds.min.y);
       }
     }
     const camera = new THREE.OrthographicCamera(-CAMERA_HALF_WIDTH, CAMERA_HALF_WIDTH,

@@ -1,48 +1,37 @@
 {
   "id": "reception-counter",
   "source": "art/source/reception-counter.blend",
+  "generator": "art/source/blender/reception_counter.py",
   "runtime": "apps/client/public/assets/original/models/reception-counter.glb",
   "preview": "art/previews/reception-counter.png",
   "status": "integrated-3d-runtime",
   "origin": "original-project-geometry",
   "externalResources": [],
   "blenderVersion": "5.2.2 LTS",
-  "editableMeshes": 79,
+  "editableMeshes": 70,
   "mapTilePixels": 48,
   "root": "ReceptionCounter",
   "runtimeUpAxis": "+Y",
   "runtimeFrontAxis": "+Z",
   "originPlacement": "ground-center",
   "patientSurfaceHeight": 0.93,
-  "runtimeBounds": {
-    "min": [
-      -8.25,
-      0.0,
-      -0.6899999976158142
-    ],
-    "max": [
-      8.25,
-      0.9900000095367432,
-      0.703000009059906
-    ]
-  },
-  "runtimeMeshes": 12,
-  "runtimeMaterials": 12,
-  "runtimeTriangles": 7012,
-  "runtimeBytes": 255424,
-  "patientAnchors": [
+  "runtimeMeshes": 18,
+  "runtimeMaterials": 18,
+  "runtimeTriangles": 9192,
+  "runtimeBytes": 488964,
+  "anchors": [
     "ReceptionAnchor1",
     "ReceptionAnchor2",
     "ReceptionAnchor3",
-    "ReceptionAnchor4"
+    "ReceptionAnchor4",
+    "DischargeAnchor"
   ],
-  "dischargeAnchor": "DischargeAnchor",
-  "exportNotes": "Original geometry including numerals and arrow; evaluated modifiers; grouped by material; active scene and selected hierarchy only. No studio, cameras, lights, textures, fonts or animation. Anchors match shared arrival and discharge positions. Legacy nine-part terminal retained in a hidden source collection; replaced at runtime by pc-terminal.glb.",
   "stateNodes": [
     "ReceptionGlow1",
     "ReceptionGlow2",
     "ReceptionGlow3",
     "ReceptionGlow4",
     "DischargeGlow"
-  ]
+  ],
+  "exportNotes": "Central island counter with rounded ends, four arrival pads, a green discharge tray with a medallion front, and a staff side with shelves, trays, ledger screen and bell. Studio excluded."
 }

@@ -118,7 +118,7 @@ describe('machine repair and simulation ordering', () => {
     pikachu.remainingPatienceMs = 90000;
     round.advance(61000);
     const patient = patients.admit('Eevee', TREATMENT.healing, 1)!;
-    patients.interact('red', { targetId: 'reception:1', expectedOccupantId: patient.id }, { x: 369, y: 344 }, 'up');
+    patients.interact('red', { targetId: 'reception:1', expectedOccupantId: patient.id }, { x: 412, y: 334 }, 'up');
     patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' }, HEALING_INTERACTION_POINTS[0]!, 'down');
     round.advance(62000);
     evaluate(61000, 62000);
@@ -149,7 +149,7 @@ describe('machine repair and simulation ordering', () => {
       if (cause === 'release') incidents.onInput('red', false, null, 61100);
       if (cause === 'movement') incidents.onInput('red', true, 'up', 61100);
       if (cause === 'disconnect') incidents.releasePlayer('red');
-      if (cause === 'range') Object.assign(movement.position('red')!, { x: 456, y: 422 });
+      if (cause === 'range') Object.assign(movement.position('red')!, { x: 480, y: 450 });
       incidents.advance(cause === 'timeout' ? 61250 : 61101, (id) => movement.position(id), () => 'up');
       expect(state.healingMachine).toMatchObject({ status: 'broken', remainingMs: 3000,
         repairOwnerId: '', repairRemainingMs: 0 });
@@ -169,7 +169,7 @@ describe('machine repair and simulation ordering', () => {
     expect(incidents.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
       HEALING_INTERACTION_POINTS[0]!, 'up', 61000, false).ok).toBe(false);
     expect(incidents.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
-      { x: 40, y: 33 }, 'up', 61000, true).ok).toBe(false);
+      { x: 50, y: 0 }, 'up', 61000, true).ok).toBe(false);
     expect(repair().ok).toBe(true);
     expect(repair('blue').reason).toBe('Repair in progress');
     expect(repair().ok).toBe(false);

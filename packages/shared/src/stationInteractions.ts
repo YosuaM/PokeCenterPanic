@@ -11,8 +11,14 @@ function slotBounds(station: MapObstacle, slots: readonly Point[], index: number
   return { x: left, y: station.y, width: right - left, height: station.height };
 }
 
+// Discharge sits between the arrival slots, so split the counter in left-to-right order.
 const counterSlots = [...RECEPTION_SLOT_POSITIONS, DISCHARGE_POSITION];
-const counterBounds = counterSlots.map((_, index) => slotBounds(RECEPTION_COUNTER_BOUNDS, counterSlots, index));
+const counterOrder = counterSlots.map((_, index) => index).sort((a, b) => counterSlots[a]!.x - counterSlots[b]!.x);
+const orderedCounterSlots = counterOrder.map((index) => counterSlots[index]!);
+const counterBounds: MapObstacle[] = [];
+counterOrder.forEach((slot, order) => {
+  counterBounds[slot] = slotBounds(RECEPTION_COUNTER_BOUNDS, orderedCounterSlots, order);
+});
 const receptionBounds = counterBounds.slice(0, -1);
 const waitingBounds = WAITING_SLOT_POSITIONS.map((_, index) => {
   const benchIndex = Math.floor(index / WAITING_SEATS_PER_BENCH);

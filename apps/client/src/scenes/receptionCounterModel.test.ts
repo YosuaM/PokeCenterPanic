@@ -42,7 +42,7 @@ describe('reception counter model', () => {
       expect(position.x).toBeCloseTo(interaction.x);
       expect(position.y).toBeCloseTo(0.93);
       expect(position.z).toBeCloseTo(interaction.z);
-      const pad = asset.scene.getObjectByName(index === 4 ? 'DischargeGreen' : 'MintCushion')!;
+      const pad = asset.scene.getObjectByName(index === 4 ? 'DischargeGreen' : 'ArrivalPad')!;
       const ray = new THREE.Raycaster(new THREE.Vector3(position.x, 2, position.z), new THREE.Vector3(0, -1, 0));
       const hit = ray.intersectObject(pad)[0];
       expect(hit).toBeDefined();

@@ -1,46 +1,35 @@
 {
   "id": "waiting-benches",
   "source": "art/source/waiting-benches.blend",
+  "generator": "art/source/blender/waiting_benches.py",
   "runtime": "apps/client/public/assets/original/models/waiting-benches.glb",
   "preview": "art/previews/waiting-benches.png",
   "status": "integrated-3d-runtime",
   "origin": "original-project-geometry",
   "externalResources": [],
   "blenderVersion": "5.2.2 LTS",
-  "editableMeshes": 68,
+  "editableMeshes": 31,
   "mapTilePixels": 48,
   "root": "WaitingBenches",
   "runtimeUpAxis": "+Y",
   "runtimeFrontAxis": "+Z",
-  "originPlacement": "shared-obstacle-ground-center",
+  "originPlacement": "ground-center",
   "patientSurfaceHeight": 0.5,
-  "runtimeBounds": {
-    "min": [
-      -2.0375,
-      0,
-      -0.7445
-    ],
-    "max": [
-      2.4125,
-      1.03,
-      0.726
-    ]
-  },
-  "runtimeMeshes": 10,
-  "runtimeMaterials": 10,
-  "runtimeTriangles": 7472,
-  "runtimeBytes": 272248,
-  "patientAnchors": [
+  "runtimeMeshes": 11,
+  "runtimeMaterials": 11,
+  "runtimeTriangles": 3092,
+  "runtimeBytes": 163272,
+  "anchors": [
     "WaitingAnchor1",
     "WaitingAnchor2",
     "WaitingAnchor3",
     "WaitingAnchor4"
   ],
-  "exportNotes": "Two two-seat benches aligned to shared waiting slots. Original geometry and solid materials, evaluated bevels, grouped by material. Active scene selected hierarchy only; no studio, external textures, fonts or animation.",
   "stateNodes": [
     "WaitingGlow1",
     "WaitingGlow2",
     "WaitingGlow3",
     "WaitingGlow4"
-  ]
+  ],
+  "exportNotes": "Four-seat lavender sofa with individual cushions, padded back, cream arms, coral piping, wooden legs and one seat light per place. Studio excluded."
 }

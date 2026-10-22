@@ -4,7 +4,7 @@ import { WALK_BOUNDS, MAP_OBSTACLES, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS,
 export const WORLD_SCALE = 48;
 export const WORLD_WIDTH = (WALK_BOUNDS.right - WALK_BOUNDS.left) / WORLD_SCALE;
 export const WORLD_DEPTH = (WALK_BOUNDS.bottom - WALK_BOUNDS.top) / WORLD_SCALE;
-export const CAMERA_HALF_WIDTH = 21.4;
+export const CAMERA_HALF_WIDTH = 17.4;
 export const CAMERA_HALF_HEIGHT = CAMERA_HALF_WIDTH * 9 / 16;
 export const CAMERA_YAW = 0.08;
 export const CAMERA_ELEVATION = Math.PI / 4;
