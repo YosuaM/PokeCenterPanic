@@ -46,8 +46,19 @@ export const HealingMachineState = schema({
   patientId: t.string(),
   status: t.string(),
   remainingMs: t.number(),
+  repairOwnerId: t.string(),
+  repairRemainingMs: t.number(),
 }, 'PrototypeHealingMachineState');
 export type HealingMachineState = SchemaType<typeof HealingMachineState>;
+
+export const RoundResultsState = schema({
+  score: t.number(),
+  admitted: t.number(),
+  discharged: t.number(),
+  lost: t.number(),
+  unfinished: t.number(),
+  stars: t.number(),
+}, 'RoundResultsState');
 
 export const RoomState = schema({
   players: t.map(PlayerState),
@@ -60,11 +71,28 @@ export const RoomState = schema({
   waitingSlots: t.array('string'),
   recoveryQueue: t.array('string'),
   healingMachine: HealingMachineState,
+  secondHealingMachine: HealingMachineState,
   dischargedCount: t.number(),
   lostCount: t.number(),
+  admittedCount: t.number(),
+  score: t.number(),
+  roundRemainingMs: t.number(),
+  results: RoundResultsState,
   phase: t.string(),
   hostId: t.string(),
   countdownRemainingMs: t.number(),
   roundId: t.string(),
 }, 'PrototypeRoomState');
 export type RoomState = SchemaType<typeof RoomState>;
+
+export function roomHealingMachines(state: RoomState): readonly HealingMachineState[] {
+  return [state.healingMachine, state.secondHealingMachine];
+}
+
+export function resetHealingMachine(machine: HealingMachineState): void {
+  machine.patientId = '';
+  machine.status = 'empty';
+  machine.remainingMs = 0;
+  machine.repairOwnerId = '';
+  machine.repairRemainingMs = 0;
+}

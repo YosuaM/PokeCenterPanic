@@ -43,7 +43,7 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
     mapScene().setMedicines(doses, surfaces, owners, remainingMs),
   showMedicineDiscard: (event) => mapScene().showMedicineDiscard(event),
   showInteractionResult: (result) => mapScene().setInteractionResult(result),
-  showHealingMachine: (machine) => mapScene().setHealingMachine(machine),
+  showHealingMachine: (machine, second) => mapScene().setHealingMachine(machine, second),
   showDischargedCount: (count) => mapScene().setDischargedCount(count),
   showLostCount: (count) => mapScene().setLostCount(count),
   showPhase(snapshot, localId) {
@@ -53,6 +53,7 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
     if (snapshot.phase !== 'running' && game.loop.running) game.loop.sleep();
   },
   showRound(snapshot) {
+    mapScene().setRoundProgress(snapshot.remainingMs, snapshot.score);
     if (snapshot.results) ui.showResults(snapshot.results);
   },
   showLobbyResult: (reason) => ui.showStatus(reason),

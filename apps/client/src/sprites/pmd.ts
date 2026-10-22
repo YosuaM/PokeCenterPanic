@@ -43,6 +43,7 @@ export function playerSpriteSpecies(player: PlayerPresence): string {
 export function patientRenderPosition(patient: PatientRecord, stations: {
   reception: readonly Point[]; waiting: readonly Point[]; recovery: Point;
   healingMachine: Point;
+  healingMachines?: readonly Point[];
 }, carrier?: Point): Point | undefined {
   const travel = patientTravelPose(patient);
   if (travel) return travel.point;
@@ -50,7 +51,8 @@ export function patientRenderPosition(patient: PatientRecord, stations: {
   if (patient.location === 'reception') return stations.reception[patient.slotIndex];
   if (patient.location === 'waiting') return stations.waiting[patient.slotIndex];
   if (patient.location === 'recovery') return patient.slotIndex === 0 ? stations.recovery : undefined;
-  if (patient.location === 'healingMachine') return stations.healingMachine;
+  if (patient.location === 'healingMachine') return stations.healingMachines ?
+    stations.healingMachines[patient.slotIndex] : stations.healingMachine;
   return patient.location === 'carrier' ? carrier : undefined;
 }
 

@@ -63,6 +63,16 @@ function setup(storage?: Storage) {
 }
 
 describe('LobbyController', () => {
+  it('forwards independent machine occupancy and repair progress from the server', async () => {
+    const { controller, snapshot, view } = setup();
+    await controller.create('Red');
+    const first = { patientId: 'p1', status: 'treating', remainingMs: 3000,
+      repairOwnerId: '', repairRemainingMs: 0 };
+    const second = { patientId: 'p2', status: 'broken', remainingMs: 2500,
+      repairOwnerId: 'host-id', repairRemainingMs: 700 };
+    snapshot({ healingMachine: first, secondHealingMachine: second });
+    expect(view.showHealingMachine).toHaveBeenLastCalledWith(first, second);
+  });
 
   it('shows authoritative results after reconnect and sends host replay only for the current round', async () => {
     const { controller, view, room, snapshot, drop, reconnect } = setup();
@@ -201,7 +211,7 @@ describe('LobbyController', () => {
     expect(view.showLostCount).toHaveBeenCalledWith(2);
     controller.sendInteraction({ targetId: 'reception:0', expectedOccupantId: patient.id });
     expect(room.send).toHaveBeenCalledWith('patient:interact',
-      { targetId: 'reception:0', expectedOccupantId: patient.id });
+      { targetId: 'reception:0', expectedOccupantId: patient.id, sequence: 3, roundId: 'round-1' });
     result({ ok: false, reason: 'Patient already claimed or removed' });
     expect(view.showInteractionResult).toHaveBeenCalledWith({ ok: false, reason: 'Patient already claimed or removed' });
     await controller.leave();

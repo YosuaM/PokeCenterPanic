@@ -296,7 +296,8 @@ describe('private room flow', () => {
       .toBeDefined(), { timeout: 6500 });
     const result = new Promise<{ ok: boolean; reason: string }>((resolve) =>
       host.onMessage('patient:result', resolve));
-    host.send('patient:interact', { targetId: 'waiting:0', expectedOccupantId: 'patient-1' });
+    host.send('patient:interact', { targetId: 'waiting:0', expectedOccupantId: 'patient-1',
+      sequence: 4, roundId: (host.state as RoomState).roundId });
     expect(await result).toEqual({ ok: false, reason: 'Out of range or blocked' });
     const state = host.state as {
       patients: Map<string, { location: string; carrierId: string }>;
@@ -319,7 +320,7 @@ describe('private room flow', () => {
     joinedRooms.push(guest);
     await startRound(host, [guest]);
     const local = matchMaker.getLocalRoomById(host.roomId) as unknown as {
-      state: RoomState; movement: RoomMovement; patients: RoomPatients; lastPatientUpdateAt: number;
+      state: RoomState; movement: RoomMovement; patients: RoomPatients;
     };
     const patient = local.patients.admit('Pikachu', 1, 0)!;
     local.patients.interact(host.sessionId, { targetId: 'reception:0', expectedOccupantId: patient.id },
@@ -327,10 +328,10 @@ describe('private room flow', () => {
     patient.completedTreatments = 1;
     patient.remainingPatienceMs = 1;
     Object.assign(local.movement.position(host.sessionId)!, { x: 840, y: 344 });
-    local.lastPatientUpdateAt -= 100;
     const results: Array<{ ok: boolean }> = [];
     host.onMessage('patient:result', (result) => results.push(result));
-    const command = { targetId: 'discharge', expectedOccupantId: patient.id };
+    const command = { targetId: 'discharge', expectedOccupantId: patient.id,
+      sequence: 4, roundId: local.state.roundId };
     host.send('patient:interact', command);
     host.send('patient:interact', command);
     await vi.waitFor(() => expect(results.map((result) => result.ok)).toEqual([false, false]));

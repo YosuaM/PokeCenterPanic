@@ -280,7 +280,7 @@ export class Center3DView {
     return { x: (projected.x + 1) * 480, y: (1 - projected.y) * 270 };
   }
 
-  render(timeMs = 0, machineStatus: HealingMachineSnapshot['status'] = 'empty',
+  render(timeMs = 0, machineStatus: HealingMachineSnapshot['status'] | readonly HealingMachineSnapshot['status'][] = 'empty',
     medicineOwners: readonly string[] = [], patients: readonly PatientRecord[] = []): void {
     this.healingMachines.update(machineStatus, timeMs);
     this.medicineTable.update(medicineOwners, timeMs);

@@ -50,6 +50,17 @@ describe('patient sound transitions', () => {
 });
 
 describe('soft synthesized patient audio', () => {
+  it('uses a quiet descending outage pattern and honors the existing mute control', async () => {
+    const { context, audio } = fakeContext();
+    await audio.unlock();
+    expect(audio.play(['outage'])).toBe(true);
+    expect(context.createOscillator.mock.results.map(({ value }) => value.frequency.setValueAtTime.mock.calls[0]![0]))
+      .toEqual([293.66, 220]);
+    audio.setMuted(true);
+    expect(audio.play(['outage'])).toBe(false);
+    expect(context.createOscillator).toHaveBeenCalledTimes(2);
+  });
+
   it('starts only after unlock and never queues missed sounds', async () => {
     const { context, audio } = fakeContext();
     expect(audio.play(['critical'])).toBe(false);

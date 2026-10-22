@@ -1,14 +1,16 @@
 import { LOGICAL_WIDTH, LOGICAL_HEIGHT, MAX_RENDER_SCALE, observeRenderSize } from '../renderResolution.js';
 import { MAP_2D_SCALE, mapViewportPoint } from './mapViewport.js';
 import Phaser from 'phaser';
-import { DISCHARGE_INTERACTION_POINT, DISCHARGE_POSITION, HEALING_DURATION_MS, HEALING_INTERACTION_POINT,
+import { roundClock } from '../rooms/roundPresentation.js';
+import { DISCHARGE_INTERACTION_POINT, DISCHARGE_POSITION, HEALING_DURATION_MS,
   HEALING_MACHINE_POSITION, MAP_OBSTACLES, MEDICINE_DISPOSAL_POINT,
+  HEALING_MACHINE_POSITIONS, HEALING_INTERACTION_POINTS,
   MEDICINE_PREPARATION_MS, MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, REPAIR_DURATION_MS,
   RECOVERY_INTERACTION_POINT, RECOVERY_POSITION,
   RECEPTION_INTERACTION_POINTS, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS, TILE_SIZE,
   TREATMENT, WALK_BOUNDS, WAITING_BENCHES, WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS, isWalkable, patientPresentation, patientTravelPose,
   patientPatienceRatio, PATIENT_FAINT_DURATION_MS,
-  selectInteractionTarget, type Direction, type HealingMachineSnapshot, type MedicineDoseRecord, type MedicineDiscardEvent,
+  selectInteractionTarget, stationInteractionBounds, type Direction, type HealingMachineSnapshot, type MedicineDoseRecord, type MedicineDiscardEvent,
   type InteractionTarget, type MapObstacle, type PatientInteractionRequest,
   type PatientInteractionResult, type PatientRecord, type PlayerPosition, type PlayerPresence, type Point } from '@pokecenter/shared';
 import { MovementInput } from './movement.js';
@@ -103,7 +105,11 @@ export class MapScene extends Phaser.Scene {
     fill: Phaser.GameObjects.Rectangle }> = [];
   private dischargedCountText!: Phaser.GameObjects.Text;
   private lostCountText!: Phaser.GameObjects.Text;
+  private roundProgressText!: Phaser.GameObjects.Text;
+  private roundRemainingMs = 360_000;
+  private roundScore = 0;
   private healingMachine: HealingMachineSnapshot = { patientId: '', status: 'empty', remainingMs: 0 };
+  private secondHealingMachine: HealingMachineSnapshot = { patientId: '', status: 'empty', remainingMs: 0 };
   private selectedTarget: InteractionTarget | null = null;
   private interactionFeedback = '';
   private lastSentAt = -Infinity;
@@ -278,6 +284,9 @@ export class MapScene extends Phaser.Scene {
     this.lostCountText = this.createText(740, 53, 'LOST: 0', {
       color: '#ff9f9f', fontFamily: 'monospace', fontSize: '13px',
     }).setDepth(2002);
+    this.roundProgressText = this.createText(740, 18, `${roundClock(this.roundRemainingMs)} · SCORE: ${this.roundScore}`, {
+      color: '#ffde8b', fontFamily: 'monospace', fontSize: '11px',
+    }).setDepth(2002);
     this.waitingStatusText = this.createText(260, 31, '', {
       color: '#f8eac8', fontFamily: 'monospace', fontSize: '11px',
       backgroundColor: '#10243bcc', padding: { x: 5, y: 3 },
@@ -380,6 +389,7 @@ export class MapScene extends Phaser.Scene {
     this.setHealingMachine({ patientId: '', status: 'empty', remainingMs: 0 });
     this.setDischargedCount(0);
     this.setLostCount(0);
+    this.setRoundProgress(360_000, 0);
     this.inputSender = null;
     this.interactionSender = null;
     this.interactionFeedback = '';
@@ -448,8 +458,20 @@ export class MapScene extends Phaser.Scene {
     this.refreshInteraction();
   }
 
-  setHealingMachine(machine: HealingMachineSnapshot): void {
-    this.healingMachine = machine;
+  setHealingMachine(machine: HealingMachineSnapshot, second: HealingMachineSnapshot = {
+    patientId: '', status: 'empty', remainingMs: 0,
+  }): void {
+    if (this.gameplayActive && !document.hidden &&
+      ((machine.status === 'broken' && this.healingMachine.status !== 'broken') ||
+        (second.status === 'broken' && this.secondHealingMachine.status !== 'broken'))) {
+      this.patientAudio?.play(['outage']);
+    }
+    const copy = (value: HealingMachineSnapshot): HealingMachineSnapshot => ({
+      patientId: value.patientId, status: value.status, remainingMs: value.remainingMs,
+      repairOwnerId: value.repairOwnerId, repairRemainingMs: value.repairRemainingMs,
+    });
+    this.healingMachine = copy(machine);
+    this.secondHealingMachine = copy(second);
     if (this.sys.isActive()) {
       this.updateMachineText();
       this.refreshInteraction();
@@ -462,6 +484,12 @@ export class MapScene extends Phaser.Scene {
 
   setLostCount(count: number): void {
     if (this.sys.isActive()) this.lostCountText.setText(`LOST: ${count}`);
+  }
+
+  setRoundProgress(remainingMs: number, score: number): void {
+    this.roundRemainingMs = remainingMs;
+    this.roundScore = score;
+    if (this.sys.isActive()) this.roundProgressText?.setText(`${roundClock(remainingMs)} · SCORE: ${score}`);
   }
 
   setAuthoritativePositions(positions: PlayerPosition[]): void {
@@ -491,7 +519,7 @@ export class MapScene extends Phaser.Scene {
     if (import.meta.env.DEV && this.fixturePositionsAtTime) {
       this.setAuthoritativePositions(this.fixturePositionsAtTime(time));
     }
-    if (this.healingMachine.status === 'broken') {
+    if (this.healingMachine.status === 'broken' || this.secondHealingMachine.status === 'broken') {
       this.outageWarning.setAlpha(0.38 + 0.18 * Math.sin(time / 180));
     }
     const direction = this.movement.direction;
@@ -573,6 +601,7 @@ export class MapScene extends Phaser.Scene {
         const point = travel?.point ?? patientRenderPosition(patient, {
           reception: RECEPTION_SLOT_POSITIONS, waiting: WAITING_SLOT_POSITIONS,
           recovery: RECOVERY_POSITION, healingMachine: HEALING_MACHINE_POSITION,
+          healingMachines: HEALING_MACHINE_POSITIONS,
         }, this.avatars.get(patient.carrierId)?.position);
         if (!point) continue;
         const elevation = travel?.elevation ?? characterElevation(patient.location);
@@ -592,7 +621,7 @@ export class MapScene extends Phaser.Scene {
       this.center3D.syncCharacters(entities, time);
       this.center3D.syncMedicines(this.medicineDoses,
         new Map([...this.avatars].map(([id, avatar]) => [id, avatar.position])), time);
-      this.center3D.render(time, this.healingMachine.status, this.medicineOwners, this.patients);
+      this.center3D.render(time, [this.healingMachine.status, this.secondHealingMachine.status], this.medicineOwners, this.patients);
     }
   }
 
@@ -696,6 +725,7 @@ export class MapScene extends Phaser.Scene {
       const position = patientRenderPosition(patient, {
         reception: RECEPTION_SLOT_POSITIONS, waiting: WAITING_SLOT_POSITIONS,
         recovery: RECOVERY_POSITION, healingMachine: HEALING_MACHINE_POSITION,
+        healingMachines: HEALING_MACHINE_POSITIONS,
       }, this.avatars.get(patient.carrierId)?.position);
       if (!position) continue;
       visible.add(patient.id);
@@ -968,29 +998,34 @@ export class MapScene extends Phaser.Scene {
         label: carriedDose ? medicineLabel(front) : local.carriedPatientId ? 'Recovery is pickup only' :
           front ? `Pick up ${front.species}` : 'Recovery empty' });
       const carried = this.patients.find((patient) => patient.id === local.carriedPatientId);
-      const machinePatient = this.patients.find((patient) => patient.id === this.healingMachine.patientId);
-      const machineLabel = this.healingMachine.status === 'broken' ?
-        local.carriedPatientId || local.carriedMedicineId ? 'Empty hands to repair outage' :
-          this.healingMachine.repairOwnerId ? 'Repair in progress' : 'Hold E: repair outage' :
-        local.carriedPatientId ? this.healingMachine.patientId ? 'Machine occupied' :
-        carried && (carried.requiredTreatments & TREATMENT.healing) &&
-          !(carried.completedTreatments & TREATMENT.healing) ? 'Place in healing machine' : 'Healing not needed' :
-        this.healingMachine.status === 'completed' && machinePatient ? `Pick up ${machinePatient.species}` :
-          this.healingMachine.status === 'treating' ? 'Treatment in progress' : 'Machine empty';
-      targets.push({ id: carriedDose ? 'medicine:apply:healing:0' : 'healing:0',
-        position: HEALING_INTERACTION_POINT,
-        expectedOccupantId: this.healingMachine.patientId,
-        label: carriedDose && this.healingMachine.status !== 'broken' ?
-          this.healingMachine.status === 'completed' ?
-          medicineLabel(machinePatient) : 'Healing machine unavailable' : machineLabel });
+      for (const [machineIndex, machine] of [this.healingMachine, this.secondHealingMachine].entries()) {
+        const machinePatient = this.patients.find((patient) => patient.id === machine.patientId);
+        const machineLabel = machine.status === 'broken' ?
+          local.carriedPatientId || local.carriedMedicineId ? 'Empty hands to repair outage' :
+            machine.repairOwnerId ? machine.repairOwnerId === this.localId ? 'Hold E: repairing outage' :
+              'Repair in progress' : 'Hold E: repair outage' :
+          local.carriedPatientId ? machine.patientId ? 'Machine occupied' :
+          carried && (carried.requiredTreatments & TREATMENT.healing) &&
+            !(carried.completedTreatments & TREATMENT.healing) ? 'Place in healing machine' : 'Healing not needed' :
+          machine.status === 'completed' && machinePatient ? `Pick up ${machinePatient.species}` :
+            machine.status === 'treating' ? 'Treatment in progress' : 'Machine empty';
+        targets.push({ id: carriedDose ? `medicine:apply:healing:${machineIndex}` : `healing:${machineIndex}`,
+          position: HEALING_INTERACTION_POINTS[machineIndex]!,
+          expectedOccupantId: machine.patientId,
+          label: carriedDose && machine.status !== 'broken' ?
+            machine.status === 'completed' ?
+            medicineLabel(machinePatient) : 'Healing machine unavailable' : machineLabel });
+      }
       targets.push({ id: 'discharge', position: DISCHARGE_INTERACTION_POINT,
         expectedOccupantId: carried?.id ?? '',
         label: carried ? patientPresentation(carried).readyForDischarge ? 'Discharge patient' :
           'Treatment still required' : 'No patient to discharge' });
     }
-    const selected = local ? selectInteractionTarget(local, local.facing, targets) : null;
+    const selected = local ? selectInteractionTarget(local, local.facing,
+      targets.map((target) => ({ ...target, bounds: stationInteractionBounds(target.id) }))) : null;
     if (this.selectedTarget?.id !== selected?.id) this.interactionFeedback = '';
     this.selectedTarget = selected;
+    this.updateMachineText();
     this.targetHighlight.setVisible(Boolean(selected) && !this.center3D);
     if (selected) {
       const screen = mapViewportPoint(selected.position);
@@ -1014,7 +1049,8 @@ export class MapScene extends Phaser.Scene {
     }
     this.readyIcon?.setVisible(Boolean(patient && patientPresentation(patient).readyForDischarge));
     const state = patient ? patientIndicatorState(patient) : null;
-    const paused = patient && this.healingMachine.patientId === patient.id && this.healingMachine.status === 'treating';
+    const paused = patient && [this.healingMachine, this.secondHealingMachine].some((machine) =>
+      machine.patientId === patient.id && machine.status === 'treating');
     const status = !state ? '' : paused ? 'HEALING · WAIT PAUSED' : state.critical ?
       state.ready ? '! CRITICAL · DISCHARGE' : '! CRITICAL' : state.ready ? 'READY FOR DISCHARGE' :
         state.warning ? 'LOSING PATIENCE' : 'AWAITING CARE';
@@ -1117,7 +1153,11 @@ export class MapScene extends Phaser.Scene {
   }
 
   private updateMachineText(): void {
-    const machine = this.healingMachine;
+    const machines = [this.healingMachine, this.secondHealingMachine];
+    const brokenIndex = machines.findIndex((machine) => machine.status === 'broken');
+    const selected = /healing:([01])$/.exec(this.selectedTarget?.id ?? '');
+    const index = brokenIndex >= 0 ? brokenIndex : selected ? Number(selected[1]) : 0;
+    const machine = machines[index]!;
     this.machineStatusText.setText(machine.status === 'broken' ?
       machine.patientId && machine.remainingMs > 0 ?
         `PAUSED ${Math.ceil(machine.remainingMs / 1000)}s` : 'OFFLINE' :
@@ -1130,6 +1170,8 @@ export class MapScene extends Phaser.Scene {
     this.healingTrack.setVisible(treating);
     this.healingFill.setVisible(treating && progress > 0).setDisplaySize(125 * progress, 6);
     this.outageWarning.setVisible(broken && !this.center3D);
+    const point = mapViewportPoint(HEALING_MACHINE_POSITIONS[index]!);
+    this.outageWarning.setPosition(point.x, point.y);
     const repairing = broken && Boolean(machine.repairOwnerId);
     const repairProgress = repairing ? 1 - Math.min(1, Math.max(0,
       (machine.repairRemainingMs ?? REPAIR_DURATION_MS) / REPAIR_DURATION_MS)) : 0;
@@ -1168,8 +1210,7 @@ export class MapScene extends Phaser.Scene {
     label(60, 24, 'POKÉCENTER', 17, '#fff1d5');
     label(60, 47, 'PANIC  /  CLINIC 01', 10);
     label(260, 18, 'WAITING ROOM');
-    label(500, 18, 'HEALING MACHINE');
-    label(740, 18, 'PATIENT OUTCOMES');
+    label(500, 18, 'HEALING MACHINES');
     label(32, 461, 'NEXT ACTION');
     label(32, 513, 'WASD / ARROWS  Move     E  Interact / hold to prepare');
     label(492, 461, 'PATIENT FILE');

@@ -89,6 +89,16 @@ describe('sprite placement', () => {
     completedTreatments: 0, initialPatienceMs: 100, remainingPatienceMs: 100,
     lifecycle: 'active', location: 'reception', slotIndex: 0, carrierId: '' };
 
+  it('places patients by their authoritative machine index and rejects nonexistent machine slots', () => {
+    const machines = [{ x: 7, y: 8 }, { x: 70, y: 80 }];
+    for (const slotIndex of [0, 1]) {
+      expect(patientRenderPosition({ ...patient, location: 'healingMachine', slotIndex },
+        { ...stations, healingMachines: machines })).toEqual(machines[slotIndex]);
+    }
+    expect(patientRenderPosition({ ...patient, location: 'healingMachine', slotIndex: 2 },
+      { ...stations, healingMachines: machines })).toBeUndefined();
+  });
+
   it('uses synchronized stations and carrier positions without rendering queued or departed patients', () => {
     expect(patientRenderPosition(patient, stations)).toEqual({ x: 1, y: 2 });
     expect(patientRenderPosition({ ...patient, location: 'waiting' }, stations)).toEqual({ x: 3, y: 4 });

@@ -15,6 +15,123 @@ function addPlayer(state: RoomState, id: string): void {
 }
 
 describe('RoomPatients', () => {
+  it.each([
+    { index: 0, position: { x: 177, y: 208 } },
+    { index: 1, position: { x: 369, y: 208 } },
+    { index: 2, position: { x: 561, y: 208 } },
+    { index: 3, position: { x: 690, y: 208 } },
+  ])('claims reception patient $index from behind without requiring facing', ({ index, position }) => {
+    for (const facing of ['up', 'down', 'left', 'right'] as const) {
+      const state = new RoomState();
+      const patients = new RoomPatients(state);
+      addPlayer(state, 'red');
+      addPlayer(state, 'blue');
+      const patient = patients.admit('Pikachu', TREATMENT.healing, index)!;
+      const request = { targetId: `reception:${index}`, expectedOccupantId: patient.id };
+      expect(patients.interact('red', request, position, facing).ok).toBe(true);
+      expect(patients.interact('blue', request, position, facing).ok).toBe(false);
+      expect(state.players.get('red')!.carriedPatientId).toBe(patient.id);
+      expect(state.players.get('blue')!.carriedPatientId).toBe('');
+      expect(() => patients.assertOwnership()).not.toThrow();
+    }
+  });
+
+  it.each(WAITING_INTERACTION_POINTS.map((point, index) => ({ point, index })))(
+    'places and retrieves waiting patient $index from behind while looking away', ({ point, index }) => {
+      const state = new RoomState();
+      const patients = new RoomPatients(state);
+      addPlayer(state, 'red');
+      addPlayer(state, 'blue');
+      const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
+      patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
+        { x: 177, y: 354 }, 'down');
+      const position = { x: point.x, y: 689 };
+      const targetId = `waiting:${index}`;
+      expect(patients.interact('red', { targetId, expectedOccupantId: '' }, position, 'down').ok).toBe(true);
+      expect(patients.interact('blue', { targetId, expectedOccupantId: 'stale' }, position, 'left').ok).toBe(false);
+      expect(state.waitingSlots[index]).toBe(patient.id);
+      expect(patients.interact('blue', { targetId, expectedOccupantId: patient.id }, position, 'right').ok).toBe(true);
+      expect(patients.interact('red', { targetId, expectedOccupantId: patient.id }, position, 'down').ok).toBe(false);
+      expect(state.waitingSlots[index]).toBe('');
+      expect(state.players.get('blue')!.carriedPatientId).toBe(patient.id);
+      expect(() => patients.assertOwnership()).not.toThrow();
+    });
+
+  it.each([
+    { x: 872, y: 113 }, { x: 960, y: 269 }, { x: 694, y: 185 }, { x: 1062, y: 185 },
+  ])('exposes only the expected recovery front from adjacent position %j', (position) => {
+    const state = new RoomState();
+    const patients = new RoomPatients(state);
+    addPlayer(state, 'red');
+    addPlayer(state, 'blue');
+    const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
+    state.receptionSlots[0] = '';
+    patient.location = 'recovery';
+    state.recoveryQueue.push(patient.id);
+    const request = { targetId: 'recovery', expectedOccupantId: patient.id };
+    expect(patients.interact('red', request, position, 'left').ok).toBe(true);
+    expect(patients.interact('blue', request, position, 'right').ok).toBe(false);
+    expect(state.recoveryQueue).toHaveLength(0);
+    expect(() => patients.assertOwnership()).not.toThrow();
+  });
+
+  it.each([{ x: 840, y: 356 }, { x: 942, y: 282 }])(
+    'discharges once from an adjacent counter position %j regardless of facing', (position) => {
+      const state = new RoomState();
+      const patients = new RoomPatients(state);
+      addPlayer(state, 'red');
+      const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
+      patient.completedTreatments = TREATMENT.healing;
+      patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
+        { x: 177, y: 354 }, 'down');
+      const request = { targetId: 'discharge', expectedOccupantId: patient.id };
+      expect(patients.interact('red', request, position, 'right').ok).toBe(true);
+      expect(patients.interact('red', request, position, 'up').ok).toBe(false);
+      expect(state.dischargedCount).toBe(1);
+      expect(() => patients.assertOwnership()).not.toThrow();
+    });
+
+  it.each([
+    { x: 40, y: -66 }, { x: 40, y: 131 },
+    { x: -102, y: 33 }, { x: 181, y: 33 },
+    { x: -102, y: -66 }, { x: 181, y: 131 },
+  ])('places and claims a healing patient once from adjacent position %j', (position) => {
+    const state = new RoomState();
+    const patients = new RoomPatients(state);
+    addPlayer(state, 'red');
+    addPlayer(state, 'blue');
+    const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
+    expect(patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
+      { x: 177, y: 354 }, 'up').ok).toBe(true);
+    const place = { targetId: 'healing:0', expectedOccupantId: '' };
+    const pickup = { targetId: 'healing:0', expectedOccupantId: patient.id };
+    expect(patients.interact('red', place, position, 'up').ok).toBe(true);
+    expect(patients.interact('red', place, position, 'down').ok).toBe(false);
+    expect(patients.interact('blue', pickup, position, 'left').reason).toBe('Treatment in progress');
+    patients.advance(4000);
+    expect(patients.interact('blue', pickup, position, 'right').ok).toBe(true);
+    expect(patients.interact('red', pickup, position, 'down').ok).toBe(false);
+    expect(state.players.get('red')!.carriedPatientId).toBe('');
+    expect(state.players.get('blue')!.carriedPatientId).toBe(patient.id);
+    expect(state.healingMachine).toMatchObject({ patientId: '', status: 'empty' });
+    expect(() => patients.assertOwnership()).not.toThrow();
+  });
+
+  it.each([{ x: 40, y: 156 }, { x: 206, y: 33 }, { x: 40, y: 33 }])(
+    'rejects machine placement outside adjacent walkable space %j without transferring ownership', (position) => {
+      const state = new RoomState();
+      const patients = new RoomPatients(state);
+      addPlayer(state, 'red');
+      const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
+      patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
+        { x: 177, y: 354 }, 'up');
+      expect(patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
+        position, 'up').reason).toBe('Out of range or blocked');
+      expect(state.players.get('red')!.carriedPatientId).toBe(patient.id);
+      expect(state.healingMachine).toMatchObject({ patientId: '', status: 'empty' });
+      expect(() => patients.assertOwnership()).not.toThrow();
+    });
+
   it('clears abandoned patient state before the room returns to lobby', () => {
     const state = new RoomState();
     const patients = new RoomPatients(state);
@@ -84,13 +201,13 @@ describe('RoomPatients', () => {
     expect(() => patients.assertOwnership()).not.toThrow();
   });
 
-  it('rejects forged, distant, and wrongly faced interactions without changing ownership', () => {
+  it('rejects forged, distant, and obstructed interactions without changing ownership', () => {
     const state = new RoomState();
     const patients = new RoomPatients(state);
     addPlayer(state, 'red');
     const patient = patients.admit('Pikachu', TREATMENT.healing, 0)!;
     const request = { targetId: 'reception:0', expectedOccupantId: patient.id };
-    expect(patients.interact('red', request, { x: 177, y: 354 }, 'down').ok).toBe(false);
+    expect(patients.interact('red', request, { x: 177, y: 298 }, 'down').ok).toBe(false);
     expect(patients.interact('red', request, { x: 456, y: 422 }, 'up').ok).toBe(false);
     expect(patients.interact('red', { targetId: 'reception:9', expectedOccupantId: patient.id },
       { x: 177, y: 354 }, 'up').ok).toBe(false);
@@ -285,7 +402,7 @@ describe('RoomPatients', () => {
   const targetId = `waiting:${slotIndex}`;
   expect(patients.interact('red', { targetId, expectedOccupantId: '' }, point, 'down').ok).toBe(true);
   expect(state.waitingSlots[slotIndex]).toBe(patient.id);
-  expect(patients.interact('red', { targetId, expectedOccupantId: patient.id }, { x: point.x, y: point.y - 15 }, 'up').ok).toBe(false);
+  expect(patients.interact('red', { targetId, expectedOccupantId: patient.id }, { x: point.x, y: point.y - 100 }, 'up').ok).toBe(false);
   expect(patients.interact('blue', { targetId, expectedOccupantId: patient.id }, point, 'down').ok).toBe(true);
   expect(patients.interact('red', { targetId, expectedOccupantId: patient.id }, point, 'down').ok).toBe(false);
   expect(state.waitingSlots[slotIndex]).toBe('');

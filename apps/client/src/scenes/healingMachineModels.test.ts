@@ -177,6 +177,13 @@ describe('healing machine status lights', () => {
     expect(left[0]!.emissiveIntensity).toBeLessThan(flash);
     expect(right.map((material) => [material.color.getHex(), material.emissiveIntensity])).toEqual(idle);
     expect(originals.map((material) => material.color.getHex())).toEqual(originalColors);
+    models.update(['completed', 'broken'], 2400);
+    expect(left.every((material) => material.color.getHex() === 0x62e985)).toBe(true);
+    expect(right.every((material) => material.color.getHex() === 0xff5e42)).toBe(true);
+    models.update(['treating', 'completed'], 2400);
+    expect(left.every((material) => material.color.getHex() === 0x36bff5)).toBe(true);
+    expect(right.every((material) => material.color.getHex() === 0x62e985)).toBe(true);
+    models.update(['empty', 'empty'], 3000);
     models.update('empty', 3000);
     expect(left.map((material) => [material.color.getHex(), material.emissiveIntensity])).toEqual(idle);
     const lightDisposes = lights.flat().map((material) => vi.spyOn(material, 'dispose'));

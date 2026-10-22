@@ -1,4 +1,4 @@
-import { PATIENT_SPECIES, TREATMENT } from '@pokecenter/shared';
+import { FINAL_CLEARANCE_MS, PATIENT_SPECIES, ROUND_DURATION_MS, TREATMENT } from '@pokecenter/shared';
 import type { RoomPatients } from './RoomPatients.js';
 import type { RoomState } from './RoomState.js';
 
@@ -18,7 +18,7 @@ export class RoomArrivals {
   private admittedCount = 0;
 
   constructor(private readonly state: RoomState, private readonly patients: RoomPatients,
-    private readonly random: () => number = Math.random) {}
+    private readonly random: () => number = Math.random, private readonly durationMs = ROUND_DURATION_MS) {}
 
   reset(): void {
     this.elapsedMs = 0;
@@ -27,9 +27,10 @@ export class RoomArrivals {
     this.admittedCount = 0;
   }
 
-  advance(elapsedMs: number): void {
+  advance(elapsedMs: number, roundElapsedMs = this.elapsedMs + elapsedMs): void {
     if (this.state.phase !== 'running' || !Number.isFinite(elapsedMs) || elapsedMs <= 0) return;
-    this.elapsedMs += elapsedMs;
+    this.elapsedMs = roundElapsedMs;
+    if (this.elapsedMs >= Math.max(0, this.durationMs - FINAL_CLEARANCE_MS)) return;
     const stage = STAGES.find((candidate) => this.elapsedMs < candidate.untilMs)!;
     const connected = Math.min(4, [...this.state.players.values()].filter((player) => player.connected).length);
     const interval = connected ? stage.intervals[connected - 1]! : 0;

@@ -42,6 +42,7 @@ export interface PlayerInput {
 
 export * from './map.js';
 export * from './interaction.js';
+export * from './stationInteractions.js';
 export * from './patient.js';
 export * from './patientTravel.js';
 export * from './medicine.js';

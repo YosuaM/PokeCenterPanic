@@ -78,6 +78,32 @@ describe('RoomLobby', () => {
     }
   });
 
+  it('allows only the connected host to replay the current results and preserves membership and characters', () => {
+    const { state, lobby, command } = setup();
+    for (const [index, id] of ['red', 'blue'].entries()) {
+      lobby.select(id, command({ character: ['Meowth', 'Audino'][index] }));
+      lobby.ready(id, command({ ready: true }));
+    }
+    expect(lobby.replay('red', command({ roundId: 'round-1' })).ok).toBe(false);
+    lobby.start('red', command(), 0);
+    lobby.advance(3000);
+    state.phase = 'results';
+    for (const value of [null, {}, command({ roundId: 'old' }), { sequence: 1, roundId: 'round-1' }]) {
+      expect(lobby.replay('red', value).ok).toBe(false);
+      expect(state.phase).toBe('results');
+    }
+    expect(lobby.replay('unknown', command({ roundId: 'round-1' })).ok).toBe(false);
+    expect(lobby.replay('blue', command({ roundId: 'round-1' })).reason)
+      .toBe('Only the host can return to the lobby');
+    const replay = command({ roundId: 'round-1' });
+    expect(lobby.replay('red', replay).ok).toBe(true);
+    expect(state).toMatchObject({ phase: 'lobby', roundId: '', hostId: 'red', countdownRemainingMs: 0 });
+    expect([...state.players.values()].map((player) => [player.character, player.ready]))
+      .toEqual([['Meowth', false], ['Audino', false]]);
+    expect(lobby.replay('red', replay).ok).toBe(false);
+    lobby.departed('red', true);
+    expect(state.hostId).toBe('blue');
+  });
 
   it('elects by join order and then ID when orders tie', () => {
     expect(oldestConnectedMember([

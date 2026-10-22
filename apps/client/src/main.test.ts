@@ -9,7 +9,7 @@ const state = vi.hoisted(() => {
     setInputSender: vi.fn(), setInteractionSender: vi.fn(), setAuthoritativePositions: vi.fn(),
     setPatients: vi.fn(), setMedicines: vi.fn(), showMedicineDiscard: vi.fn(),
     setInteractionResult: vi.fn(), setHealingMachine: vi.fn(), setDischargedCount: vi.fn(),
-    setLostCount: vi.fn() };
+    setLostCount: vi.fn(), setRoundProgress: vi.fn() };
   const loop = { running: true, sleep: vi.fn(() => { loop.running = false; }),
     wake: vi.fn(() => { loop.running = true; }) };
   const ui = { setBusy: vi.fn(), showRoom: vi.fn(), showPhase: vi.fn(), showResults: vi.fn(),

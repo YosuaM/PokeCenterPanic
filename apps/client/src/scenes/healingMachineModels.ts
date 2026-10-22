@@ -28,7 +28,7 @@ export class HealingMachineModels {
   private model: THREE.Object3D | null = null;
   private readonly instances: THREE.Object3D[] = [];
   private readonly lights: THREE.MeshStandardMaterial[][] = [];
-  private status: MachineStatus = 'empty';
+  private status: MachineStatus | readonly MachineStatus[] = 'empty';
   private timeMs = 0;
 
   constructor(scene: THREE.Scene, fallbacks: THREE.Group[],
@@ -36,13 +36,13 @@ export class HealingMachineModels {
     this.ready = this.install(scene, fallbacks, load);
   }
 
-  update(status: MachineStatus, timeMs: number): void {
+  update(status: MachineStatus | readonly MachineStatus[], timeMs: number): void {
     if (this.disposed) return;
     this.status = status;
     this.timeMs = timeMs;
     for (const [index, materials] of this.lights.entries()) {
-      // Only the left station currently has an authoritative machine on the server.
-      const appearance = lightAppearance(index === 0 ? status : 'empty', timeMs);
+      const current = typeof status === 'string' ? index === 0 ? status : 'empty' : status[index] ?? 'empty';
+      const appearance = lightAppearance(current, timeMs);
       for (const material of materials) {
         material.color.setHex(appearance.color);
         material.emissive.setHex(appearance.color);

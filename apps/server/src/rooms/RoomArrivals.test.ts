@@ -20,6 +20,15 @@ function setup(teamSize = 1) {
 }
 
 describe('room arrivals', () => {
+  it.each([329999, 330000, 359999, 360000])('admits only before the clearance cutoff at %s', (time) => {
+    const { state, arrivals } = setup();
+    arrivals.advance(time);
+    expect(state.admittedCount).toBe(time < 330000 ? 1 : 0);
+    arrivals.advance(100000);
+    expect(state.admittedCount).toBe(time < 330000 ? 1 : 0);
+    expect(state.lostCount).toBe(0);
+  });
+
   it('starts only during play, after five seconds, and reserves a waiting seat', () => {
     const { state, patients, arrivals } = setup();
     state.phase = 'countdown';
@@ -50,14 +59,14 @@ describe('room arrivals', () => {
 
   it('counts carried patients toward the busy solo cap and never replays missed arrivals', () => {
     const { state, patients, arrivals } = setup();
-    for (let index = 0; index < 8; index += 1) arrivals.advance(100000);
+    for (let index = 0; index < 8; index += 1) arrivals.advance(30000);
     expect(state.patients.size).toBe(8);
     patients.advance(patientTravelDuration({ travelKind: 'arriving', slotIndex: 0 }));
     const first = state.patients.get('patient-1')!;
     patients.interact('staff-0', { targetId: 'waiting:0', expectedOccupantId: first.id },
       WAITING_INTERACTION_POINTS[0]!, 'down');
     expect(first.location).toBe('carrier');
-    arrivals.advance(100000);
+    arrivals.advance(10000);
     expect(state.patients.size).toBe(8);
     expect(state.waitingSlots[0]).toBe('');
     expect(() => patients.assertOwnership()).not.toThrow();
@@ -119,7 +128,7 @@ describe('room arrivals', () => {
 
 it('reserves every seat across both benches and reuses a freed seat without overbooking', () => {
   const { state, patients, arrivals } = setup(4);
-  for (let index = 0; index < 8; index++) arrivals.advance(100000);
+  for (let index = 0; index < 8; index++) arrivals.advance(30000);
   expect([...state.waitingSlots]).toEqual(Array.from({ length: 8 }, (_, index) => `patient-${index + 1}`));
   arrivals.advance(10000);
   expect(state.patients.size).toBe(8);

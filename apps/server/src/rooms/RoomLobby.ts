@@ -124,6 +124,25 @@ export class RoomLobby {
 
   lastSequence(playerId: string): number { return this.sequences.get(playerId) ?? 0; }
 
+  replay(playerId: string, value: unknown): LobbyResult {
+    if (!value || typeof value !== 'object' || this.state.phase !== 'results') {
+      return reject('Replay is only available after results');
+    }
+    const command = value as { sequence?: unknown; roundId?: unknown };
+    if (!this.connected.has(playerId) || command.roundId !== this.state.roundId ||
+      !Number.isSafeInteger(command.sequence) || Number(command.sequence) <= this.lastSequence(playerId)) {
+      return reject('Invalid or repeated replay command');
+    }
+    this.sequences.set(playerId, Number(command.sequence));
+    if (this.state.hostId !== playerId) return reject('Only the host can return to the lobby');
+    this.state.phase = 'lobby';
+    this.state.roundId = '';
+    this.state.countdownRemainingMs = 0;
+    this.countdownEndsAt = 0;
+    for (const player of this.state.players.values()) player.ready = false;
+    return accepted;
+  }
+
   resetEmpty(): void {
     if (this.state.players.size || this.connected.size) return;
     this.state.phase = 'lobby';

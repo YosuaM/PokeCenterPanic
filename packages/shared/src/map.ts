@@ -30,6 +30,7 @@ export const RECEPTION_SLOT_POSITIONS: readonly Point[] = [
 
 export const RECEPTION_INTERACTION_POINTS: readonly Point[] =
   RECEPTION_SLOT_POSITIONS.map(({ x }) => ({ x, y: 344 }));
+export const RECEPTION_COUNTER_BOUNDS: MapObstacle = { x: 82, y: 248, width: 796, height: 68 };
 
 export const WAITING_SEATS_PER_BENCH = 4;
 export const WAITING_BENCH_OBSTACLE_INDICES = [4, 7] as const;
@@ -45,23 +46,30 @@ export const WAITING_INTERACTION_POINTS: readonly Point[] =
   WAITING_SLOT_POSITIONS.map(({ x, y }) => ({ x, y: y - 60 }));
 
 export const RECOVERY_POSITION: Point = { x: 872, y: 185 };
+export const RECOVERY_AREA_BOUNDS: MapObstacle = { x: 758, y: 153, width: 240, height: 76 };
 export const RECOVERY_INTERACTION_POINT: Point = { x: 872, y: 125 };
 export const HEALING_MACHINE_POSITION: Point = { x: 40, y: 33 };
+export const HEALING_MACHINE_BOUNDS: MapObstacle = { x: -38, y: -26, width: 155, height: 117 };
 export const HEALING_INTERACTION_POINT: Point = { x: 165, y: 33 };
+export const HEALING_MACHINE_POSITIONS: readonly Point[] = [HEALING_MACHINE_POSITION, { x: 920, y: 33 }];
+export const HEALING_MACHINE_FOOTPRINTS: readonly MapObstacle[] = [HEALING_MACHINE_BOUNDS,
+  { x: 843, y: -26, width: 155, height: 117 }];
+export const HEALING_INTERACTION_POINTS: readonly Point[] = [HEALING_INTERACTION_POINT, { x: 795, y: 33 }];
 export const DISCHARGE_POSITION: Point = { x: 840, y: 298 };
 export const DISCHARGE_INTERACTION_POINT: Point = { x: 840, y: 344 };
+export const MEDICINE_TABLE_BOUNDS: MapObstacle = { x: 342, y: -36, width: 276, height: 102 };
 
 export const CLINIC_DIVIDER: MapObstacle = { x: WALK_BOUNDS.left, y: 248, width: 264, height: 68 };
 export const CLINIC_CORRIDOR: Point = { x: 1058, y: 344 };
 export const RECEPTION_CHECK_IN_POINT: Point = { x: 480, y: 344 };
 
 export const MAP_OBSTACLES: readonly MapObstacle[] = [
-  { x: 82, y: 248, width: 796, height: 68 },
-  { x: -38, y: -26, width: 155, height: 117 },
-  { x: 843, y: -26, width: 155, height: 117 },
-  { x: 342, y: -36, width: 276, height: 102 },
+  RECEPTION_COUNTER_BOUNDS,
+  HEALING_MACHINE_BOUNDS,
+  HEALING_MACHINE_FOOTPRINTS[1]!,
+  MEDICINE_TABLE_BOUNDS,
   WAITING_BENCHES[0]!,
-  { x: 758, y: 153, width: 240, height: 76 },
+  RECOVERY_AREA_BOUNDS,
   CLINIC_DIVIDER,
   WAITING_BENCHES[1]!,
 ];

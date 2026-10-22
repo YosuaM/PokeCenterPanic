@@ -1,10 +1,11 @@
 import {
-  HEALING_INTERACTION_POINT, MEDICINE_DISPOSAL_POINT, MEDICINE_KINDS, MEDICINE_PREPARATION_MS,
+  HEALING_MACHINE_FOOTPRINTS, MEDICINE_DISPOSAL_POINT, MEDICINE_KINDS, MEDICINE_PREPARATION_MS,
   MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, RECEPTION_INTERACTION_POINTS,
   RECOVERY_INTERACTION_POINT, TREATMENT, WAITING_INTERACTION_POINTS, isInteractionReachable,
+  stationInteractionBounds,
   type Direction, type MedicineDiscardEvent, type MedicineInteractionRequest, type PatientInteractionResult, type Point,
 } from '@pokecenter/shared';
-import { MedicineDoseState, type RoomState } from './RoomState.js';
+import { MedicineDoseState, roomHealingMachines, type RoomState } from './RoomState.js';
 
 interface Preparation {
   playerId: string;
@@ -16,7 +17,7 @@ interface Preparation {
 const reject = (reason: string): PatientInteractionResult => ({ ok: false, reason });
 const success = (): PatientInteractionResult => ({ ok: true, reason: '' });
 
-export function isMedicineInteractionRequest(value: unknown): value is MedicineInteractionRequest {
+export function isSequencedInteractionRequest(value: unknown): value is MedicineInteractionRequest {
   if (!value || typeof value !== 'object') return false;
   const request = value as Partial<MedicineInteractionRequest>;
   return typeof request.targetId === 'string' && typeof request.expectedOccupantId === 'string' &&
@@ -40,6 +41,7 @@ export class RoomMedicine {
 
   reset(): void {
     this.state.medicineDoses.clear();
+    for (const player of this.state.players.values()) player.carriedMedicineId = '';
     for (let index = 0; index < this.state.medicineSurfaces.length; index += 1) {
       this.state.medicineSurfaces[index] = '';
     }
@@ -53,6 +55,7 @@ export class RoomMedicine {
   }
 
   isPreparing(playerId: string): boolean { return this.preparations.has(playerId); }
+  requiresRelease(playerId: string): boolean { return this.releaseRequired.has(playerId); }
 
   interact(playerId: string, request: MedicineInteractionRequest, position: Point,
     facing: Direction, now: number, stationary: boolean): PatientInteractionResult {
@@ -64,14 +67,17 @@ export class RoomMedicine {
     const application = /^medicine:apply:(reception|waiting):(0|[1-9]\d*)$/.exec(request.targetId);
     const applicationLocation = application?.[1];
     const applicationIndex = application ? Number(application[2]) : -1;
+    const healing = /^medicine:apply:healing:([01])$/.exec(request.targetId);
     const point = prep ? MEDICINE_PREPARATION_POINTS[Number(prep[1])] : surface ?
       MEDICINE_SURFACE_POINTS[Number(surface[1])] : applicationLocation === 'reception' ?
         RECEPTION_INTERACTION_POINTS[applicationIndex] : applicationLocation === 'waiting' ?
           WAITING_INTERACTION_POINTS[applicationIndex] :
           request.targetId === 'medicine:apply:recovery' ? RECOVERY_INTERACTION_POINT :
-            request.targetId === 'medicine:apply:healing:0' ? HEALING_INTERACTION_POINT :
+            healing ? HEALING_MACHINE_FOOTPRINTS[Number(healing[1])] :
               request.targetId === 'medicine:disposal' ? MEDICINE_DISPOSAL_POINT : undefined;
-    if (!point || !isInteractionReachable(position, facing, point)) return reject('Target out of range');
+    if (!point || !isInteractionReachable(position, facing, stationInteractionBounds(request.targetId) ?? point)) {
+      return reject('Target out of range');
+    }
     if (prep) {
       const index = Number(prep[1]);
       if (request.expectedOccupantId !== '') return reject('Preparation point changed');
@@ -144,18 +150,21 @@ export class RoomMedicine {
     if (!dose || dose.location !== 'carrier' || dose.carrierId !== playerId) {
       return reject('Carried medicine unavailable');
     }
+    const healing = /^medicine:apply:healing:([01])$/.exec(request.targetId);
+    const machineIndex = healing ? Number(healing[1]) : 0;
+    const machine = roomHealingMachines(this.state)[machineIndex]!;
     const patientId = location === 'reception' ? this.state.receptionSlots[index] :
       location === 'waiting' ? this.state.waitingSlots[index] :
         request.targetId === 'medicine:apply:recovery' ? this.state.recoveryQueue[0] :
-          this.state.healingMachine.patientId;
+          machine.patientId;
     if (!patientId || patientId !== request.expectedOccupantId) return reject('Patient changed or removed');
     const patient = this.state.patients.get(patientId);
     const patientLocation = location ?? (request.targetId === 'medicine:apply:recovery' ?
       'recovery' : 'healingMachine');
-    const patientIndex = location ? index : 0;
+    const patientIndex = location ? index : patientLocation === 'healingMachine' ? machineIndex : 0;
     if (!patient || patient.lifecycle !== 'active' || patient.location !== patientLocation ||
       patient.slotIndex !== patientIndex || patient.carrierId || patient.travelKind) return reject('Patient unavailable');
-    if (patientLocation === 'healingMachine' && this.state.healingMachine.status !== 'completed') {
+    if (patientLocation === 'healingMachine' && machine.status !== 'completed') {
       return reject('Healing machine unavailable');
     }
     const treatment = dose.kind === 'burnHeal' ? TREATMENT.burnHeal :
@@ -183,21 +192,25 @@ export class RoomMedicine {
   }
 
   advance(now: number, positionFor: (id: string) => Point | undefined,
-    facingFor: (id: string) => Direction | undefined): void {
+    facingFor: (id: string) => Direction | undefined, exclusiveEnd = false): void {
     for (const preparation of [...this.preparations.values()]) {
       const { playerId, pointIndex, startedAt, lastHeldAt } = preparation;
       const player = this.state.players.get(playerId);
       const position = positionFor(playerId);
       const facing = facingFor(playerId);
-      if (!player?.connected || !position || !facing || now - lastHeldAt >= 250 ||
+      const completesAt = startedAt + MEDICINE_PREPARATION_MS;
+      const inputExpiresAt = lastHeldAt + 250;
+      const completes = completesAt <= now && !(exclusiveEnd && completesAt === now);
+      if (!player?.connected || !position || !facing ||
+        (inputExpiresAt <= now && (!completes || inputExpiresAt <= completesAt)) ||
         player.carriedPatientId || player.carriedMedicineId ||
-        !isInteractionReachable(position, facing, MEDICINE_PREPARATION_POINTS[pointIndex]!)) {
+        !isInteractionReachable(position, facing, stationInteractionBounds(`medicine:prep:${pointIndex}`)!)) {
         this.cancel(playerId);
         continue;
       }
       const remaining = Math.max(0, MEDICINE_PREPARATION_MS - (now - startedAt));
       this.state.medicinePreparationRemainingMs[pointIndex] = remaining;
-      if (remaining > 0) continue;
+      if (!completes) continue;
       const dose = new MedicineDoseState();
       dose.id = `dose-${this.nextId++}`;
       dose.kind = MEDICINE_KINDS[pointIndex]!;

@@ -48,6 +48,19 @@ export class RoomMovement {
     this.players.delete(id);
   }
 
+  stopAll(): void {
+    for (const player of this.players.values()) player.direction = null;
+  }
+
+  resetRound(): void {
+    for (const player of this.players.values()) {
+      player.position = { ...SPAWN_POINTS[player.slot]! };
+      player.direction = null;
+      player.facing = 'up';
+      player.lastInputAt = 0;
+    }
+  }
+
   accept(id: string, value: unknown, now: number, roundId: string | null = null): boolean {
     const player = this.players.get(id);
     if (!player?.connected || !isPlayerInput(value) || value.roundId !== roundId ||

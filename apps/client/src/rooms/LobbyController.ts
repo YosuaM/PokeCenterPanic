@@ -18,7 +18,7 @@ export interface LobbyView {
   showMedicines(doses: MedicineDoseRecord[], surfaces: string[], owners: string[], remainingMs: number[]): void;
   showMedicineDiscard(event: MedicineDiscardEvent): void;
   showInteractionResult(result: PatientInteractionResult): void;
-  showHealingMachine(machine: HealingMachineSnapshot): void;
+  showHealingMachine(machine: HealingMachineSnapshot, second?: HealingMachineSnapshot): void;
   showDischargedCount(count: number): void;
   showLostCount(count: number): void;
   showPhase(snapshot: RoomPhaseSnapshot, localId: string): void;
@@ -78,10 +78,9 @@ export class LobbyController {
 
   sendInteraction(request: PatientInteractionRequest): void {
     if (this.reconnecting || this.phase.phase !== 'running') return;
-    if (request.targetId.startsWith('medicine:')) this.room?.send('medicine:interact', {
+    this.room?.send(request.targetId.startsWith('medicine:') ? 'medicine:interact' : 'patient:interact', {
       ...request, sequence: this.nextSequence(), roundId: this.phase.roundId,
     });
-    else this.room?.send('patient:interact', request);
   }
 
   selectCharacter(character: PlayerCharacter | null): void {
@@ -143,6 +142,7 @@ export class LobbyController {
           medicinePreparationOwners?: string[];
           medicinePreparationRemainingMs?: number[];
           healingMachine?: HealingMachineSnapshot;
+          secondHealingMachine?: HealingMachineSnapshot;
           dischargedCount?: number;
           lostCount?: number;
           phase?: RoomPhaseSnapshot['phase'];
@@ -164,7 +164,10 @@ export class LobbyController {
           snapshot.medicineSurfaces ? [...snapshot.medicineSurfaces] : [],
           snapshot.medicinePreparationOwners ? [...snapshot.medicinePreparationOwners] : [],
           snapshot.medicinePreparationRemainingMs ? [...snapshot.medicinePreparationRemainingMs] : []);
-        if (snapshot.healingMachine) this.view.showHealingMachine(snapshot.healingMachine);
+        if (snapshot.healingMachine) {
+          if (snapshot.secondHealingMachine) this.view.showHealingMachine(snapshot.healingMachine, snapshot.secondHealingMachine);
+          else this.view.showHealingMachine(snapshot.healingMachine);
+        }
         if (typeof snapshot.dischargedCount === 'number') this.view.showDischargedCount(snapshot.dischargedCount);
         if (typeof snapshot.lostCount === 'number') this.view.showLostCount(snapshot.lostCount);
         if (snapshot.phase && typeof snapshot.hostId === 'string' &&

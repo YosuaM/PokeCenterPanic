@@ -1,7 +1,9 @@
 import { patientPatienceRatio, patientPresentation, type PatientRecord } from '@pokecenter/shared';
 
-export type PatientSoundCue = 'critical' | 'ready';
+export type PatientSoundCue = 'critical' | 'ready' | 'outage';
 export const PATIENT_CUE_NOTES = {
+  outage: [{ frequency: 293.66, offset: 0, duration: 0.14 },
+    { frequency: 220, offset: 0.2, duration: 0.24 }],
   critical: [{ frequency: 440, offset: 0, duration: 0.14 },
     { frequency: 349.23, offset: 0.18, duration: 0.21 }],
   ready: [{ frequency: 523.25, offset: 0, duration: 0.18 },
@@ -80,7 +82,7 @@ export class SoftPatientAudio {
     const context = this.context;
     if (this.disposed || this.muted || !this.volume || !this.master || context?.state !== 'running') return false;
     let played = false;
-    for (const cue of ['critical', 'ready'] as const) {
+    for (const cue of ['outage', 'critical', 'ready'] as const) {
       if (!cues.includes(cue) || context.currentTime - (this.lastPlayed.get(cue) ?? -Infinity) < 1.25) continue;
       const start = Math.max(context.currentTime + 0.01, this.nextAvailableAt);
       for (const note of PATIENT_CUE_NOTES[cue]) {

@@ -87,9 +87,9 @@ Players collide with the map and solid station geometry, but pass through one an
 
 Space has no gameplay binding in the MVP. Opening the menu or losing browser focus clears movement and cancels any held interaction. There is no shared pause, including in solo play.
 
-Interaction targets have an accessible point on the walkable side of the station or slot. The client highlights the nearest target in front of the player within one tile of that point, with no solid geometry between them; equal distances use a stable target ID. Target selection does not silently switch to another object when the selected action is invalid. Patients in a slot are targeted through that slot; occupied stations are not also separate overlapping patient targets.
+All stations accept interaction from any adjacent walkable position, regardless of facing. For solid stations, one-tile reach is measured from the nearest position where the player's collision body can touch the station's footprint, including corners, with no solid geometry between them. Reception and discharge, each waiting seat, and the preparation and disposal sections of the medicine table have individual regions of their shared furniture; recovery and healing use their full station footprint. The four medicine surface slots use a one-tile radius around each floor marker. The client highlights the nearest reachable perimeter or marker; overlapping regions use the nearest slot anchor, then a stable target ID. The same rule applies to pickup, placement, medicine application, preparation, and disposal. Target selection does not silently switch to another object when the selected action is invalid. Patients in a slot are targeted through that slot; occupied stations are not also separate overlapping patient targets.
 
-The indicator names the action or rejection reason. The server validates the requested target, expected occupant, distance, facing, inventory, and current state. A stale target or changed occupant is rejected without performing an alternative action; two attempts to pick up the same recovery-queue patient must not pick up two different patients. Instant actions fire once per key press, not every frame. Held actions finish once and require a release before another action can begin.
+The indicator names the action or rejection reason. The server validates the requested target, expected occupant, distance, clear access, inventory, and current state. Facing never limits interaction or cancels a preparation hold. A stale target or changed occupant is rejected without performing an alternative action; two attempts to pick up the same recovery-queue patient must not pick up two different patients. Instant actions fire once per key press, not every frame. Held actions finish once and require a release before another action can begin.
 
 ## 2.3. Carrying patients
 
@@ -117,7 +117,7 @@ Stations are interactive parts of the map with limited capacity and specific beh
 - Registers new patients into a free waiting-room seat before they enter through the front door.
 - Patients walk from the entrance to the public side of reception, pause for one second to check in, then follow the waiting-room aisle to their reserved seat. Reservations count toward capacity immediately; pickup, placement and medicine cannot intercept an incoming patient.
 - The former four counter arrival slots remain supported by prototype fixtures, but normal admissions use the benches rather than placing Pokémon on the counter.
-- Has a separate discharge interaction point that accepts a carried, fully treated patient immediately. Arrivals never occupy or block this point.
+- Has a separate discharge interaction region that accepts a carried, fully treated patient immediately. Arrivals never occupy or block this region.
 - A discharged patient walks along the right aisle and out through the entrance. This animation has no inventory ownership, does not block admissions and cannot award a second discharge.
 - Skips arrivals when the waiting room or the active-patient limit is full, according to section 5.3.
 
@@ -132,7 +132,7 @@ Stations are interactive parts of the map with limited capacity and specific beh
 
 ### Medicine table
 
-- Has two labeled preparation points, one for Burn Heal and one for Antidote; facing a point chooses the recipe without opening a menu.
+- Has two labeled preparation sections, one for Burn Heal and one for Antidote; approaching the nearest section chooses the recipe without opening a menu or requiring a facing direction.
 - Each point supports one player preparing one dose. With empty hands, hold E for two seconds without moving to finish preparation; the dose goes directly into the player's hand.
 - Releasing E, moving, opening the menu, losing input, or disconnecting cancels preparation and resets its progress. A failed or cancelled preparation creates no medicine.
 - Medicine applies instantly to a matching patient in reception, a waiting slot, the recovery area, or a completed healing machine. It cannot be applied to a carried patient or during healing or an outage.
@@ -153,7 +153,7 @@ Stations are interactive parts of the map with limited capacity and specific beh
 
 - Four medicine surface slots each hold one finished dose. They do not accept patients.
 - A pickup-only recovery area beside reception holds patients released by disconnected players when all waiting slots are occupied. It is separate from the arrival queue and discharge point.
-- Recovery is a queue with capacity ten, the global maximum active-patient count, so it cannot overflow. A single accessible interaction point exposes the front patient for pickup or medicine, with its indicators and a queue count. Patients are ordered by entry time, then patient ID; removal exposes the next one. It never blocks movement or accepts manual placement, and patience continues for every queued patient.
+- Recovery is a queue with capacity ten, the global maximum active-patient count, so it cannot overflow. A single target, accessible around the station's walkable perimeter, exposes the front patient for pickup or medicine, with its indicators and a queue count. Patients are ordered by entry time, then patient ID; removal exposes the next one. The queue never adds movement obstacles or accepts manual placement, and patience continues for every queued patient.
 - Recovery and all ordinary station interaction points must be reachable from the walkable map.
 
 ## 2.5. Contextual interaction contract
@@ -339,7 +339,7 @@ Duration is configurable internally for testing, but the first version does not 
 
 ## 5.3. Difficulty scaling
 
-**Current playable prototype:** automatic admissions start after five seconds, then accelerate through three server-timed stages. The first patient is an injured Pikachu; subsequent species and the five valid treatment sets are sampled uniformly. The service loop continues while the room is running. All admitted patients retain 90-second initial patience; movement, treatment and expiry keep their existing rules.
+**Current playable prototype:** automatic admissions start after five seconds, then accelerate through three server-timed stages. The first patient is an injured Pikachu; subsequent species and the five valid treatment sets are sampled uniformly. Rounds last six minutes; admissions stop at 330 seconds, with authoritative scoring, frozen results and host-controlled replay. All admitted patients retain 90-second initial patience; movement, treatment and expiry keep their existing rules.
 
 The following are initial tuning values, not a claim of proven balance. Each table cell contains **arrival interval / maximum active patients**. Eight waiting seats are available throughout; the population cap also includes patients being carried, treated or held in recovery.
 
@@ -354,7 +354,7 @@ Each attempt schedules the next one full interval from the current server time. 
 
 Only positive, finite running-phase time advances the stage clock. Resetting the round resets the stage, first-arrival timer and introductory patient. No connected staff means no admissions, while stage time and existing patience continue. Reconnecting schedules a full interval at the current stage.
 
-**Planned timed-round work, not yet active:** the six-minute round deadline, 330-second final-arrival cutoff, scoring, weighted treatment selection and reduced patience budgets remain separately tracked. The proposed treatment/patience schedule below applies only when that work is implemented; it does not change current patient budgets or the implemented arrival table.
+**Remaining difficulty work, not yet active:** weighted treatment selection and reduced patience budgets remain separately tracked. The proposed treatment/patience schedule below applies only when that work is implemented; it does not change current patient budgets or the implemented arrival table. The 330-second admission cutoff is already active.
 
 | Elapsed round time | Chance of two treatments | Initial patience |
 |---|---:|---:|
@@ -363,13 +363,13 @@ Only positive, finite running-phase time advances the stage clock. Resetting the
 | 240–329.999 seconds | 40% | 70 seconds |
 | 330–359.999 seconds | No new arrivals | Existing budgets unchanged |
 
-Under that future schedule, a two-treatment patient is equally likely to need injury plus burn or injury plus poison; single treatments and the six patient species are selected uniformly within their respective groups.
+Under that future treatment schedule, a two-treatment patient is equally likely to need injury plus burn or injury plus poison; single treatments and the six patient species are selected uniformly within their respective groups.
 
 **Saturation:** an attempt is skipped if all eight waiting slots are occupied or reserved, or the active-patient limit has been reached. No patient entity, score penalty, or admitted-patient statistic is created. Skipped attempts are not queued or replayed in a burst. The same rule applies to missed scheduler intervals after a server stall: make at most one current attempt, then schedule ahead. Active patients include all locations, including carriers, machines, and recovery.
 
 **Team changes:** use currently connected players, excluding disconnected reservations. On a connection change, cancel the pending arrival and schedule a new attempt one full effective interval later. If the new active limit is below the current population, retain existing patients and skip arrivals until there is capacity. Do not alter existing patience budgets, treatment progress, or the round deadline. With zero connected players, suspend arrivals and new incidents; the round clock and existing patients continue under section 9.7.
 
-Once timed rounds are implemented, the final 30 seconds will provide time to clear the center. Playtests must check service throughput and travel time for every team size; shorten routes or reduce arrivals before increasing caps. There is no guarantee that poor coordination, repeated absences, or a full queue can always be recovered from.
+The final 30 seconds provide time to clear the center. Playtests must check service throughput and travel time for every team size; shorten routes or reduce arrivals before increasing caps. There is no guarantee that poor coordination, repeated absences, or a full queue can always be recovered from.
 
 ## 5.4. Scoring
 
@@ -426,6 +426,8 @@ Incidents are events that temporarily disrupt normal operation of the Pokémon C
 Their purpose is to add variety, memorable situations, and cooperative pressure.
 
 ## 6.1. First incident: Pikachu's electric discharge
+
+**Current implementation:** both healing machines are authoritative stations. The server evaluates outage eligibility after timers and commands, synchronizes machine repair ownership/progress, and preserves healing progress through cancellation and disconnection. Stable station IDs prioritize the left machine (`healing:0`) when both are working. Repair and input-expiry boundaries split simulation updates so healing resumes only for time after repair completes.
 
 An active Pikachu can cause an electrical failure once its remaining patience reaches 50% or less of its initial budget. The server checks eligibility after applying the tick's patient actions and timers. Initial incident rules are:
 

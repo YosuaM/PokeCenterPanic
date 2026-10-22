@@ -3,6 +3,26 @@ import { HEALING_INTERACTION_POINT, MAP_OBSTACLES, isWalkable, PLAYER_HALF_WIDTH
 import { RoomMovement } from './RoomMovement.js';
 
 describe('RoomMovement', () => {
+  it('stops round input and resets spawns without reviving reservations or accepting old sequences', () => {
+    const movement = new RoomMovement();
+    const spawn = { ...movement.add('red').position };
+    movement.add('blue');
+    movement.accept('red', { direction: 'right', sequence: 4, roundId: 'first' }, 0, 'first');
+    movement.advance(50, 50);
+    const moved = { ...movement.position('red')! };
+    movement.stopAll();
+    movement.advance(50, 100);
+    expect(movement.position('red')).toEqual(moved);
+    movement.suspend('blue');
+    movement.resetRound();
+    expect(movement.position('red')).toEqual(spawn);
+    expect(movement.facing('red')).toBe('up');
+    expect(movement.position('blue')).toBeUndefined();
+    expect(movement.accept('red', { direction: 'left', sequence: 4, roundId: 'second' }, 200, 'second')).toBe(false);
+    expect(movement.accept('red', { direction: 'left', sequence: 5, roundId: 'first' }, 200, 'second')).toBe(false);
+    expect(movement.accept('red', { direction: 'left', sequence: 5, roundId: 'second' }, 200, 'second')).toBe(true);
+  });
+
   it('ignores input from another round', () => {
     const movement = new RoomMovement();
     movement.add('red');

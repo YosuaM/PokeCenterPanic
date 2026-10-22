@@ -1,12 +1,14 @@
 import { ErrorCode, Room, ServerError, type Client } from 'colyseus';
-import { PLAYER_CHARACTERS, type PlayerCharacter, type PlayerInput, type PlayerPresence } from '@pokecenter/shared';
+import { PLAYER_CHARACTERS, ROUND_DURATION_MS, type PlayerCharacter, type PlayerInput, type PlayerPresence } from '@pokecenter/shared';
 import { normalizeRoomCode, validatePlayerName, type RoomDirectory } from './RoomDirectory.js';
 import { RoomMovement } from './RoomMovement.js';
 import { RoomLobby, type LobbyResult } from './RoomLobby.js';
 import { RoomPatients } from './RoomPatients.js';
 import { RoomArrivals } from './RoomArrivals.js';
-import { RoomMedicine, isMedicineInteractionRequest } from './RoomMedicine.js';
-import { PlayerState, RoomState } from './RoomState.js';
+import { RoomRound } from './RoomRound.js';
+import { RoomIncidents } from './RoomIncidents.js';
+import { RoomMedicine, isSequencedInteractionRequest } from './RoomMedicine.js';
+import { PlayerState, RoomState, roomHealingMachines } from './RoomState.js';
 
 export interface PrivateRoomOptions {
   creationSecret: string;
@@ -15,26 +17,41 @@ export interface PrivateRoomOptions {
 }
 
 export function createPrivateRoomType(directory: RoomDirectory, capacity: number, creationSecret: string,
-  countdownMs = 3_000, reconnectMs = 30_000, emptyRoomMs = 60_000): new () => Room {
+  countdownMs = 3_000, reconnectMs = 30_000, emptyRoomMs = 60_000,
+  roundDurationMs = ROUND_DURATION_MS): new () => Room {
   return class PrivatePrototypeRoom extends Room<{ state: RoomState }> {
     private code = '';
     private creatorKey = '';
     private readonly reconnectUntil = new Map<string, number>();
     private emptyRoomTimer: ReturnType<typeof setTimeout> | undefined;
     private lastReservationBroadcastAt = 0;
-    private lastPatientUpdateAt = 0;
     private readonly movement = new RoomMovement();
     state = new RoomState();
     private readonly patients = new RoomPatients(this.state);
-    private readonly arrivals = new RoomArrivals(this.state, this.patients);
+    private readonly arrivals = new RoomArrivals(this.state, this.patients, Math.random, roundDurationMs);
     private readonly medicine = new RoomMedicine(this.state,
       (event) => this.broadcast('medicine:discarded', event));
     private readonly lobby = new RoomLobby(this.state, countdownMs);
+    private readonly incidents = new RoomIncidents(this.state);
+    private readonly round = new RoomRound(this.state, this.patients, this.medicine,
+      this.movement, roundDurationMs, this.incidents);
 
-    private advancePatientClock(now: number): void {
-      if (this.state.phase !== 'running') return;
-      this.patients.advance(Math.max(0, now - this.lastPatientUpdateAt));
-      this.lastPatientUpdateAt = now;
+    private advanceRound(now: number): void {
+      this.round.advance(now);
+      directory.setPhase(this.roomId, this.lobby.phase());
+    }
+
+    private resetGameplay(): void {
+      this.patients.reset();
+      this.medicine.reset();
+      this.arrivals.reset();
+      this.round.reset();
+      this.movement.resetRound();
+      for (const [id, player] of this.state.players) {
+        const position = this.movement.position(id);
+        if (position) Object.assign(player, position);
+        player.facing = 'up';
+      }
     }
 
     private roster(): PlayerPresence[] {
@@ -71,16 +88,17 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       this.setTimestep((elapsedMs) => {
         const now = performance.now();
         if (this.lobby.advance(now)) {
-          this.lastPatientUpdateAt = now;
-          this.arrivals.reset();
+          this.resetGameplay();
+          this.round.start(now);
           directory.setPhase(this.roomId, 'running');
         }
         if (this.state.phase === 'running') {
-          this.advancePatientClock(now);
-          this.medicine.advance(now, (id) => this.movement.position(id),
-            (id) => this.movement.facing(id));
-          this.movement.advance(elapsedMs, now);
-          this.arrivals.advance(elapsedMs);
+          this.advanceRound(now);
+          if (this.state.phase === 'running') {
+            this.movement.advance(elapsedMs, now);
+            this.incidents.evaluate(now, roundDurationMs - this.state.roundRemainingMs);
+            this.arrivals.advance(elapsedMs, roundDurationMs - this.state.roundRemainingMs);
+          }
         }
         if (this.reconnectUntil.size && Date.now() - this.lastReservationBroadcastAt >= 1_000) {
           this.lastReservationBroadcastAt = Date.now();
@@ -114,12 +132,23 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
         if (result.ok) directory.setPhase(this.roomId, 'countdown');
         respond(client, result);
       });
+      this.onMessage('game:replay', (client, value: unknown) => {
+        const result = this.lobby.replay(client.sessionId, value);
+        if (result.ok) {
+          this.resetGameplay();
+          directory.setPhase(this.roomId, 'lobby');
+        }
+        respond(client, result, true);
+      });
       this.onMessage('player:input', (client, input: unknown) => {
+        this.advanceRound(performance.now());
         if (this.state.phase === 'running') {
           const now = performance.now();
           if (this.movement.accept(client.sessionId, input, now, this.state.roundId)) {
             const accepted = input as PlayerInput;
             this.medicine.onInput(client.sessionId, accepted.interactHeld === true,
+              accepted.direction, now);
+            this.incidents.onInput(client.sessionId, accepted.interactHeld === true,
               accepted.direction, now);
           }
         }
@@ -127,12 +156,13 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
       this.onMessage('medicine:interact', (client, input: unknown) => {
         const playerId = client.sessionId;
         const now = performance.now();
-        this.advancePatientClock(now);
+        this.advanceRound(now);
         const player = this.state.players.get(playerId);
         const position = this.movement.position(playerId);
         const facing = this.movement.facing(playerId);
         if (this.state.phase !== 'running' || !player || !position || !facing ||
-          !isMedicineInteractionRequest(input) ||
+          this.incidents.requiresRelease(playerId) ||
+          !isSequencedInteractionRequest(input) ||
           !this.movement.acceptAction(playerId, input.sequence, input.roundId, this.state.roundId)) {
           client.send('medicine:result', { ok: false, reason: 'Interaction unavailable or stale' });
           return;
@@ -141,13 +171,26 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
           now, this.movement.isStationary(playerId, now)));
       });
       this.onMessage('patient:interact', (client, input: unknown) => {
-        this.advancePatientClock(performance.now());
+        const now = performance.now();
+        this.advanceRound(now);
         const player = this.state.players.get(client.sessionId);
         const position = this.movement.position(client.sessionId);
         const facing = this.movement.facing(client.sessionId);
         if (this.state.phase !== 'running' || !player || !position || !facing ||
-          player.carriedMedicineId || this.medicine.isPreparing(client.sessionId)) {
+          this.medicine.requiresRelease(client.sessionId) ||
+          !isSequencedInteractionRequest(input) ||
+          !this.movement.acceptAction(client.sessionId, input.sequence, input.roundId, this.state.roundId)) {
           client.send('patient:result', { ok: false, reason: 'Interaction unavailable' });
+          return;
+        }
+        const machine = /^healing:([01])$/.exec(input.targetId);
+        if (machine && roomHealingMachines(this.state)[Number(machine[1])]!.status === 'broken') {
+          client.send('patient:result', this.incidents.interact(client.sessionId, input, position,
+            facing, now, this.movement.isStationary(client.sessionId, now)));
+          return;
+        }
+        if (player.carriedMedicineId || this.incidents.requiresRelease(client.sessionId)) {
+          client.send('patient:result', { ok: false, reason: 'Empty hands and release E before interacting' });
           return;
         }
         client.send('patient:result', this.patients.interact(client.sessionId, input, position, facing));
@@ -188,11 +231,12 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
     }
 
     onDrop(client: Client): void {
-      this.advancePatientClock(performance.now());
+      this.advanceRound(performance.now());
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
       this.patients.releaseCarrier(client.sessionId);
       this.medicine.releaseCarrier(client.sessionId);
+      this.incidents.releasePlayer(client.sessionId);
       this.movement.suspend(client.sessionId);
       player.connected = false;
       this.reconnectUntil.set(client.sessionId, Date.now() + reconnectMs);
@@ -222,17 +266,17 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
     }
 
     onLeave(client: Client): void {
-      this.advancePatientClock(performance.now());
+      this.advanceRound(performance.now());
       this.patients.releaseCarrier(client.sessionId);
       this.medicine.releaseCarrier(client.sessionId);
+      this.incidents.releasePlayer(client.sessionId);
       this.movement.remove(client.sessionId);
       this.state.players.delete(client.sessionId);
       this.reconnectUntil.delete(client.sessionId);
       this.lobby.departed(client.sessionId);
       if (!this.state.players.size) {
         this.lobby.resetEmpty();
-        this.patients.reset();
-        this.medicine.reset();
+        this.resetGameplay();
       }
       directory.setPhase(this.roomId, this.lobby.phase());
       this.broadcast('lobby:players', this.roster());

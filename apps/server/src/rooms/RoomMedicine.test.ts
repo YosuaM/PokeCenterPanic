@@ -53,6 +53,131 @@ function apply(medicine: RoomMedicine, targetId: string, patientId: string,
 }
 
 describe('RoomMedicine', () => {
+  it.each([
+    { lastHeld: 1800, exclusive: false, doses: 1 },
+    { lastHeld: 1750, exclusive: false, doses: 0 },
+    { lastHeld: 1900, exclusive: true, doses: 0 },
+  ])('orders preparation, input expiry and deadline boundaries: %j', ({ lastHeld, exclusive, doses }) => {
+    const { state, medicine, prep } = setup();
+    expect(prep().ok).toBe(true);
+    for (let now = 100; now <= lastHeld; now += 100) medicine.onInput('red', true, null, now);
+    medicine.onInput('red', true, null, lastHeld);
+    medicine.advance(exclusive ? 2000 : 2100, () => prepPosition, () => 'up', exclusive);
+    expect(state.medicineDoses.size).toBe(doses);
+  });
+
+  it('clears carried doses, surfaces, preparation ownership and release latches on reset', () => {
+    const { state, medicine, prep, tick, surface } = setup();
+    prep();
+    for (let now = 100; now <= 2000; now += 100) tick(now);
+    medicine.onInput('red', false, null, 2000);
+    surface('red', 0);
+    medicine.onInput('red', false, null, 2100);
+    giveDose(state, 'antidote');
+    prep('blue', 2200, 1);
+    medicine.reset();
+    expect(state.medicineDoses.size).toBe(0);
+    expect([...state.medicineSurfaces]).toEqual(['', '', '', '']);
+    expect([...state.medicinePreparationOwners]).toEqual(['', '']);
+    expect(state.players.get('red')!.carriedMedicineId).toBe('');
+    expect(prep('blue', 3000, 1).ok).toBe(true);
+    expect(() => medicine.assertOwnership()).not.toThrow();
+  });
+
+  it.each([
+    { index: 0, position: { x: 400, y: -76 } },
+    { index: 0, position: { x: 278, y: 15 } },
+    { index: 1, position: { x: 560, y: -76 } },
+    { index: 1, position: { x: 682, y: 15 } },
+  ])('prepares medicine $index from $position while facing changes', ({ index, position }) => {
+    const { state, medicine } = setup();
+    const request = { targetId: `medicine:prep:${index}`, expectedOccupantId: '', sequence: 1, roundId: 'round' };
+    expect(medicine.interact('red', request, position, 'left', 0, true).ok).toBe(true);
+    expect(medicine.interact('blue', request, position, 'right', 0, true).reason).toBe('Preparation point occupied');
+    const directions = ['up', 'down', 'left', 'right'] as const;
+    for (let now = 100; now <= 2000; now += 100) {
+      medicine.onInput('red', true, null, now);
+      medicine.advance(now, () => position, () => directions[(now / 100) % directions.length]);
+    }
+    expect(state.medicineDoses.get('dose-1')?.kind).toBe(index === 0 ? 'burnHeal' : 'antidote');
+    expect(state.players.get('red')!.carriedMedicineId).toBe('dose-1');
+    medicine.advance(2200, () => position, () => 'down');
+    expect(state.medicineDoses.size).toBe(1);
+    expect(() => medicine.assertOwnership()).not.toThrow();
+  });
+
+  it('cancels preparation when leaving its region even while adjacent to another section of the table', () => {
+    const { state, medicine } = setup();
+    const request = { targetId: 'medicine:prep:0', expectedOccupantId: '', sequence: 1, roundId: 'round' };
+    expect(medicine.interact('red', request, { x: 400, y: -76 }, 'up', 0, true).ok).toBe(true);
+    medicine.onInput('red', true, null, 100);
+    medicine.advance(100, () => ({ x: 560, y: -76 }), () => 'up');
+    expect(medicine.isPreparing('red')).toBe(false);
+    expect([...state.medicinePreparationOwners]).toEqual(['', '']);
+    expect(state.medicineDoses.size).toBe(0);
+  });
+
+  it.each(['up', 'down', 'left', 'right'] as const)(
+    'stores, claims, and discards a dose once without requiring %s facing', (facing) => {
+      const { state, medicine, onDiscard } = setup();
+      giveDose(state, 'burnHeal');
+      const surfaceRequest = { targetId: 'medicine:surface:0', expectedOccupantId: '', sequence: 1, roundId: 'round' };
+      expect(medicine.interact('red', surfaceRequest, { x: 366, y: 125 }, facing, 0, true).ok).toBe(true);
+      medicine.onInput('red', false, null, 10);
+      const pickup = { ...surfaceRequest, expectedOccupantId: 'test-dose' };
+      expect(medicine.interact('red', pickup, { x: 390, y: 149 }, facing, 20, true).ok).toBe(true);
+      expect(medicine.interact('blue', pickup, { x: 366, y: 125 }, facing, 20, true).ok).toBe(false);
+      medicine.onInput('red', false, null, 30);
+      const discard = { ...pickup, targetId: 'medicine:disposal' };
+      expect(medicine.interact('red', discard, { x: 480, y: -76 }, facing, 40, true).ok).toBe(true);
+      medicine.onInput('red', false, null, 50);
+      expect(medicine.interact('red', discard, { x: 480, y: -76 }, facing, 60, true).ok).toBe(false);
+      expect(onDiscard).toHaveBeenCalledOnce();
+      expect(state.medicineDoses.size).toBe(0);
+      expect(() => medicine.assertOwnership()).not.toThrow();
+    });
+
+  it.each([
+    { x: 40, y: -66 }, { x: 40, y: 131 },
+    { x: -102, y: 33 }, { x: 181, y: 33 },
+    { x: -102, y: -66 }, { x: 181, y: 131 },
+  ])('applies medicine once to a completed machine patient from adjacent position %j', (position) => {
+    const { state, medicine, patients } = setup();
+    const patient = patients.admit('Pikachu', TREATMENT.healing | TREATMENT.burnHeal, 0)!;
+    patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
+      { x: 177, y: 354 }, 'up');
+    patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' }, position, 'up');
+    giveDose(state, 'burnHeal');
+    expect(apply(medicine, 'healing:0', patient.id, position).reason).toBe('Healing machine unavailable');
+    patients.advance(4000);
+    expect(apply(medicine, 'healing:0', 'stale-patient', position).reason).toBe('Patient changed or removed');
+    expect(state.medicineDoses.has('test-dose')).toBe(true);
+    expect(apply(medicine, 'healing:0', patient.id, position).ok).toBe(true);
+    expect(patient.completedTreatments).toBe(TREATMENT.healing | TREATMENT.burnHeal);
+    expect(state.medicineDoses.size).toBe(0);
+    medicine.onInput('red', false, null, 10);
+    expect(apply(medicine, 'healing:0', patient.id, position).ok).toBe(false);
+    expect(() => medicine.assertOwnership()).not.toThrow();
+    expect(() => patients.assertOwnership()).not.toThrow();
+  });
+
+  it.each([{ x: 40, y: 156 }, { x: 206, y: 33 }, { x: 40, y: 33 }])(
+    'keeps medicine and machine treatment unchanged outside adjacent walkable space %j', (position) => {
+      const { state, medicine, patients } = setup();
+      const patient = patients.admit('Pikachu', TREATMENT.healing | TREATMENT.burnHeal, 0)!;
+      patients.interact('red', { targetId: 'reception:0', expectedOccupantId: patient.id },
+        { x: 177, y: 354 }, 'up');
+      patients.interact('red', { targetId: 'healing:0', expectedOccupantId: '' },
+        HEALING_INTERACTION_POINT, 'left');
+      patients.advance(4000);
+      giveDose(state, 'burnHeal');
+      expect(apply(medicine, 'healing:0', patient.id, position).reason).toBe('Target out of range');
+      expect(state.medicineDoses.has('test-dose')).toBe(true);
+      expect(patient.completedTreatments).toBe(TREATMENT.healing);
+      expect(() => medicine.assertOwnership()).not.toThrow();
+      expect(() => patients.assertOwnership()).not.toThrow();
+    });
+
   it('rejects medicine after patience expires without consuming the dose or reviving the patient', () => {
     const { state, medicine, patients } = setup();
     const patient = patients.admit('Charmander', TREATMENT.burnHeal, 0)!;
@@ -261,9 +386,15 @@ describe('RoomMedicine', () => {
     const cases = [
       { target: 'reception:0', position: { x: 177, y: 354 }, facing: 'up' as const,
         location: 'reception' as const },
+      { target: 'reception:0', position: { x: 177, y: 208 }, facing: 'up' as const,
+        location: 'reception' as const },
       { target: 'waiting:0', position: { x: 130, y: 530 }, facing: 'down' as const,
         location: 'waiting' as const },
+      { target: 'waiting:0', position: { x: 130, y: 689 }, facing: 'down' as const,
+        location: 'waiting' as const },
       { target: 'recovery', position: { x: 872, y: 110 }, facing: 'down' as const,
+        location: 'recovery' as const },
+      { target: 'recovery', position: { x: 1062, y: 185 }, facing: 'up' as const,
         location: 'recovery' as const },
       { target: 'healing:0', position: HEALING_INTERACTION_POINT, facing: 'left' as const,
         location: 'healingMachine' as const },
