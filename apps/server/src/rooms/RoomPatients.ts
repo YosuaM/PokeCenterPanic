@@ -3,7 +3,7 @@ import {
   RECOVERY_INTERACTION_POINT, RECOVERY_POSITION, HEALING_MACHINE_POSITIONS, RECEPTION_INTERACTION_POINTS,
   RECEPTION_SLOT_POSITIONS, TREATMENT, WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS,
   isInteractionReachable, isValidTreatmentSet, patientPresentation, patientTravelDuration, patientTravelPose,
-  stationInteractionBounds, dischargePoints,
+  stationInteractionBounds, dischargePoints, streakBonus,
   PATIENT_ELEVATIONS,
   type Direction, type PatientInteractionRequest, type PatientInteractionResult,
   type PatientSpecies, type Point,
@@ -29,6 +29,8 @@ export class RoomPatients {
     state.lostCount = 0;
     state.admittedCount = 0;
     state.score = 0;
+    state.streak = 0;
+    state.bestStreak = 0;
     for (let index = 0; index < RECEPTION_SLOT_POSITIONS.length; index += 1) {
       state.receptionSlots.push('');
     }
@@ -51,15 +53,18 @@ export class RoomPatients {
     this.state.lostCount = 0;
     this.state.admittedCount = 0;
     this.state.score = 0;
+    this.state.streak = 0;
+    this.state.bestStreak = 0;
     for (const player of this.state.players.values()) player.carriedPatientId = '';
     this.recoveryEnteredAt.clear();
     this.nextId = 1;
   }
 
   admit(species: PatientSpecies, requiredTreatments: number, slotIndex: number,
-    location: 'reception' | 'waiting' = 'reception'): PatientState | null {
+    location: 'reception' | 'waiting' = 'reception', patienceMs = PROTOTYPE_PATIENCE_MS): PatientState | null {
     const slots = location === 'waiting' ? this.state.waitingSlots : this.state.receptionSlots;
     if (!PATIENT_SPECIES.includes(species) || !isValidTreatmentSet(requiredTreatments) ||
+      !Number.isFinite(patienceMs) || patienceMs <= 0 ||
       !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= slots.length ||
       slots[slotIndex] !== '' ||
       [...this.state.patients.values()].filter((patient) => patient.lifecycle === 'active').length >= MAX_ACTIVE_PATIENTS) {
@@ -71,8 +76,8 @@ export class RoomPatients {
     patient.species = species;
     patient.requiredTreatments = requiredTreatments;
     patient.completedTreatments = 0;
-    patient.initialPatienceMs = PROTOTYPE_PATIENCE_MS;
-    patient.remainingPatienceMs = PROTOTYPE_PATIENCE_MS;
+    patient.initialPatienceMs = patienceMs;
+    patient.remainingPatienceMs = patienceMs;
     patient.lifecycle = 'active';
     patient.location = location;
     patient.slotIndex = slotIndex;
@@ -161,6 +166,7 @@ export class RoomPatients {
     patient.travelElapsedMs = 0;
     this.state.lostCount += 1;
     this.state.score -= 50;
+    this.state.streak = 0;
   }
 
   finishRound(): void {
@@ -390,7 +396,9 @@ export class RoomPatients {
     patient.travelKind = 'leaving';
     patient.travelElapsedMs = 0;
     this.state.dischargedCount += 1;
-    this.state.score += dischargePoints(patient);
+    this.state.streak += 1;
+    this.state.bestStreak = Math.max(this.state.bestStreak, this.state.streak);
+    this.state.score += dischargePoints(patient) + streakBonus(this.state.streak);
     this.assertOwnership();
     return { ok: true, reason: '' };
   }

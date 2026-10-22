@@ -151,6 +151,7 @@ export class LobbyController {
           roundId?: string;
           roundRemainingMs?: number;
           score?: number;
+          streak?: number;
           results?: RoundResults;
         };
         const players = snapshot.players;
@@ -179,10 +180,12 @@ export class LobbyController {
         }
         if (typeof snapshot.roundRemainingMs === 'number' && typeof snapshot.score === 'number') {
           this.view.showRound({ remainingMs: snapshot.roundRemainingMs, score: snapshot.score,
+            streak: snapshot.streak ?? 0,
             results: snapshot.phase === 'results' && snapshot.results ? {
               score: snapshot.results.score, admitted: snapshot.results.admitted,
               discharged: snapshot.results.discharged, lost: snapshot.results.lost,
-              unfinished: snapshot.results.unfinished, stars: snapshot.results.stars } : null });
+              unfinished: snapshot.results.unfinished, stars: snapshot.results.stars,
+              bestStreak: snapshot.results.bestStreak ?? 0 } : null });
         }
       };
       room.onStateChange(updateState);

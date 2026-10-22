@@ -58,6 +58,7 @@ export const RoundResultsState = schema({
   lost: t.number(),
   unfinished: t.number(),
   stars: t.number(),
+  bestStreak: t.number(),
 }, 'RoundResultsState');
 
 export const RoomState = schema({
@@ -76,6 +77,8 @@ export const RoomState = schema({
   lostCount: t.number(),
   admittedCount: t.number(),
   score: t.number(),
+  streak: t.number(),
+  bestStreak: t.number(),
   roundRemainingMs: t.number(),
   results: RoundResultsState,
   phase: t.string(),

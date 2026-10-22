@@ -49,7 +49,7 @@ export class RoomRound {
     this.state.roundRemainingMs = Math.max(0, this.deadline - now);
     if (!ending) return;
     Object.assign(this.state.results, roundResults(this.state.score, this.state.admittedCount,
-      this.state.dischargedCount, this.state.lostCount));
+      this.state.dischargedCount, this.state.lostCount, this.state.bestStreak));
     this.patients.finishRound();
     this.incidents?.finishRound();
     this.medicine.reset();

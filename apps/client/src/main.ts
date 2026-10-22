@@ -53,7 +53,7 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
     if (snapshot.phase !== 'running' && game.loop.running) game.loop.sleep();
   },
   showRound(snapshot) {
-    mapScene().setRoundProgress(snapshot.remainingMs, snapshot.score);
+    mapScene().setRoundProgress(snapshot.remainingMs, snapshot.score, snapshot.streak);
     if (snapshot.results) ui.showResults(snapshot.results);
   },
   showLobbyResult: (reason) => ui.showStatus(reason),

@@ -1,7 +1,8 @@
 import { LOGICAL_WIDTH, LOGICAL_HEIGHT, MAX_RENDER_SCALE, observeRenderSize } from '../renderResolution.js';
 import { MAP_2D_SCALE, mapViewportPoint } from './mapViewport.js';
 import Phaser from 'phaser';
-import { roundClock } from '../rooms/roundPresentation.js';
+import { roundProgressLabel } from '../rooms/roundPresentation.js';
+import { ContextualHints, hintActionFor, type HintAction } from './contextualHints.js';
 import { DISCHARGE_INTERACTION_POINT, DISCHARGE_POSITION, HEALING_DURATION_MS,
   HEALING_MACHINE_POSITION, MAP_OBSTACLES, MEDICINE_DISPOSAL_POINT,
   HEALING_MACHINE_POSITIONS, HEALING_INTERACTION_POINTS,
@@ -67,6 +68,10 @@ export class MapScene extends Phaser.Scene {
   private inputSender: ((direction: Direction | null, interactHeld: boolean) => void) | null = null;
   private interactionSender: ((request: PatientInteractionRequest) => void) | null = null;
   private interactionHint!: Phaser.GameObjects.Text;
+  private tipText!: Phaser.GameObjects.Text;
+  private controlsLabel?: Phaser.GameObjects.Text;
+  private readonly hints = new ContextualHints();
+  private hintAction: HintAction | null = null;
   private patientInfoText!: Phaser.GameObjects.Text;
   private patienceText!: Phaser.GameObjects.Text;
   private patienceTrack!: Phaser.GameObjects.Rectangle;
@@ -108,6 +113,7 @@ export class MapScene extends Phaser.Scene {
   private roundProgressText!: Phaser.GameObjects.Text;
   private roundRemainingMs = 360_000;
   private roundScore = 0;
+  private roundStreak = 0;
   private healingMachine: HealingMachineSnapshot = { patientId: '', status: 'empty', remainingMs: 0 };
   private secondHealingMachine: HealingMachineSnapshot = { patientId: '', status: 'empty', remainingMs: 0 };
   private selectedTarget: InteractionTarget | null = null;
@@ -196,6 +202,9 @@ export class MapScene extends Phaser.Scene {
       color: '#ffffff', backgroundColor: '#10243bcc', fontFamily: 'monospace', fontSize: '14px', wordWrap: { width: 410 },
       padding: { x: 0, y: 0 },
     }).setDepth(2001);
+    this.tipText = this.createText(32, 513, '', {
+      color: '#ffde8b', fontFamily: 'Trebuchet MS, sans-serif', fontSize: '10px', fontStyle: 'bold',
+    }).setDepth(2002).setVisible(false);
     this.patientInfoText = this.createText(492, 480, '', {
       color: '#f8eac8', fontFamily: 'Trebuchet MS, sans-serif', fontSize: '13px',
       lineSpacing: 3, wordWrap: { width: 432 },
@@ -284,7 +293,7 @@ export class MapScene extends Phaser.Scene {
     this.lostCountText = this.createText(740, 53, 'LOST: 0', {
       color: '#ff9f9f', fontFamily: 'monospace', fontSize: '13px',
     }).setDepth(2002);
-    this.roundProgressText = this.createText(740, 18, `${roundClock(this.roundRemainingMs)} · SCORE: ${this.roundScore}`, {
+    this.roundProgressText = this.createText(740, 18, roundProgressLabel(this.roundRemainingMs, this.roundScore, this.roundStreak), {
       color: '#ffde8b', fontFamily: 'monospace', fontSize: '11px',
     }).setDepth(2002);
     this.waitingStatusText = this.createText(260, 31, '', {
@@ -486,10 +495,11 @@ export class MapScene extends Phaser.Scene {
     if (this.sys.isActive()) this.lostCountText.setText(`LOST: ${count}`);
   }
 
-  setRoundProgress(remainingMs: number, score: number): void {
+  setRoundProgress(remainingMs: number, score: number, streak = 0): void {
     this.roundRemainingMs = remainingMs;
     this.roundScore = score;
-    if (this.sys.isActive()) this.roundProgressText?.setText(`${roundClock(remainingMs)} · SCORE: ${score}`);
+    this.roundStreak = streak;
+    if (this.sys.isActive()) this.roundProgressText?.setText(roundProgressLabel(remainingMs, score, streak));
   }
 
   setAuthoritativePositions(positions: PlayerPosition[]): void {
@@ -632,6 +642,7 @@ export class MapScene extends Phaser.Scene {
       if (event.repeat) return;
       this.interactHeld = true;
       if (this.selectedTarget) {
+        this.hints.markUsed(this.hintAction);
         this.interactionSender?.({
           targetId: this.selectedTarget.id,
           expectedOccupantId: this.selectedTarget.expectedOccupantId,
@@ -1037,6 +1048,10 @@ export class MapScene extends Phaser.Scene {
         selected.label : `E: ${selected.label}` : 'Approach a station or patient');
     this.interactionHint.setStyle({ backgroundColor: this.interactionFeedback ? '#8a2222' : '#10243bcc',
       color: '#ffffff' });
+    this.hintAction = selected && !this.interactionFeedback ? hintActionFor(selected.id, selected.label) : null;
+    const tip = this.hints.text(this.hintAction);
+    this.tipText.setText(tip).setVisible(Boolean(tip));
+    this.controlsLabel?.setVisible(!tip);
     const patient = this.patients.find((entry) => entry.lifecycle === 'active' &&
       entry.id === local?.carriedPatientId) ?? this.patients.find((entry) =>
       entry.lifecycle === 'active' && entry.id === selected?.expectedOccupantId);
@@ -1212,7 +1227,7 @@ export class MapScene extends Phaser.Scene {
     label(260, 18, 'WAITING ROOM');
     label(500, 18, 'HEALING MACHINES');
     label(32, 461, 'NEXT ACTION');
-    label(32, 513, 'WASD / ARROWS  Move     E  Interact / hold to prepare');
+    this.controlsLabel = label(32, 513, 'WASD / ARROWS  Move     E  Interact / hold to prepare');
     label(492, 461, 'PATIENT FILE');
     label(26, 101, 'WAITING PATIENTS', 11);
     label(26, 116, '> Ready   ! Urgent', 8);

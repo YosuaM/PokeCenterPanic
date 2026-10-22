@@ -4,6 +4,7 @@ import { TREATMENT, isWalkable } from '@pokecenter/shared';
 vi.mock('phaser', () => ({ default: { Scene: class {}, Textures: { FilterMode: { NEAREST: 0 } } } }));
 
 import { MapScene } from './MapScene.js';
+import { HINT_TEXT } from './contextualHints.js';
 import { mapViewportPoint } from './mapViewport.js';
 import { visualFixture } from './visualFixtures.js';
 import type { SpriteManifest } from '../sprites/pmd.js';
@@ -882,6 +883,32 @@ describe('MapScene', () => {
     const hint = text.mock.results.find((result) => result.value.x === 32 &&
       result.value.y === 477)?.value;
     expect(hint?.setText).toHaveBeenLastCalledWith('E: Empty hands to repair outage');
+  });
+  it('shows a first-use tip in place of the controls until the player performs that action', () => {
+    const { scene, text, keyboardListeners } = setup();
+    const footer = text.mock.results.map((result) => result.value)
+      .filter((value) => value.x === 32 && value.y === 513);
+    const controls = footer.find((value) => value.content.startsWith('WASD'))!;
+    const tip = footer.find((value) => value.content === '')!;
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setGameplayActive(true);
+    const send = vi.fn();
+    scene.setInteractionSender(send);
+    scene.setAuthoritativePositions([{ id: 'red', x: 180, y: 33, facing: 'left', carriedPatientId: '' }]);
+    scene.setHealingMachine({ patientId: '', status: 'broken', remainingMs: 0 });
+    expect(tip.setText).toHaveBeenLastCalledWith(HINT_TEXT.repair);
+    expect(tip.setVisible).toHaveBeenLastCalledWith(true);
+    expect(controls.setVisible).toHaveBeenLastCalledWith(false);
+    scene.setInteractionResult({ ok: false, reason: 'Repair in progress' });
+    expect(tip.setVisible).toHaveBeenLastCalledWith(false);
+    scene.setInteractionResult({ ok: true, reason: '' });
+    expect(tip.setVisible).toHaveBeenLastCalledWith(true);
+    keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    keyboardListeners.get('keyup')?.({ code: 'KeyE' } as KeyboardEvent);
+    expect(send).toHaveBeenCalledWith({ targetId: 'healing:0', expectedOccupantId: '' });
+    scene.setHealingMachine({ patientId: '', status: 'broken', remainingMs: 0 });
+    expect(tip.setVisible).toHaveBeenLastCalledWith(false);
+    expect(controls.setVisible).toHaveBeenLastCalledWith(true);
   });
   it('labels rejected interactions and clears the rejection when target changes', () => {
     const { scene, text } = setup();

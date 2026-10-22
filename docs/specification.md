@@ -1,7 +1,7 @@
 # PokéCenter Panic
 **Functional and technical specification**
 
-**Version:** 0.2 — MVP rules and acceptance scenarios\
+**Version:** 0.3 — Difficulty schedule, guided opening, streaks and first-use tips\
 **Status:** Implementation baseline; balance values pending playtests\
 **Updated:** 2026-10-22\
 **Type:** Noncommercial cooperative fan game\
@@ -339,7 +339,9 @@ Duration is configurable internally for testing, but the first version does not 
 
 ## 5.3. Difficulty scaling
 
-**Current playable prototype:** automatic admissions start after five seconds, then accelerate through three server-timed stages. The first patient is an injured Pikachu; subsequent species and the five valid treatment sets are sampled uniformly. Rounds last six minutes; admissions stop at 330 seconds, with authoritative scoring, frozen results and host-controlled replay. All admitted patients retain 90-second initial patience; movement, treatment and expiry keep their existing rules.
+**Current playable prototype:** automatic admissions start after five seconds, then accelerate through three server-timed stages. The first four admissions form a fixed guided opening that introduces one station at a time; later patients follow the treatment and patience schedule below. Rounds last six minutes; admissions stop at 330 seconds, with authoritative scoring, frozen results and host-controlled replay.
+
+**Guided opening:** the first four successful admissions of every round are, in order: an injured Pikachu (healing machine), a burned Charmander (Burn Heal), a poisoned Bulbasaur (Antidote), and an injured, burned Squirtle (both, in either order). They use the normal arrival timing, seats, saturation rules and the patience budget for their admission time. A skipped attempt does not consume an opening entry. The Pikachu remains eligible for the electric outage in section 6.1.
 
 The following are initial tuning values, not a claim of proven balance. Each table cell contains **arrival interval / maximum active patients**. Eight waiting seats are available throughout; the population cap also includes patients being carried, treated or held in recovery.
 
@@ -352,9 +354,9 @@ The following are initial tuning values, not a claim of proven balance. Each tab
 
 Each attempt schedules the next one full interval from the current server time. Stage boundaries affect the cap immediately and the interval scheduled by the next attempt; they never pull a pending arrival forward. For an uninterrupted solo session with capacity available, attempts occur at 5, 23, 41, 55, 69, 79, 89 and 99 seconds. This opens access to the second bench progressively instead of retaining the former four-patient solo ceiling. Patient loss can free seats before those attempts; full occupancy is not forced when staff keep up with care.
 
-Only positive, finite running-phase time advances the stage clock. Resetting the round resets the stage, first-arrival timer and introductory patient. No connected staff means no admissions, while stage time and existing patience continue. Reconnecting schedules a full interval at the current stage.
+Only positive, finite running-phase time advances the stage clock. Resetting the round resets the stage, first-arrival timer and guided opening. No connected staff means no admissions, while stage time and existing patience continue. Reconnecting schedules a full interval at the current stage.
 
-**Remaining difficulty work, not yet active:** weighted treatment selection and reduced patience budgets remain separately tracked. The proposed treatment/patience schedule below applies only when that work is implemented; it does not change current patient budgets or the implemented arrival table. The 330-second admission cutoff is already active.
+**Treatment and patience schedule:** after the guided opening, each admission samples its treatments and initial patience from the round time at admission. The schedule does not change the arrival table, and a patient's budget never changes after admission.
 
 | Elapsed round time | Chance of two treatments | Initial patience |
 |---|---:|---:|
@@ -363,7 +365,7 @@ Only positive, finite running-phase time advances the stage clock. Resetting the
 | 240–329.999 seconds | 40% | 70 seconds |
 | 330–359.999 seconds | No new arrivals | Existing budgets unchanged |
 
-Under that future treatment schedule, a two-treatment patient is equally likely to need injury plus burn or injury plus poison; single treatments and the six patient species are selected uniformly within their respective groups.
+Under this schedule, a two-treatment patient is equally likely to need injury plus burn or injury plus poison; single treatments and the six patient species are selected uniformly within their respective groups.
 
 **Saturation:** an attempt is skipped if all eight waiting slots are occupied or reserved, or the active-patient limit has been reached. No patient entity, score penalty, or admitted-patient statistic is created. Skipped attempts are not queued or replayed in a burst. The same rule applies to missed scheduler intervals after a server stall: make at most one current attempt, then schedule ahead. Active patients include all locations, including carriers, machines, and recovery.
 
@@ -381,10 +383,13 @@ Points are awarded only on successful discharge, never on treatment completion. 
 | Bonus for remaining patience | 0 to +50 |
 | Patient lost | −50 |
 | Patient unfinished at round end | 0 |
+| Discharge streak bonus | 0 to +50 |
 
 For each discharged patient, `bonus = floor(50 × remainingPatience / initialPatience)`, using the server's remaining patience at discharge. Clamp the ratio to 0–1; a zero-patience patient has already been lost and cannot be discharged. Pausing patience during healing never increases it.
 
-`score = 100 × discharged + sum(discharge bonuses) − 50 × lost`. Negative scores are allowed. Skipped arrival attempts do not count as patients or losses.
+**Discharge streak:** the server counts consecutive discharges since the round start or the most recent lost patient. The n-th discharge of a streak adds `min(50, 10 × (n − 1))`: nothing for the first, +10 for the second, up to +50 from the sixth onward. A lost patient resets the streak to zero; unfinished patients at the deadline do not affect it. The HUD shows the current streak from two discharges onward, and results show the round's best streak. Streaks reward a team that keeps every patient alive rather than one that triages aggressively.
+
+`score = 100 × discharged + sum(patience bonuses) + sum(streak bonuses) − 50 × lost`. Negative scores are allowed. Skipped arrival attempts do not count as patients or losses.
 
 At results, `admitted = discharged + lost + unfinished`. Success rate is `100 × discharged / admitted`; show one decimal place. If admitted is zero, display `N/A` and award zero stars. Use the exact ratio, before display rounding, for stars:
 
@@ -397,7 +402,7 @@ At results, `admitted = discharged + lost + unfinished`. Success rate is `100 ×
 
 These thresholds are initial tuning values shared by all team sizes; adapting arrivals provides the initial solo balance.
 
-**Worked example:** five patients were admitted. Three were discharged with initial patience of 90 seconds and remaining patience of 72, 45, and 18 seconds, giving bonuses of 40, 25, and 10. One patient was lost and one was unfinished. The score is `300 + 75 − 50 = 325`; success is `3 / 5 = 60.0%`, giving one star. The unfinished patient does not incur a loss penalty but remains in the success-rate denominator.
+**Worked example:** five patients were admitted. Three were discharged consecutively with initial patience of 90 seconds and remaining patience of 72, 45, and 18 seconds, giving patience bonuses of 40, 25, and 10 and streak bonuses of 0, 10, and 20. One patient was then lost and one was unfinished. The score is `300 + 75 + 30 − 50 = 355` with a best streak of three; success is `3 / 5 = 60.0%`, giving one star. The unfinished patient does not incur a loss penalty but remains in the success-rate denominator.
 
 The MVP has no global leaderboard or user accounts.
 
@@ -554,7 +559,9 @@ Information must remain readable without obscuring too much of the map.
 
 The current gameplay HUD reserves a top band for occupied/reserved waiting seats (out of eight), separate seated/arriving counts, recovery queue size, healing/repair status, and discharged/lost totals. A bottom action panel describes the selected E interaction or rejection; the adjacent patient file shows the selected or carried patient's name, unordered treatment checklist, HP, remaining patience in seconds and percent, and critical/paused states. With no patient selected, it explains how to inspect one. Full occupancy includes incoming reservations.
 
-A fixed eight-seat roster in the left margin names each waiting patient and shows numeric HP, remaining wait seconds, separate health/patience bars and only pending treatment icons. Reserved arrivals remain in their assigned row; empty or vacated seats show EMPTY. A gold outline connects the focused patient to the roster. World markers use matching seat numbers, compact pending/discharge icons, separate health and patience bars and an explicit critical marker; patients outside waiting show compact HP or READY labels. Full names and care details remain in the patient file. HUD bands use a fixed foreground layer above world labels, with matching clear space in both 3D and 2D. The in-game room code, roster and leave control occupy the right margin. The planned timer and score remain absent until their authoritative gameplay systems exist.
+A fixed eight-seat roster in the left margin names each waiting patient and shows numeric HP, remaining wait seconds, separate health/patience bars and only pending treatment icons. Reserved arrivals remain in their assigned row; empty or vacated seats show EMPTY. A gold outline connects the focused patient to the roster. World markers use matching seat numbers, compact pending/discharge icons, separate health and patience bars and an explicit critical marker; patients outside waiting show compact HP or READY labels. Full names and care details remain in the patient file. HUD bands use a fixed foreground layer above world labels, with matching clear space in both 3D and 2D. The in-game room code, roster and leave control occupy the right margin. The top band also shows the round clock, score and, from two consecutive discharges, the current streak and its bonus.
+
+**First-use tips:** the first time the local player can perform each kind of action — pick up a patient, seat one, start healing, prepare a dose, apply medicine, discharge, or repair — a one-line tip replaces the controls line of the action panel. Pressing E on that action dismisses the tip for the rest of the browser session. Tips never appear for rejected actions, never block input and are not synchronized; each player sees their own.
 
 ## 8.4. Patient indicators
 
@@ -976,7 +983,7 @@ The MVP is complete when the following scenarios pass. Deterministic server test
 | AC-11 | Expire a patient inside a broken machine, then finish repair | The patient is lost once, occupancy is released, and repair restores an empty working machine without completing the removed patient's treatment |
 | AC-12 | Fill reception or the active-patient limit, then advance several spawn intervals and free a slot | Attempts are skipped without entities, losses, or admitted-count changes; no accumulated burst occurs; the next scheduled eligible attempt admits one patient |
 | AC-13 | Run with 1, 2, 3, and 4 players; cross difficulty stages; disconnect a player while above the reduced cap | Configured intervals, treatment mixes, patience budgets, and caps apply; existing patients are preserved; future spawns use the new team size; no admission occurs at or after 330 seconds |
-| AC-14 | Reproduce section 5.4's five-patient scoring example and the empty-round case | Results show 325 points, three discharged, one lost, one unfinished, 60.0%, and one star; zero admissions give zero score, N/A success, and zero stars |
+| AC-14 | Reproduce section 5.4's five-patient scoring example and the empty-round case | Results show 355 points, three discharged, one lost, one unfinished, 60.0%, one star, and a best streak of three; zero admissions give zero score, N/A success, and zero stars |
 | AC-15 | Discharge before, exactly at, and after the round deadline; expire patience exactly at the deadline | Only the pre-deadline discharge succeeds; every remaining patient is unfinished; score/result snapshot never changes afterward; a pre-deadline patience/discharge tie instead produces one loss |
 | AC-16 | Disconnect while carrying a patient with all waiting slots full; separately disconnect with medicine and full surfaces | Within one simulation update after detection, patient enters accessible recovery unchanged, medicine is discarded, avatar disappears, and all player preparation/repair locks are released |
 | AC-17 | Abruptly lose transport; reconnect with a valid credential before 30 seconds, at expiry, and with an invalid credential | Detection meets the ten-second liveness bound; timely return restores only the reserved identity with empty hands; expired/invalid returns cannot reclaim that seat or inventory |
@@ -1018,7 +1025,7 @@ Consider these only after confirming that the core loop is fun.
 
 ## 16.1. Decisions fixed for the MVP
 
-| Topic | Version 0.2 decision |
+| Topic | Version 0.3 decision |
 |---|---|
 | Treatment order | Any compatible order; all required treatments must finish before discharge |
 | Patient state | Separate location, medical progress, and lifecycle; discharge readiness is derived |
@@ -1028,7 +1035,8 @@ Consider these only after confirming that the core loop is fun.
 | Patience | Paused only during advancing healing; continues during transport, outages, and the trip to discharge |
 | End of round | Hard 360-second deadline; remaining patients unfinished; explicit score, success, and stars in section 5.4 |
 | Room lifecycle | New joins only in lobby; automatic host transfer; 30-second reconnect reservation; 60-second empty-room disposal |
-| Difficulty | Initial tables for 1–4 players, bounded queues, skipped overflow arrivals, and a 30-second final clearing period |
+| Difficulty | Initial tables for 1–4 players, a four-patient guided opening, a timed two-treatment/patience schedule, bounded queues, skipped overflow arrivals, and a 30-second final clearing period |
+| Scoring incentives | Patience bonus per discharge plus a capped consecutive-discharge streak that a loss resets |
 | Prototype capacity | Two-seat validation in Phase 1; four-seat support and acceptance in Phase 3 |
 | Carrying visuals | Generic stretcher and condition-marked medicine bottle, with no species-pair animations |
 
@@ -1065,5 +1073,6 @@ The priority is to produce a playable prototype for friends quickly, learn from 
 |---|---|
 | 0.1 | Initial functional and technical draft |
 | 0.2 | Resolved treatment order and player collisions; separated patient state dimensions; added interaction and transition tables, solo medicine rules, patience and outage semantics, difficulty/saturation defaults, exact scoring and deadline behavior, room/reconnect/replay rules, measurable acceptance scenarios, and the prototype-to-four-player milestone |
+| 0.3 | Activated the timed two-treatment and patience schedule; added the four-patient guided opening, the discharge streak bonus with best streak in results, and first-use contextual tips |
 
-**End of document — Version 0.2**
+**End of document — Version 0.3**

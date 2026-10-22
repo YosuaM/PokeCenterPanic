@@ -79,11 +79,11 @@ describe('LobbyController', () => {
     await controller.create('Red');
     controller.replay();
     expect(room.send).not.toHaveBeenCalledWith('game:replay', expect.anything());
-    const results = { score: 325, admitted: 5, discharged: 3, lost: 1, unfinished: 1, stars: 1 };
-    snapshot({ phase: 'running', roundId: 'round-1', roundRemainingMs: 1, score: 325 });
-    expect(view.showRound).toHaveBeenLastCalledWith({ remainingMs: 1, score: 325, results: null });
-    snapshot({ phase: 'results', roundId: 'round-1', roundRemainingMs: 0, score: 325, results });
-    expect(view.showRound).toHaveBeenLastCalledWith({ remainingMs: 0, score: 325, results });
+    const results = { score: 355, admitted: 5, discharged: 3, lost: 1, unfinished: 1, stars: 1, bestStreak: 3 };
+    snapshot({ phase: 'running', roundId: 'round-1', roundRemainingMs: 1, score: 355, streak: 3 });
+    expect(view.showRound).toHaveBeenLastCalledWith({ remainingMs: 1, score: 355, streak: 3, results: null });
+    snapshot({ phase: 'results', roundId: 'round-1', roundRemainingMs: 0, score: 355, streak: 3, results });
+    expect(view.showRound).toHaveBeenLastCalledWith({ remainingMs: 0, score: 355, streak: 3, results });
     vi.mocked(room.send).mockClear();
     controller.sendInput('up');
     controller.sendInteraction({ targetId: 'discharge', expectedOccupantId: 'patient-1' });
@@ -98,7 +98,7 @@ describe('LobbyController', () => {
     controller.replay();
     expect(room.send).not.toHaveBeenCalled();
     snapshot({ phase: 'lobby', roundId: '', roundRemainingMs: 360000, score: 0 });
-    expect(view.showRound).toHaveBeenLastCalledWith({ remainingMs: 360000, score: 0, results: null });
+    expect(view.showRound).toHaveBeenLastCalledWith({ remainingMs: 360000, score: 0, streak: 0, results: null });
   });
 
   it('shows confirmed discards once and ignores old rounds, reconnection and departed rooms', async () => {

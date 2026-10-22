@@ -53,9 +53,55 @@ describe('room arrivals', () => {
       arrivals.advance(interval - 1);
       expect(state.patients.size).toBe(1);
       arrivals.advance(1);
-      expect(state.patients.get('patient-2')).toMatchObject({ species: 'Eevee',
-        requiredTreatments: TREATMENT.healing | TREATMENT.antidote, slotIndex: 1 });
+      expect(state.patients.get('patient-2')).toMatchObject({ species: 'Charmander',
+        requiredTreatments: TREATMENT.burnHeal, slotIndex: 1 });
     });
+
+  it('admits the guided opening first, then random patients with the scheduled patience budget', () => {
+    const { state, arrivals } = setup();
+    for (let index = 0; index < 5; index += 1) arrivals.advance(30000, 60000 + index * 30000);
+    expect([...state.patients.values()].map(({ species, requiredTreatments, initialPatienceMs,
+      remainingPatienceMs }) => [species, requiredTreatments, initialPatienceMs, remainingPatienceMs])).toEqual([
+      ['Pikachu', TREATMENT.healing, 90000, 90000],
+      ['Charmander', TREATMENT.burnHeal, 90000, 90000],
+      ['Bulbasaur', TREATMENT.antidote, 80000, 80000],
+      ['Squirtle', TREATMENT.healing | TREATMENT.burnHeal, 80000, 80000],
+      ['Eevee', TREATMENT.antidote, 80000, 80000],
+    ]);
+  });
+
+  it('draws two-treatment patients by the scheduled chance at each difficulty stage', () => {
+    const { state, patients } = setup();
+    const samples = [0, 0.39, 0.5, 0.99, 0.4, 0.99, 0.5, 0.09, 0, 0.5, 0.1, 0.34];
+    const arrivals = new RoomArrivals(state, patients, () => samples.shift() ?? 0);
+    for (let index = 0; index < 4; index += 1) arrivals.advance(30000, 60000);
+    for (const time of [240000, 250000, 100000, 110000]) arrivals.advance(30000, time);
+    expect(samples).toEqual([]);
+    expect([...state.patients.values()].slice(4).map(({ species, requiredTreatments, initialPatienceMs }) =>
+      [species, requiredTreatments, initialPatienceMs])).toEqual([
+      ['Pikachu', TREATMENT.healing | TREATMENT.antidote, 70000],
+      ['Psyduck', TREATMENT.antidote, 70000],
+      ['Squirtle', TREATMENT.healing | TREATMENT.burnHeal, 90000],
+      ['Squirtle', TREATMENT.burnHeal, 90000],
+    ]);
+  });
+
+  it('restarts the guided opening after a reset and when admission fails', () => {
+    const { state, patients, arrivals } = setup();
+    arrivals.advance(5000);
+    arrivals.advance(18000);
+    patients.reset();
+    arrivals.reset();
+    arrivals.advance(5000);
+    expect(state.patients.get('patient-1')).toMatchObject({ species: 'Pikachu', requiredTreatments: TREATMENT.healing });
+    const seats = [...state.waitingSlots];
+    for (let index = 1; index < seats.length; index += 1) state.waitingSlots[index] = `blocked-${index}`;
+    arrivals.advance(18000);
+    expect(state.patients.size).toBe(1);
+    seats.forEach((id, index) => { state.waitingSlots[index] = id; });
+    arrivals.advance(18000);
+    expect(state.patients.get('patient-2')).toMatchObject({ species: 'Charmander', requiredTreatments: TREATMENT.burnHeal });
+  });
 
   it('counts carried patients toward the busy solo cap and never replays missed arrivals', () => {
     const { state, patients, arrivals } = setup();

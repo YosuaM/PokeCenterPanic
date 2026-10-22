@@ -74,8 +74,8 @@ it('wakes gameplay only for a running round and hides it again for results, repl
   expect(state.scene.setGameplayActive).toHaveBeenLastCalledWith(true);
   state.view!.showPhase({ ...phase, phase: 'results' }, 'host');
   expect(state.loop.running).toBe(false);
-  const results = { score: 100, admitted: 1, discharged: 1, lost: 0, unfinished: 0, stars: 3 };
-  state.view!.showRound({ remainingMs: 0, score: 100, results });
+  const results = { score: 100, admitted: 1, discharged: 1, lost: 0, unfinished: 0, stars: 3, bestStreak: 1 };
+  state.view!.showRound({ remainingMs: 0, score: 100, streak: 1, results });
   expect(state.ui.showResults).toHaveBeenCalledWith(results);
   state.view!.showPhase({ ...phase, phase: 'lobby' }, 'host');
   expect(state.loop.running).toBe(false);

@@ -105,7 +105,7 @@ One character represents one 48-unit tile. Footprints are approximate; final coo
 | 3 | 16 s / 4 |
 | 4 | 14 s / 4 |
 
-**Design intent:** every patient needs one action, so a single player can always keep up. Four seats and long patience make it hard to lose a patient. Contextual hints (future) can explain each first interaction.
+**Design intent:** every patient needs one action, so a single player can always keep up. Four seats and long patience make it hard to lose a patient. Contextual hints, already active on the MVP map, explain each first interaction.
 
 ## Level 2 — Viridian Center
 
@@ -181,10 +181,12 @@ One character represents one 48-unit tile. Footprints are approximate; final coo
 | Duration | 360 s; last arrival at 330 s |
 | Stations | 2 healing machines, Burn Heal and Antidote points, 1 disposal point, 4 surfaces, 8 seats, recovery |
 | Species | All six MVP species (uniform) |
-| Treatments and patience | Planned timed-round schedule from specification section 5.3: 10% / 25% / 40% two-treatment chance and 90 / 80 / 70 s patience |
+| Treatments and patience | Timed-round schedule from specification section 5.3: 10% / 25% / 40% two-treatment chance and 90 / 80 / 70 s patience (implemented) |
 | Incidents | Pikachu electric outage (specification section 6.1) |
 
 **Arrivals:** use the implemented three-stage table from specification section 5.3 unchanged (opening 18 / 16 / 14 / 12 s, through busy 10 / 9 / 8 / 7 s).
+
+**Guided opening (implemented):** an injured Pikachu, a burned Charmander, a poisoned Bulbasaur and an injured, burned Squirtle arrive first, so the team meets the healing machine, both preparation points and a two-treatment patient before random admissions start. First-use tips and the discharge streak from specification sections 8.3 and 5.4 are active on this map.
 
 **Design intent:** the single corridor creates real travel cost, and the outage is the first time a station disappears mid-round. This level is the MVP acceptance target, so its values must stay aligned with the specification.
 
@@ -299,7 +301,7 @@ These mechanics come from specification section 6.2 or from this campaign. They 
 
 | Mechanic | First level | Proposed rule |
 |---|---|---|
-| Contextual hints | 1 | Short prompts show the first time each interaction becomes available. They disappear after use and never block input. |
+| Contextual hints | 1 | Implemented on the MVP map (specification section 8.3): short prompts show the first time each interaction becomes available. They disappear after use and never block input. |
 | Charmander fire | 4 | An active Charmander at 40% patience or less can ignite one medicine preparation point or healing machine once per round. The station cannot be used until a player with empty hands holds E for two seconds beside it. Fire does not spread. Same cooldown and timing limits as the Pikachu outage, with at most one broken or burning station at a time. |
 | Snorlax corridor block | 5 | Every 75 s, Snorlax sleeps in one counter corridor for 20 s. It never blocks both corridors, never blocks a corridor occupied by a player, and never makes the discharge point, recovery or any station unreachable. |
 | Psyduck confusion | 5 | An active Psyduck at 30% patience or less can confuse the nearest player for four seconds. The player's left/right input is reversed, with a clear visual indicator. At most once per Psyduck and never during the final 30 seconds. |

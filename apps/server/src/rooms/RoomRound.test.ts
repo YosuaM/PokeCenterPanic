@@ -43,17 +43,50 @@ describe('RoomRound', () => {
     }
     admitted[3]!.remainingPatienceMs = 1;
     round.advance(1001);
-    expect(state.score).toBe(325);
+    expect(state.score).toBe(355);
+    expect(state.streak).toBe(0);
     round.advance(11000);
     expect(state.phase).toBe('results');
-    expect(state.results.toJSON()).toEqual({ score: 325, admitted: 5, discharged: 3,
-      lost: 1, unfinished: 1, stars: 1 });
+    expect(state.results.toJSON()).toEqual({ score: 355, admitted: 5, discharged: 3,
+      lost: 1, unfinished: 1, stars: 1, bestStreak: 3 });
     expect(admitted[4]!.lifecycle).toBe('unfinished');
     expect(state.patients.has(admitted[0]!.id)).toBe(false);
     const frozen = state.toJSON();
     for (const time of [11000, 12000, 99999, NaN]) round.advance(time);
     expect(state.toJSON()).toEqual(frozen);
     expect(() => patients.assertOwnership()).not.toThrow();
+  });
+
+  it('builds a capped discharge streak that a loss resets without touching the best streak', () => {
+    const { state, patients, pickup, discharge } = setup();
+    const serve = (patience = 0) => {
+      const patient = patients.admit('Eevee', TREATMENT.healing, 0, 'reception')!;
+      patient.completedTreatments = TREATMENT.healing;
+      patient.remainingPatienceMs = patience || patient.initialPatienceMs;
+      return patient;
+    };
+    const points = [];
+    for (let index = 0; index < 8; index++) {
+      const before = state.score;
+      const patient = serve();
+      expect(pickup(patient.id).ok).toBe(true);
+      expect(discharge(patient.id).ok).toBe(true);
+      expect(discharge(patient.id).ok).toBe(false);
+      points.push(state.score - before);
+    }
+    expect(points).toEqual([150, 160, 170, 180, 190, 200, 200, 200]);
+    expect(state).toMatchObject({ streak: 8, bestStreak: 8 });
+    serve(1);
+    patients.advance(1);
+    expect(state).toMatchObject({ streak: 0, bestStreak: 8, lostCount: 1 });
+    const next = serve();
+    pickup(next.id);
+    const before = state.score;
+    discharge(next.id);
+    expect(state.score - before).toBe(150);
+    expect(state).toMatchObject({ streak: 1, bestStreak: 8 });
+    patients.reset();
+    expect(state).toMatchObject({ streak: 0, bestStreak: 0, score: 0 });
   });
 
   it.each([9999, 10000, 10001])('prioritizes the deadline over patience expiry at %s ms', (patience) => {

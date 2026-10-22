@@ -424,9 +424,10 @@ describe('room interface', () => {
     ui.showStatus('Reconnecting to the room…');
     ui.showRoom('ABC234', roster, 'host');
     expect(element('#room-status').textContent).toBe('Reconnecting to the room…');
-    ui.showResults({ score: 325, admitted: 5, discharged: 3, lost: 1, unfinished: 1, stars: 1 });
-    expect(element('#results-score').textContent).toBe('325 points');
+    ui.showResults({ score: 355, admitted: 5, discharged: 3, lost: 1, unfinished: 1, stars: 1, bestStreak: 3 });
+    expect(element('#results-score').textContent).toBe('355 points');
     expect(element('#results-success').textContent).toBe('60.0% success');
+    expect(element('#results-streak').textContent).toBe('Best streak: 3 discharges');
   });
 
   it('copies the room code and gives a manual fallback when clipboard access fails', async () => {
