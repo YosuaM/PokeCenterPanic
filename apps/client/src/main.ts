@@ -5,9 +5,12 @@ import { RoomGateway } from './rooms/RoomGateway.js';
 import { MapScene } from './scenes/MapScene.js';
 import { visualFixture } from './scenes/visualFixtures.js';
 import { RoomInterface } from './ui/RoomInterface.js';
+import { initializeMenuAtmosphere } from './ui/menuAtmosphere.js';
 import { CharacterPortraits } from './ui/characterPortraits.js';
 
 const game = new Phaser.Game(GAME_CONFIG);
+const disposeAtmosphere = initializeMenuAtmosphere(document);
+import.meta.hot?.dispose(disposeAtmosphere);
 const portraits = new CharacterPortraits(document);
 const ui = new RoomInterface(document, {
   create: (name) => { void controller.create(name); },

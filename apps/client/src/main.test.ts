@@ -30,6 +30,7 @@ vi.mock('phaser', () => ({ default: {
   },
 } }));
 vi.mock('./ui/characterPortraits.js', () => ({ CharacterPortraits: class { constructor() { return state.portraits; } } }));
+vi.mock('./ui/menuAtmosphere.js', () => ({ initializeMenuAtmosphere: vi.fn(() => vi.fn()) }));
 vi.mock('./gameConfig.js', () => ({ GAME_CONFIG: {} }));
 vi.mock('./scenes/MapScene.js', () => ({ MapScene: class {} }));
 vi.mock('./scenes/visualFixtures.js', () => ({ visualFixture: () => state.fixture }));

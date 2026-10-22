@@ -6,9 +6,11 @@
     <meta name="theme-color" content="#262044" />
     <title>PokéCenter Panic</title>
     <link rel="stylesheet" href="/src/ui/room.css" />
+    <link rel="stylesheet" href="/src/ui/menuAtmosphere.css" />
   </head>
   <body data-screen="menu">
-    <div class="menu-backdrop" aria-hidden="true"></div>
+    <div class="menu-backdrop" aria-hidden="true"><canvas id="menu-atmosphere" hidden></canvas></div>
+    <button id="menu-motion" class="menu-motion" type="button" aria-pressed="true" hidden>Pause ambience</button>
     <main id="game" aria-label="PokéCenter Panic game" aria-hidden="true" inert></main>
     <section id="room-panel" aria-label="Private room">
       <header class="site-header">

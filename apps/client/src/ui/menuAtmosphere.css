@@ -1,0 +1,38 @@
+.menu-backdrop { overflow: hidden; }
+#menu-atmosphere {
+  position: absolute;
+  left: 50%;
+  top: 55%;
+  width: max(100vw, 177.68331562svh);
+  height: auto;
+  transform: translate(-50%, -55%);
+}
+.menu-backdrop::before, .menu-backdrop::after { z-index: 1; }
+.menu-backdrop::before {
+  background: linear-gradient(90deg, #17133325, #17133300 48%, #17133340),
+    linear-gradient(0deg, #0d102680, #1a143c05 35%, #17133125);
+}
+.menu-backdrop::after { box-shadow: inset 0 0 180px 20px #12102b33; }
+.menu-motion {
+  position: fixed;
+  z-index: 3;
+  top: 104px;
+  left: 24px;
+  padding: 7px 11px;
+  border: 1px solid #ffffff30;
+  border-radius: 18px;
+  background: #241e4099;
+  color: #f4efff;
+  font-size: 10px;
+}
+.menu-motion:hover { background: #493569cc; }
+body[data-screen='running'] .menu-motion,
+body[data-screen='fixture'] .menu-motion { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  #menu-atmosphere, .menu-motion { display: none; }
+}
+@media (max-width: 850px) {
+  #menu-atmosphere { left: 38%; top: 50%; transform: translate(-38%, -50%); }
+  .menu-backdrop::before { background: linear-gradient(#18112a22, #18112a32 40%, #14112b70); }
+  .menu-motion { position: absolute; top: 80px; left: 22px; }
+}
