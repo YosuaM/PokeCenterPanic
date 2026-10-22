@@ -25,3 +25,14 @@ Use case: precise-object-edit. Edit target: the attached transparent PokéCenter
 ```sh
 cwebp -q 92 -m 6 -alpha_q 100 art/source/pokecenter-panic-logo.png -o apps/client/public/assets/original/pokecenter-panic-logo.webp
 ```
+
+## Animated version
+
+The entry-screen title uses `apps/client/src/ui/logo-motion.css`: a 900 ms elastic entrance followed by an eight-second loop with gentle floating and a short wobble. The existing WebP remains the image source. CSS transforms preserve layout dimensions; reduced-motion users receive the static title, and hiding the entry screen removes its active animations.
+
+Shareable exports in `art/exports/`:
+
+- `pokecenter-panic-logo-animated.svg`: self-contained original WebP and the same motion CSS, at 1774 × 887. Open in a browser to play the entrance and loop. Respects reduced motion.
+- `pokecenter-panic-logo-animated.webp`: transparent 888 × 444 loop, eight seconds at 20 fps. This raster export repeats the idle motion without the entrance. Image viewers must support animated WebP; it does not respond to reduced-motion preferences.
+
+The SVG embeds the runtime WebP as a base64 image and the motion stylesheet verbatim. The WebP was rendered from that SVG in Chrome with a transparent viewport, sampling the animation from 900 ms to 8850 ms in 50 ms steps, then encoded with `img2webp -loop 0 -kmax 0 -lossy -q 82 -m 2 -d 50`. Regenerate both exports when the original logo or motion CSS changes. Asset tests verify the embedded image/style, dimensions, alpha, loop duration and distinct frames.

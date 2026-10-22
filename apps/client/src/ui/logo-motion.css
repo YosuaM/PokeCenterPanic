@@ -1,0 +1,28 @@
+@media (prefers-reduced-motion: no-preference) {
+  .game-logo {
+    transform-origin: 50% 60%;
+    animation: logo-arrive 900ms cubic-bezier(.22, .75, .25, 1) both;
+  }
+
+  .game-logo > :first-child {
+    transform-origin: 50% 60%;
+    animation: logo-panic 8s ease-in-out 900ms infinite;
+  }
+}
+
+@keyframes logo-arrive {
+  0% { transform: translateY(18px) scale(.86) rotate(-3deg); opacity: 0; }
+  55% { transform: translateY(-6px) scale(1.025) rotate(1deg); opacity: 1; }
+  78% { transform: translateY(2px) scale(.99) rotate(-.4deg); }
+  100% { transform: translateY(0) scale(1) rotate(0); opacity: 1; }
+}
+
+@keyframes logo-panic {
+  0%, 50%, 76%, 100% { transform: translateY(0) rotate(0) scale(1); }
+  25% { transform: translateY(-7px) rotate(.4deg) scale(1.008); }
+  58% { transform: translateY(-3px) rotate(-1.6deg) scale(1.012); }
+  62% { transform: translateY(-3px) rotate(1.4deg) scale(1.012); }
+  66% { transform: translateY(-2px) rotate(-.9deg) scale(1.006); }
+  70% { transform: translateY(-1px) rotate(.5deg) scale(1.003); }
+  88% { transform: translateY(-4px) rotate(-.3deg) scale(1.004); }
+}
