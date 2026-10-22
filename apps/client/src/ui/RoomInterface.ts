@@ -2,6 +2,7 @@ import { PLAYER_CHARACTERS, type PlayerCharacter, type PlayerPresence,
   type RoomPhaseSnapshot, type RoundResults } from '@pokecenter/shared';
 import { resultsPresentation } from '../rooms/roundPresentation.js';
 import type { CharacterPortraits } from './characterPortraits.js';
+import { CHARACTER_ROLE_TEXT } from './characterRoles.js';
 
 interface RoomActions {
   create(name: string): void;
@@ -11,6 +12,8 @@ interface RoomActions {
   ready(ready: boolean): void;
   start(): void;
   replay(): void;
+  addBot?(): void;
+  removeBot?(botId: string): void;
 }
 
 const EMPTY_PHASE: RoomPhaseSnapshot = { phase: 'lobby', hostId: '',
@@ -35,7 +38,7 @@ export class RoomInterface {
   private rosterSignature = '';
   private busy = false;
 
-  constructor(private readonly document: Document, actions: RoomActions,
+  constructor(private readonly document: Document, private readonly actions: RoomActions,
     clipboard: Pick<Clipboard, 'writeText'> | null = globalThis.navigator?.clipboard ?? null,
     private readonly portraits?: Pick<CharacterPortraits, 'create' | 'release' | 'setActive' | 'setSelected'>) {
     this.panel = this.element('#room-panel');
@@ -72,6 +75,17 @@ export class RoomInterface {
     });
     this.element('#leave-room').addEventListener('click', () => actions.leave());
     for (const character of this.characters) {
+      const role = CHARACTER_ROLE_TEXT[character.value as PlayerCharacter];
+      const caption = character.querySelector('.character-caption');
+      if (role && caption && character.dataset.role !== role.title) {
+        character.dataset.role = role.title;
+        const text = this.document.createElement('span');
+        text.className = 'character-role';
+        const title = this.document.createElement('b');
+        title.textContent = role.title;
+        text.append(title, ` ${role.perks}`);
+        caption.append(text);
+      }
       character.addEventListener('click', () => {
         const self = this.self();
         const value = character.value as PlayerCharacter;
@@ -233,18 +247,22 @@ export class RoomInterface {
     for (const character of this.characters) {
       const owner = this.players.find((player) => player.character === character.value);
       const selected = owner?.id === self?.id && !!self;
-      const taken = !!owner && !selected;
+      // A bot gives its Pokémon to a person and switches to a free one.
+      const takenByBot = !!owner && !selected && owner.bot === true;
+      const taken = !!owner && !selected && !takenByBot;
       character.setAttribute('aria-pressed', String(selected));
       character.disabled = this.phase.phase !== 'lobby' || !self || self.connected === false || taken;
-      character.setAttribute('aria-label', `${character.value}${taken ? `, chosen by ${owner.name}` :
-        selected ? ', selected. Activate again to deselect' : ''}`);
+      const role = CHARACTER_ROLE_TEXT[character.value as PlayerCharacter];
+      character.setAttribute('aria-label', `${character.value}${role ? `, ${role.title}: ${role.perks}` : ''}${
+        taken ? `, chosen by ${owner.name}` : takenByBot ? `, used by ${owner.name}; choosing it swaps the bot` :
+          selected ? ', selected. Activate again to deselect' : ''}`);
       character.querySelector<HTMLElement>('.character-invite')!.textContent = taken ?
-        `Chosen by ${owner.name}` : selected ? 'YOUR POKÉMON' : 'I CHOOSE YOU!';
+        `Chosen by ${owner.name}` : takenByBot ? `${owner.name} · swap` : selected ? 'YOUR POKÉMON' : 'I CHOOSE YOU!';
     }
   }
 
   private renderRoster(): void {
-    const signature = JSON.stringify([this.players, this.localId, this.phase.hostId]);
+    const signature = JSON.stringify([this.players, this.localId, this.phase.hostId, this.phase.phase]);
     if (signature === this.rosterSignature) return;
     this.rosterSignature = signature;
     const roster = this.element('#room-players');
@@ -277,12 +295,25 @@ export class RoomInterface {
       }
       card.append(avatar);
       const name = add('player-name', player ? `${player.name}${player.id === this.localId ? ' (you)' : ''}` : 'Open seat');
-      if (player?.id === this.phase.hostId) {
+      for (const [show, className, label] of [[player?.id === this.phase.hostId, 'player-host', 'Host'],
+        [player?.bot === true, 'player-host player-bot', 'Bot']] as const) {
+        if (!show) continue;
         const badge = this.document.createElement('span');
-        badge.className = 'player-host';
-        badge.textContent = 'Host';
+        badge.className = className;
+        badge.textContent = label;
         name.textContent += ' ';
         name.append(badge);
+      }
+      const managesBots = this.phase.phase === 'lobby' && this.phase.hostId === this.localId && !!this.localId;
+      if (managesBots && (!player || player.bot)) {
+        const button = this.document.createElement('button');
+        button.type = 'button';
+        button.className = player ? 'bot-remove' : 'bot-add';
+        button.textContent = player ? 'Remove' : '+ Add bot';
+        button.setAttribute('aria-label', player ? `Remove ${player.name}` : 'Add a bot to this seat');
+        const botId = player?.id;
+        button.addEventListener('click', () => botId ? this.actions.removeBot?.(botId) : this.actions.addBot?.());
+        card.append(button);
       }
       add('player-character', player?.character || (player ? 'Choosing a Pokémon…' : 'Invite a friend'));
       add('player-state', !player ? 'Waiting for staff' : player.connected === false ?

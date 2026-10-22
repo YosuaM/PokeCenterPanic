@@ -1,7 +1,7 @@
 # PokéCenter Panic
 **Functional and technical specification**
 
-**Version:** 0.4 — Compact clinic layout with a central counter\
+**Version:** 0.5 — Pokémon specialties, abilities and lobby bots\
 **Status:** Implementation baseline; balance values pending playtests\
 **Updated:** 2026-10-22\
 **Type:** Noncommercial cooperative fan game\
@@ -83,6 +83,7 @@ Players collide with the map and solid station geometry, but pass through one an
 | Interact / pick up / place / apply medicine | Press E |
 | Prepare medicine / repair a machine | Hold E at the indicated target |
 | View patient information | Automatic when nearby |
+| Use the Pokémon's ability | Hold Q at a seated patient (Chansey and Audino only) |
 | Local menu | Escape; the shared round keeps running |
 
 Space has no gameplay binding in the MVP. Opening the menu or losing browser focus clears movement and cancels any held interaction. There is no shared pause, including in solo play.
@@ -283,9 +284,16 @@ Initial characters:
 - Machoke
 - Meowth
 
-All initially have the same abilities, movement speed, and interactions.
+Every Pokémon can perform every task. Each one also has a specialty that makes some tasks faster, and two of them have an optional exclusive ability used by holding Q at a seated patient (reception, waiting seat or recovery front) with empty hands:
 
-Differences are purely cosmetic.
+| Pokémon | Role | Advantages | Exclusive ability |
+|---|---|---|---|
+| Chansey | Nurse | Healing machines she starts treat in 2.86 s instead of 4 s (40% faster) | **Soft-Boiled:** hold Q for 3 s to complete a pending injury treatment in place, without a machine |
+| Audino | Pharmacy | Prepares medicine in 1 s instead of 2 s | **Calm:** hold Q for 2 s to restore 25% of the patient's initial patience, once per patient, never above the initial budget |
+| Machoke | Porter | Walks 20% faster while carrying a patient; repairs an outage in 1 s instead of 2 s | — |
+| Meowth | All-rounder | Walks 15% faster at all times | — |
+
+Abilities follow the held-action rules of preparation: moving, releasing Q, losing reach, carrying anything, disconnecting, or the patient moving cancels them with no effect. One staff member at a time can use an ability on a given patient. Machine durations are fixed when the machine starts, so a repaired machine resumes the remaining time of the staff member who started it.
 
 Each player must choose a different Pokémon. The server grants each species to one member at a time, including disconnected seat reservations. Deselecting, explicitly leaving, or an expired reservation releases the species for another player. Every player retains a persistent room slot number and name label.
 
@@ -293,7 +301,7 @@ This simplifies balancing and lets any team complete the tasks.
 
 ## 4.2. Cooperation
 
-There are no mandatory professions or classes with exclusive abilities.
+Specialties reward dividing work, but no task requires a particular Pokémon: exclusive abilities are optional shortcuts, so any team, including a solo player, can complete every patient.
 
 Cooperation arises from:
 
@@ -711,6 +719,8 @@ Each room has:
 - Temporary player data.
 - Complete Pokémon Center state.
 
+**Bots:** in the lobby, the host can fill any open seat with a bot and remove it again. A bot takes the first free Pokémon, is always ready and never becomes host. If a person chooses a bot's Pokémon, the bot switches to a free one. Bots occupy seats, so people can only join while seats remain. They count as connected staff for difficulty scaling (section 5.3). During a round, each bot runs on the server through the same validated commands as people and favors its Pokémon's specialty: Chansey heals (preferring Soft-Boiled), Audino prepares and applies medicine and calms impatient patients, Machoke carries patients to machines and repairs outages, and Meowth handles pickups and discharges. Bots coordinate so two never chase the same patient or station, and they help with any other work when their specialty has none. When the last person leaves, every bot is removed.
+
 The first version uses a single server instance and in-memory rooms. A server restart ends all rooms; clients return to the menu with a connection error. Restoring rounds after a process restart is outside the MVP.
 
 ### Phase and membership rules
@@ -1033,7 +1043,7 @@ Consider these only after confirming that the core loop is fun.
 
 ## 16.1. Decisions fixed for the MVP
 
-| Topic | Version 0.4 decision |
+| Topic | Version 0.5 decision |
 |---|---|
 | Treatment order | Any compatible order; all required treatments must finish before discharge |
 | Patient state | Separate location, medical progress, and lifecycle; discharge readiness is derived |
@@ -1083,5 +1093,6 @@ The priority is to produce a playable prototype for friends quickly, learn from 
 | 0.2 | Resolved treatment order and player collisions; separated patient state dimensions; added interaction and transition tables, solo medicine rules, patience and outage semantics, difficulty/saturation defaults, exact scoring and deadline behavior, room/reconnect/replay rules, measurable acceptance scenarios, and the prototype-to-four-player milestone |
 | 0.3 | Activated the timed two-treatment and patience schedule; added the four-patient guided opening, the discharge streak bonus with best streak in results, and first-use contextual tips |
 | 0.4 | Replaced the enlarged clinic with a compact 22 × 14 tile layout: central counter with discharge in the middle, two passages through the counter row, PC corner and recovery at its ends, sofas and planters by the entrance, staff spawning behind the counter, and route budgets pinned by tests |
+| 0.5 | Gave each Pokémon a specialty (faster healing, preparation, carrying, repair or walking), added Chansey's Soft-Boiled and Audino's Calm on Q, and let the host fill open seats with server-side bots that play to their Pokémon's specialty |
 
-**End of document — Version 0.4**
+**End of document — Version 0.5**

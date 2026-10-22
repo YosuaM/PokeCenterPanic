@@ -6,7 +6,7 @@ const state = vi.hoisted(() => {
   const sceneEvents = new Map<string, () => void>();
   const scene = { events: { once: vi.fn((event: string, callback: () => void) => sceneEvents.set(event, callback)) },
     setGameplayActive: vi.fn(), clearPlayers: vi.fn(), setPlayers: vi.fn(),
-    setInputSender: vi.fn(), setInteractionSender: vi.fn(), setAuthoritativePositions: vi.fn(),
+    setInputSender: vi.fn(), setInteractionSender: vi.fn(), setAbilitySender: vi.fn(), setAuthoritativePositions: vi.fn(),
     setPatients: vi.fn(), setMedicines: vi.fn(), showMedicineDiscard: vi.fn(),
     setInteractionResult: vi.fn(), setHealingMachine: vi.fn(), setDischargedCount: vi.fn(),
     setLostCount: vi.fn(), setRoundProgress: vi.fn() };

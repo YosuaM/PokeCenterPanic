@@ -11,6 +11,7 @@ export interface PlayerPresence {
   ready?: boolean;
   connected?: boolean;
   reconnectRemainingMs?: number;
+  bot?: boolean;
 }
 
 export const PLAYER_CHARACTERS = ['Chansey', 'Audino', 'Machoke', 'Meowth'] as const;
@@ -31,11 +32,15 @@ export interface PlayerPosition {
   facing: import('./map.js').Direction;
   carriedPatientId: string;
   carriedMedicineId?: string;
+  /** Remaining time of the player's held character ability, when one is in progress. */
+  abilityRemainingMs?: number;
 }
 
 export interface PlayerInput {
   direction: import('./map.js').Direction | null;
   interactHeld?: boolean;
+  /** Held state of the character ability key (Q). */
+  abilityHeld?: boolean;
   sequence: number;
   roundId: string | null;
 }
@@ -47,6 +52,7 @@ export * from './patient.js';
 export * from './patientTravel.js';
 export * from './medicine.js';
 export * from './round.js';
+export * from './characters.js';
 
 export const PROJECT_INFO = {
   title: 'PokéCenter Panic',

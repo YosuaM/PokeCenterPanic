@@ -446,4 +446,63 @@ describe('room interface', () => {
     unavailable.click('#copy-code');
     expect(unavailable.element('#room-status').textContent).toContain('Copy the room code');
   });
+
+  it('lets the host fill open seats with bots and remove them, with a visible bot badge', () => {
+    const { ui, element, actions, phase } = setup();
+    const extended = actions as typeof actions & { addBot: ReturnType<typeof vi.fn>; removeBot: ReturnType<typeof vi.fn> };
+    extended.addBot = vi.fn();
+    extended.removeBot = vi.fn();
+    const players: PlayerPresence[] = [roster[0]!,
+      { id: 'bot-1', name: 'Bot 2', slot: 1, character: 'Machoke', ready: true, connected: true, bot: true }];
+    ui.showRoom('ABC234', players, 'host');
+    phase('lobby');
+    const cards = element('#room-players').children;
+    const button = (card: Element, className: string) => card.children.find((child) => child.className === className);
+    expect(cardText(cards[1]!)).toContain('Bot 2');
+    expect(cards[1]!.children.flatMap((child) => child.children).some((child) => child.textContent === 'Bot')).toBe(true);
+    expect(button(cards[0]!, 'bot-remove')).toBeUndefined();
+    expect(button(cards[1]!, 'bot-remove')?.attributes.get('aria-label')).toBe('Remove Bot 2');
+    button(cards[1]!, 'bot-remove')!.dispatchEvent(new Event('click'));
+    expect(extended.removeBot).toHaveBeenCalledWith('bot-1');
+    expect(cards.slice(2).every((card) => button(card, 'bot-add')?.textContent === '+ Add bot')).toBe(true);
+    button(cards[2]!, 'bot-add')!.dispatchEvent(new Event('click'));
+    expect(extended.addBot).toHaveBeenCalledOnce();
+    expect(element('#start-button').disabled).toBe(false);
+    phase('lobby', 'other');
+    expect(element('#room-players').children.some((card) => button(card, 'bot-add') || button(card, 'bot-remove')))
+      .toBe(false);
+    phase('lobby');
+    expect(element('#room-players').children.some((card) => button(card, 'bot-remove'))).toBe(true);
+    phase('running');
+    expect(element('#room-players').children.some((card) => button(card, 'bot-add') || button(card, 'bot-remove')))
+      .toBe(false);
+  });
+
+  it('describes every Pokémon specialty on its card and in its accessible name', () => {
+    const { ui, characters } = setup();
+    ui.showRoom('ABC234', roster, 'host');
+    for (const card of characters) {
+      const role = (card.querySelector('.character-caption') as Element).children
+        .find((child) => child.className === 'character-role');
+      expect(role?.children[0]?.textContent).toBeTruthy();
+      expect(card.attributes.get('aria-label')).toContain(role!.children[0]!.textContent);
+    }
+    expect(characters.find((card) => card.value === 'Chansey')!.attributes.get('aria-label')).toContain('Soft-Boiled');
+  });
+
+  it('lets a person take a Pokémon from a bot but not from another person', () => {
+    const { ui, characters, phase, choose, actions } = setup();
+    ui.showRoom('ABC234', [{ ...roster[0]!, character: undefined, ready: false },
+      { id: 'bot-1', name: 'Bot 2', slot: 1, character: 'Machoke', ready: true, connected: true, bot: true },
+      { id: 'guest', name: 'Blue', slot: 2, character: 'Audino', ready: false, connected: true }], 'host');
+    phase('lobby');
+    const card = (name: string) => characters.find((entry) => entry.value === name)!;
+    expect(card('Machoke').disabled).toBe(false);
+    expect(card('Machoke').querySelector('.character-invite').textContent).toBe('Bot 2 · swap');
+    expect(card('Machoke').attributes.get('aria-label')).toContain('choosing it swaps the bot');
+    expect(card('Audino').disabled).toBe(true);
+    choose('Machoke');
+    expect(actions.selectCharacter).toHaveBeenCalledWith('Machoke');
+  });
 });
+

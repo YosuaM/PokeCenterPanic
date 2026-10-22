@@ -1,4 +1,4 @@
-import { FINAL_CLEARANCE_MS, HEALING_MACHINE_FOOTPRINTS, REPAIR_DURATION_MS, TREATMENT,
+import { FINAL_CLEARANCE_MS, HEALING_MACHINE_FOOTPRINTS, TREATMENT, characterProfile,
   isInteractionReachable, type Direction, type PatientInteractionRequest,
   type PatientInteractionResult, type Point } from '@pokecenter/shared';
 import { roomHealingMachines, type RoomState } from './RoomState.js';
@@ -8,6 +8,7 @@ interface Repair {
   machineIndex: number;
   startedAt: number;
   lastHeldAt: number;
+  durationMs: number;
 }
 
 const reject = (reason: string): PatientInteractionResult => ({ ok: false, reason });
@@ -73,10 +74,11 @@ export class RoomIncidents {
     if (this.repair || machine.repairOwnerId) return reject('Repair in progress');
     if (this.releaseRequired.has(playerId)) return reject('Release E before interacting again');
     if (!stationary) return reject('Stop moving to repair the machine');
-    this.repair = { playerId, machineIndex: index, startedAt: now, lastHeldAt: now };
+    const durationMs = characterProfile(player.character).repairMs;
+    this.repair = { playerId, machineIndex: index, startedAt: now, lastHeldAt: now, durationMs };
     this.releaseRequired.add(playerId);
     machine.repairOwnerId = playerId;
-    machine.repairRemainingMs = REPAIR_DURATION_MS;
+    machine.repairRemainingMs = durationMs;
     return { ok: true, reason: '' };
   }
 
@@ -92,7 +94,7 @@ export class RoomIncidents {
   }
 
   nextBoundary(end: number): number {
-    return this.repair ? Math.min(end, this.repair.startedAt + REPAIR_DURATION_MS,
+    return this.repair ? Math.min(end, this.repair.startedAt + this.repair.durationMs,
       this.repair.lastHeldAt + 250) : end;
   }
 
@@ -104,7 +106,7 @@ export class RoomIncidents {
     const player = this.state.players.get(repair.playerId);
     const position = positionFor(repair.playerId);
     const facing = facingFor(repair.playerId);
-    const completesAt = repair.startedAt + REPAIR_DURATION_MS;
+    const completesAt = repair.startedAt + repair.durationMs;
     const expiresAt = repair.lastHeldAt + 250;
     const completes = completesAt <= now && !(exclusiveEnd && completesAt === now);
     if (!player?.connected || !position || !facing || machine.status !== 'broken' ||

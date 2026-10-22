@@ -3,10 +3,11 @@ import { MAP_2D_SCALE, mapViewportPoint } from './mapViewport.js';
 import Phaser from 'phaser';
 import { roundProgressLabel } from '../rooms/roundPresentation.js';
 import { ContextualHints, hintActionFor, type HintAction } from './contextualHints.js';
+import { ABILITY_NAME } from '../ui/characterRoles.js';
 import { DISCHARGE_INTERACTION_POINT, DISCHARGE_POSITION, HEALING_DURATION_MS,
   HEALING_MACHINE_POSITION, MAP_OBSTACLES, MEDICINE_DISPOSAL_POINT,
   HEALING_MACHINE_POSITIONS, HEALING_INTERACTION_POINTS,
-  MEDICINE_PREPARATION_MS, MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, REPAIR_DURATION_MS,
+  MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, characterProfile, type CharacterAbility,
   RECOVERY_INTERACTION_POINT, RECOVERY_POSITION,
   RECEPTION_INTERACTION_POINTS, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS, TILE_SIZE,
   TREATMENT, WALK_BOUNDS, WAITING_BENCHES, WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS, isWalkable, patientPresentation, patientTravelPose,
@@ -24,6 +25,8 @@ import { visualFixture, type VisualFixture } from './visualFixtures.js';
 import { Center3DView, characterElevation, type Center3DCharacter } from './center3dView.js';
 import { animationRow, parseSpriteManifest, patientRenderPosition, playerSpriteSpecies,
   spriteMotion, type SpriteAnimation, type SpriteManifest } from '../sprites/pmd.js';
+
+const PATIENT_SLOT_TARGET = /^(?:(?:reception|waiting):\d+|recovery)$/;
 const PLAYER_COLORS = [0x4cc9c0, 0xf29c75, 0xb2a0f7, 0xf5ce69];
 
 interface Avatar {
@@ -65,8 +68,9 @@ export class MapScene extends Phaser.Scene {
   private medicineOwners: string[] = [];
   private medicineRemainingMs: number[] = [];
   private localId = '';
-  private inputSender: ((direction: Direction | null, interactHeld: boolean) => void) | null = null;
+  private inputSender: ((direction: Direction | null, interactHeld: boolean, abilityHeld: boolean) => void) | null = null;
   private interactionSender: ((request: PatientInteractionRequest) => void) | null = null;
+  private abilitySender: ((request: PatientInteractionRequest) => void) | null = null;
   private interactionHint!: Phaser.GameObjects.Text;
   private tipText!: Phaser.GameObjects.Text;
   private controlsLabel?: Phaser.GameObjects.Text;
@@ -122,6 +126,8 @@ export class MapScene extends Phaser.Scene {
   private lastSentDirection: Direction | null = null;
   private lastSentHeld = false;
   private interactHeld = false;
+  private abilityHeld = false;
+  private lastSentAbility = false;
   private spriteManifest: SpriteManifest | null = null;
   private spritesReady = false;
   private mapArtLoaded = false;
@@ -376,6 +382,8 @@ export class MapScene extends Phaser.Scene {
       this.lastSentDirection = null;
       this.lastSentHeld = false;
       this.interactHeld = false;
+      this.abilityHeld = false;
+      this.lastSentAbility = false;
       this.lastSentAt = -Infinity;
     }
     this.players = players;
@@ -400,6 +408,7 @@ export class MapScene extends Phaser.Scene {
     this.setRoundProgress(360_000, 0);
     this.inputSender = null;
     this.interactionSender = null;
+    this.abilitySender = null;
     this.interactionFeedback = '';
     this.refreshInteraction();
   }
@@ -432,7 +441,11 @@ export class MapScene extends Phaser.Scene {
     }
   }
 
-  setInputSender(sender: (direction: Direction | null, interactHeld: boolean) => void): void {
+  setAbilitySender(sender: (request: PatientInteractionRequest) => void): void {
+    this.abilitySender = sender;
+  }
+
+  setInputSender(sender: (direction: Direction | null, interactHeld: boolean, abilityHeld: boolean) => void): void {
     this.inputSender = sender;
   }
 
@@ -535,10 +548,11 @@ export class MapScene extends Phaser.Scene {
     if (this.gameplayActive && this.avatars.has(this.localId) && this.inputSender &&
       time - this.lastSentAt >= 50 &&
       (direction !== this.lastSentDirection || this.interactHeld !== this.lastSentHeld ||
-        direction !== null || this.interactHeld)) {
-      this.inputSender(direction, this.interactHeld);
+        this.abilityHeld !== this.lastSentAbility || direction !== null || this.interactHeld || this.abilityHeld)) {
+      this.inputSender(direction, this.interactHeld, this.abilityHeld);
       this.lastSentDirection = direction;
       this.lastSentHeld = this.interactHeld;
+      this.lastSentAbility = this.abilityHeld;
       this.lastSentAt = time;
     }
     const blend = Math.min(1, Math.max(0, delta) / 70);
@@ -650,9 +664,24 @@ export class MapScene extends Phaser.Scene {
         this.interactionFeedback = 'No target in range';
         this.refreshInteraction();
       }
-      this.inputSender?.(this.movement.direction, true);
+      this.inputSender?.(this.movement.direction, true, this.abilityHeld);
       this.lastSentDirection = this.movement.direction;
       this.lastSentHeld = true;
+      return;
+    }
+    if (event.code === 'KeyQ') {
+      event.preventDefault();
+      if (event.repeat) return;
+      this.abilityHeld = true;
+      const ability = this.localAbility();
+      if (!ability) this.interactionFeedback = 'This Pokémon has no special ability';
+      else if (this.selectedTarget && PATIENT_SLOT_TARGET.test(this.selectedTarget.id)) {
+        this.abilitySender?.({ targetId: this.selectedTarget.id, expectedOccupantId: this.selectedTarget.expectedOccupantId });
+      } else this.interactionFeedback = `${ABILITY_NAME[ability]} needs a seated patient`;
+      if (this.interactionFeedback) this.refreshInteraction();
+      this.inputSender?.(this.movement.direction, this.interactHeld, true);
+      this.lastSentDirection = this.movement.direction;
+      this.lastSentAbility = true;
       return;
     }
     if (this.movement.press(event.code)) event.preventDefault();
@@ -661,8 +690,13 @@ export class MapScene extends Phaser.Scene {
   private readonly onKeyUp = (event: KeyboardEvent): void => {
     if (event.code === 'KeyE' && this.interactHeld) {
       this.interactHeld = false;
-      this.inputSender?.(this.movement.direction, false);
+      this.inputSender?.(this.movement.direction, false, this.abilityHeld);
       this.lastSentHeld = false;
+    }
+    if (event.code === 'KeyQ' && this.abilityHeld) {
+      this.abilityHeld = false;
+      this.inputSender?.(this.movement.direction, this.interactHeld, false);
+      this.lastSentAbility = false;
     }
     this.movement.release(event.code);
   };
@@ -670,16 +704,26 @@ export class MapScene extends Phaser.Scene {
   private readonly clearMovement = (): void => {
     this.movement.clear();
     this.interactHeld = false;
-    if (this.lastSentDirection !== null || this.lastSentHeld) {
-      this.inputSender?.(null, false);
+    this.abilityHeld = false;
+    if (this.lastSentDirection !== null || this.lastSentHeld || this.lastSentAbility) {
+      this.inputSender?.(null, false, false);
       this.lastSentDirection = null;
       this.lastSentHeld = false;
+      this.lastSentAbility = false;
     }
   };
 
   private readonly onFocusIn = (): void => {
     if (this.isTyping()) this.clearMovement();
   };
+
+  private characterOf(playerId: string | undefined): string | undefined {
+    return this.players.find((player) => player.id === playerId)?.character;
+  }
+
+  private localAbility(): CharacterAbility | null {
+    return characterProfile(this.characterOf(this.localId)).ability;
+  }
 
   private isTyping(): boolean {
     const focused = document.activeElement;
@@ -1042,9 +1086,14 @@ export class MapScene extends Phaser.Scene {
       this.targetHighlight.setPosition(screen.x, screen.y);
     }
     this.center3D?.setTarget(selected?.position ?? null);
+    const ability = this.localAbility();
+    const abilityRemainingMs = local?.abilityRemainingMs ?? 0;
+    const abilityPrompt = ability && selected && PATIENT_SLOT_TARGET.test(selected.id) && !local?.carriedPatientId &&
+      !local?.carriedMedicineId ? this.abilityPrompt(ability, selected.expectedOccupantId) : '';
     this.interactionHint.setText(this.interactionFeedback ? `REJECTED: ${this.interactionFeedback}` :
-      selected ? selected.id.startsWith('medicine:prep:') || selected.label.startsWith('Hold E:') ?
-        selected.label : `E: ${selected.label}` : 'Approach a station or patient');
+      ability && abilityRemainingMs > 0 ? `${ABILITY_NAME[ability]}… ${Math.ceil(abilityRemainingMs / 1000)}s` :
+        selected ? `${selected.id.startsWith('medicine:prep:') || selected.label.startsWith('Hold E:') ?
+          selected.label : `E: ${selected.label}`}${abilityPrompt}` : 'Approach a station or patient');
     this.interactionHint.setStyle({ backgroundColor: this.interactionFeedback ? '#8a2222' : '#10243bcc',
       color: '#ffffff' });
     this.hintAction = selected && !this.interactionFeedback ? hintActionFor(selected.id, selected.label) : null;
@@ -1082,6 +1131,16 @@ export class MapScene extends Phaser.Scene {
       .setFillStyle(paused ? 0x92c7f3 : state?.critical ? 0xe87970 : 0xeab166);
     this.focusedPatientId = patient?.id ?? '';
     this.renderWaitingRoster();
+  }
+
+  /** Suffix advertising the local character's ability when it applies to the focused patient. */
+  private abilityPrompt(ability: CharacterAbility, patientId: string): string {
+    const patient = this.patients.find((entry) => entry.id === patientId && entry.lifecycle === 'active');
+    if (!patient || patient.travelKind) return '';
+    const pending = patient.requiredTreatments & ~patient.completedTreatments;
+    const applies = ability === 'softBoiled' ? Boolean(pending & TREATMENT.healing) :
+      patient.remainingPatienceMs < patient.initialPatienceMs;
+    return applies ? ` · Q: ${ABILITY_NAME[ability]}` : '';
   }
 
   private renderWaitingRoster(): void {
@@ -1180,27 +1239,30 @@ export class MapScene extends Phaser.Scene {
       machine.status === 'completed' ? 'READY' : 'MACHINE EMPTY');
     const treating = machine.status === 'treating';
     const broken = machine.status === 'broken';
-    const progress = treating ? 1 - Math.min(1, Math.max(0, machine.remainingMs / HEALING_DURATION_MS)) : 0;
+    const progress = treating ? 1 - Math.min(1, Math.max(0,
+      machine.remainingMs / (machine.durationMs || HEALING_DURATION_MS))) : 0;
     this.healingTrack.setVisible(treating);
     this.healingFill.setVisible(treating && progress > 0).setDisplaySize(125 * progress, 6);
     this.outageWarning.setVisible(broken && !this.center3D);
     const point = mapViewportPoint(HEALING_MACHINE_POSITIONS[index]!);
     this.outageWarning.setPosition(point.x, point.y);
     const repairing = broken && Boolean(machine.repairOwnerId);
+    const repairMs = characterProfile(this.characterOf(machine.repairOwnerId)).repairMs;
     const repairProgress = repairing ? 1 - Math.min(1, Math.max(0,
-      (machine.repairRemainingMs ?? REPAIR_DURATION_MS) / REPAIR_DURATION_MS)) : 0;
+      (machine.repairRemainingMs ?? repairMs) / repairMs)) : 0;
     this.repairTrack.setVisible(repairing);
     this.repairFill.setVisible(repairing && repairProgress > 0).setDisplaySize(125 * repairProgress, 6);
     this.repairText.setVisible(broken).setText(broken ? repairing ?
-      `OUTAGE · REPAIR ${Math.ceil((machine.repairRemainingMs ?? REPAIR_DURATION_MS) / 1000)}s` :
+      `OUTAGE · REPAIR ${Math.ceil((machine.repairRemainingMs ?? repairMs) / 1000)}s` :
       'OUTAGE · HOLD E TO REPAIR' : '');
   }
 
   private updatePreparationBars(): void {
     for (const [index, bar] of this.preparationBars.entries()) {
       const preparing = Boolean(this.medicineOwners[index]);
+      const durationMs = characterProfile(this.characterOf(this.medicineOwners[index])).preparationMs;
       const progress = preparing ? 1 - Math.min(1, Math.max(0,
-        (this.medicineRemainingMs[index] ?? MEDICINE_PREPARATION_MS) / MEDICINE_PREPARATION_MS)) : 0;
+        (this.medicineRemainingMs[index] ?? durationMs) / durationMs)) : 0;
       bar.track.setVisible(preparing);
       bar.fill.setVisible(preparing && progress > 0).setDisplaySize(60 * progress, 6);
     }
@@ -1226,7 +1288,7 @@ export class MapScene extends Phaser.Scene {
     label(260, 18, 'WAITING ROOM');
     label(500, 18, 'HEALING MACHINES');
     label(32, 461, 'NEXT ACTION');
-    this.controlsLabel = label(32, 513, 'WASD / ARROWS  Move     E  Interact / hold to prepare');
+    this.controlsLabel = label(32, 513, 'WASD / ARROWS  Move     E  Interact / hold     Q  Ability');
     label(492, 461, 'PATIENT FILE');
     label(26, 101, 'WAITING PATIENTS', 11);
     label(26, 116, '> Ready   ! Urgent', 8);

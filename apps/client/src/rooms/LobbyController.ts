@@ -66,11 +66,12 @@ export class LobbyController {
     this.view.showMenu('You left the room.');
   }
 
-  sendInput(direction: Direction | null, interactHeld = false): void {
+  sendInput(direction: Direction | null, interactHeld = false, abilityHeld = false): void {
     if (!this.room || this.reconnecting || this.phase.phase !== 'running') return;
     this.room.send('player:input', {
       direction,
       interactHeld,
+      abilityHeld,
       sequence: this.nextSequence(),
       roundId: this.phase.roundId,
     });
@@ -81,6 +82,19 @@ export class LobbyController {
     this.room?.send(request.targetId.startsWith('medicine:') ? 'medicine:interact' : 'patient:interact', {
       ...request, sequence: this.nextSequence(), roundId: this.phase.roundId,
     });
+  }
+
+  sendAbility(request: PatientInteractionRequest): void {
+    if (this.reconnecting || this.phase.phase !== 'running') return;
+    this.room?.send('ability:use', { ...request, sequence: this.nextSequence(), roundId: this.phase.roundId });
+  }
+
+  addBot(): void {
+    if (!this.reconnecting) this.room?.send('lobby:addBot', { sequence: this.nextSequence(), roundId: null });
+  }
+
+  removeBot(botId: string): void {
+    if (!this.reconnecting) this.room?.send('lobby:removeBot', { botId, sequence: this.nextSequence(), roundId: null });
   }
 
   selectCharacter(character: PlayerCharacter | null): void {
@@ -135,7 +149,7 @@ export class LobbyController {
         if (this.room !== room || !state || typeof state !== 'object' || !('players' in state)) return;
         const snapshot = state as {
           players: Map<string, { x: number; y: number; facing: Direction;
-            carriedPatientId: string; carriedMedicineId?: string; connected?: boolean }>;
+            carriedPatientId: string; carriedMedicineId?: string; connected?: boolean; abilityRemainingMs?: number }>;
           patients?: Map<string, PatientRecord>;
           medicineDoses?: Map<string, MedicineDoseRecord>;
           medicineSurfaces?: string[];
@@ -159,6 +173,7 @@ export class LobbyController {
           .map(([id, player]) => ({
           id, x: player.x, y: player.y, facing: player.facing, carriedPatientId: player.carriedPatientId,
           carriedMedicineId: player.carriedMedicineId ?? '',
+          ...(player.abilityRemainingMs ? { abilityRemainingMs: player.abilityRemainingMs } : {}),
           })));
         this.view.showPatients(snapshot.patients ? [...snapshot.patients.values()] : []);
         this.view.showMedicines(snapshot.medicineDoses ? [...snapshot.medicineDoses.values()] : [],

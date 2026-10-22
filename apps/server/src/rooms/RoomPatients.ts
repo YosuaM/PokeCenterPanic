@@ -1,9 +1,9 @@
 import {
-  DISCHARGE_INTERACTION_POINT, HEALING_DURATION_MS, HEALING_MACHINE_FOOTPRINTS, PATIENT_SPECIES,
+  DISCHARGE_INTERACTION_POINT, HEALING_MACHINE_FOOTPRINTS, PATIENT_SPECIES,
   RECOVERY_INTERACTION_POINT, RECOVERY_POSITION, HEALING_MACHINE_POSITIONS, RECEPTION_INTERACTION_POINTS,
   RECEPTION_SLOT_POSITIONS, TREATMENT, WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS,
   isInteractionReachable, isValidTreatmentSet, patientPresentation, patientTravelDuration, patientTravelPose,
-  stationInteractionBounds, dischargePoints, streakBonus,
+  stationInteractionBounds, dischargePoints, streakBonus, characterProfile,
   PATIENT_ELEVATIONS,
   type Direction, type PatientInteractionRequest, type PatientInteractionResult,
   type PatientSpecies, type Point,
@@ -358,7 +358,8 @@ export class RoomPatients {
       patient.slotIndex = index;
       machine.patientId = patient.id;
       machine.status = 'treating';
-      machine.remainingMs = HEALING_DURATION_MS;
+      machine.durationMs = characterProfile(player.character).healingMs;
+      machine.remainingMs = machine.durationMs;
       this.assertOwnership();
       return { ok: true, reason: '' };
     }

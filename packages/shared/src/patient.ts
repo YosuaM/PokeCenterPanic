@@ -55,6 +55,7 @@ export interface HealingMachineSnapshot {
   patientId: string;
   status: 'empty' | 'treating' | 'completed' | 'broken';
   remainingMs: number;
+  durationMs?: number;
   repairOwnerId?: string;
   repairRemainingMs?: number;
 }

@@ -20,6 +20,8 @@ const ui = new RoomInterface(document, {
   ready: (ready) => controller.setReady(ready),
   start: () => controller.startGame(),
   replay: () => controller.replay(),
+  addBot: () => controller.addBot(),
+  removeBot: (botId) => controller.removeBot(botId),
 }, undefined, portraits);
 void portraits.load();
 import.meta.hot?.dispose(() => portraits.dispose());
@@ -34,8 +36,10 @@ const controller = new LobbyController(new RoomGateway(serverUrl), {
   showRoom(code, players, localId) {
     ui.showRoom(code, players, localId);
     mapScene().setPlayers(players.filter((player) => player.connected !== false), localId);
-    mapScene().setInputSender((direction, interactHeld) => controller.sendInput(direction, interactHeld));
+    mapScene().setInputSender((direction, interactHeld, abilityHeld) =>
+      controller.sendInput(direction, interactHeld, abilityHeld));
     mapScene().setInteractionSender((request) => controller.sendInteraction(request));
+    mapScene().setAbilitySender((request) => controller.sendAbility(request));
   },
   showPositions: (positions) => mapScene().setAuthoritativePositions(positions),
   showPatients: (patients) => mapScene().setPatients(patients),

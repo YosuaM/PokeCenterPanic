@@ -21,6 +21,7 @@ export class RoomLobby {
   private readonly sequences = new Map<string, number>();
   private readonly joinOrder = new Map<string, number>();
   private readonly connected = new Set<string>();
+  private readonly bots = new Set<string>();
   private nextJoinOrder = 0;
 
   constructor(private readonly state: RoomState, private readonly countdownMs = 3_000,
@@ -43,8 +44,13 @@ export class RoomLobby {
       return accepted;
     }
     if (!PLAYER_CHARACTERS.includes(character as PlayerCharacter)) return reject('Choose a valid character');
-    if ([...this.state.players].some(([id, member]) => id !== playerId && member.character === character)) {
-      return reject('This Pokémon is already chosen by another player');
+    const holder = [...this.state.players].find(([id, member]) => id !== playerId && member.character === character);
+    if (holder && !this.bots.has(holder[0])) return reject('This Pokémon is already chosen by another player');
+    if (holder) {
+      // Bots give way to people: the bot takes another free Pokémon instead.
+      const free = this.freeCharacters().filter((candidate) => candidate !== character);
+      if (!free.length) return reject('This Pokémon is already chosen by another player');
+      holder[1].character = free[0]!;
     }
     if (player.character === character) return accepted;
     player.character = character as PlayerCharacter;
@@ -72,7 +78,7 @@ export class RoomLobby {
     if (this.state.phase !== 'lobby') return reject('Game is not in the lobby');
     if (this.state.hostId !== playerId) return reject('Only the host can start');
     const players = [...this.state.players.values()];
-    if (!players.length || players.length !== this.connected.size || players.some((player) => !player.ready ||
+    if (!players.length || players.length !== this.connected.size + this.bots.size || players.some((player) => !player.ready ||
       !PLAYER_CHARACTERS.includes(player.character as PlayerCharacter)) ||
       new Set(players.map((player) => player.character)).size !== players.length) {
       return reject('All players must choose a character and be ready');
@@ -111,7 +117,7 @@ export class RoomLobby {
       this.state.roundId = '';
       this.state.countdownRemainingMs = 0;
       this.countdownEndsAt = 0;
-      for (const player of this.state.players.values()) player.ready = false;
+      this.clearReady();
     }
     if (this.state.hostId === playerId) {
       this.state.hostId = oldestConnectedMember([...this.connected].map((id) => ({
@@ -139,8 +145,33 @@ export class RoomLobby {
     this.state.roundId = '';
     this.state.countdownRemainingMs = 0;
     this.countdownEndsAt = 0;
-    for (const player of this.state.players.values()) player.ready = false;
+    this.clearReady();
     return accepted;
+  }
+
+  /** Validates a host-only lobby command such as adding or removing a bot. */
+  hostCommand(playerId: string, value: unknown): LobbyResult {
+    if (!this.consume(playerId, value)) return reject('Invalid or repeated lobby command');
+    if (this.state.phase !== 'lobby') return reject('Bots can only change in the lobby');
+    if (this.state.hostId !== playerId) return reject('Only the host can manage bots');
+    return accepted;
+  }
+
+  addBot(botId: string): void { this.bots.add(botId); }
+
+  removeBot(botId: string): void { this.bots.delete(botId); }
+
+  isBot(playerId: string): boolean { return this.bots.has(playerId); }
+
+  humanCount(): number { return this.connected.size; }
+
+  freeCharacters(): PlayerCharacter[] {
+    const taken = new Set([...this.state.players.values()].map((player) => player.character));
+    return PLAYER_CHARACTERS.filter((character) => !taken.has(character));
+  }
+
+  private clearReady(): void {
+    for (const [id, player] of this.state.players) player.ready = this.bots.has(id);
   }
 
   resetEmpty(): void {

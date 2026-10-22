@@ -11,6 +11,9 @@ export const PlayerState = schema({
   character: t.string(),
   ready: t.boolean(),
   connected: t.boolean(),
+  bot: t.boolean(),
+  abilityPatientId: t.string(),
+  abilityRemainingMs: t.number(),
 }, 'PrototypePlayerState');
 export type PlayerState = SchemaType<typeof PlayerState>;
 
@@ -46,6 +49,7 @@ export const HealingMachineState = schema({
   patientId: t.string(),
   status: t.string(),
   remainingMs: t.number(),
+  durationMs: t.number(),
   repairOwnerId: t.string(),
   repairRemainingMs: t.number(),
 }, 'PrototypeHealingMachineState');
@@ -96,6 +100,7 @@ export function resetHealingMachine(machine: HealingMachineState): void {
   machine.patientId = '';
   machine.status = 'empty';
   machine.remainingMs = 0;
+  machine.durationMs = 0;
   machine.repairOwnerId = '';
   machine.repairRemainingMs = 0;
 }

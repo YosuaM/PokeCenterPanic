@@ -318,3 +318,10 @@ body[data-screen='running'] #patient-audio, body[data-screen='fixture'] #patient
   .character-actions button > span[aria-hidden] { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
+.player-bot { border-color: #b9dccd; background: #e4f6ee; color: #3f7d63; }
+.bot-add, .bot-remove { margin-top: 10px; padding: 6px 12px; border: 2px solid #d1bcec; border-radius: 10px; background: #fff; color: #65418d; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.bot-add { border-style: dashed; }
+.bot-add:hover, .bot-remove:hover, .bot-add:focus-visible, .bot-remove:focus-visible { background: #eee4ff; }
+.character-role { display: block; margin-top: 6px; color: #7d6d93; font-size: 10px; font-weight: 600; line-height: 1.35; }
+.character-role b { color: #4c3a66; }
+.bot-remove { margin-top: 6px; padding: 3px 10px; font-size: 10px; }

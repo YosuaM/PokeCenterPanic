@@ -737,7 +737,7 @@ describe('MapScene', () => {
     scene.setGameplayActive(true);
     keyboardListeners.get('keydown')?.({ code: 'KeyD', preventDefault: vi.fn() } as unknown as KeyboardEvent);
     scene.update(50, 50);
-    expect(sendInput).toHaveBeenCalledWith('right', false);
+    expect(sendInput).toHaveBeenCalledWith('right', false, false);
   });
   it('renders all six patient species from a validated local sprite fixture', () => {
     const names = ['Pikachu', 'Bulbasaur', 'Charmander', 'Squirtle', 'Eevee', 'Psyduck'] as const;
@@ -805,11 +805,11 @@ describe('MapScene', () => {
     keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false,
       preventDefault: vi.fn() } as unknown as KeyboardEvent);
     expect(interact).toHaveBeenCalledWith({ targetId: 'medicine:prep:0', expectedOccupantId: '' });
-    expect(sendInput).toHaveBeenLastCalledWith(null, true);
+    expect(sendInput).toHaveBeenLastCalledWith(null, true, false);
     scene.update(100, 50);
-    expect(sendInput).toHaveBeenLastCalledWith(null, true);
+    expect(sendInput).toHaveBeenLastCalledWith(null, true, false);
     keyboardListeners.get('keyup')?.({ code: 'KeyE' } as KeyboardEvent);
-    expect(sendInput).toHaveBeenLastCalledWith(null, false);
+    expect(sendInput).toHaveBeenLastCalledWith(null, false, false);
     scene.setMedicines([{ id: 'dose-1', kind: 'burnHeal', location: 'carrier',
       carrierId: 'red', slotIndex: -1 }], ['', '', '', ''], ['', ''], [0, 0]);
     expect(container).toHaveBeenCalledTimes(2);
@@ -910,6 +910,40 @@ describe('MapScene', () => {
     expect(tip.setVisible).toHaveBeenLastCalledWith(false);
     expect(controls.setVisible).toHaveBeenLastCalledWith(true);
   });
+  it('uses Q for the local Pokémon ability on a seated patient and shows its progress', () => {
+    const { scene, text, keyboardListeners } = setup();
+    const hint = text.mock.results.find((result) => result.value.x === 32 && result.value.y === 477)!.value;
+    const ability = vi.fn();
+    const input = vi.fn();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0, character: 'Chansey' }], 'red');
+    scene.setGameplayActive(true);
+    scene.setAbilitySender(ability);
+    scene.setInputSender(input);
+    const seat = WAITING_INTERACTION_POINTS[0]!;
+    scene.setPatients([{ id: 'patient-1', species: 'Eevee', requiredTreatments: TREATMENT.healing,
+      completedTreatments: 0, initialPatienceMs: 90_000, remainingPatienceMs: 60_000, lifecycle: 'active',
+      location: 'waiting', slotIndex: 0, carrierId: '' }]);
+    scene.setAuthoritativePositions([{ id: 'red', x: seat.x, y: seat.y - 12, facing: 'down', carriedPatientId: '' }]);
+    expect(hint.setText).toHaveBeenLastCalledWith('E: Pick up Eevee · Q: Soft-Boiled');
+    keyboardListeners.get('keydown')!({ code: 'KeyQ', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    keyboardListeners.get('keydown')!({ code: 'KeyQ', repeat: true, preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    expect(ability).toHaveBeenCalledOnce();
+    expect(ability).toHaveBeenCalledWith({ targetId: 'waiting:0', expectedOccupantId: 'patient-1' });
+    expect(input).toHaveBeenLastCalledWith(null, false, true);
+    scene.setAuthoritativePositions([{ id: 'red', x: seat.x, y: seat.y - 12, facing: 'down', carriedPatientId: '',
+      abilityRemainingMs: 1500 }]);
+    expect(hint.setText).toHaveBeenLastCalledWith('Soft-Boiled… 2s');
+    keyboardListeners.get('keyup')!({ code: 'KeyQ' } as KeyboardEvent);
+    expect(input).toHaveBeenLastCalledWith(null, false, false);
+
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0, character: 'Machoke' }], 'red');
+    scene.setAuthoritativePositions([{ id: 'red', x: seat.x, y: seat.y - 12, facing: 'down', carriedPatientId: '' }]);
+    expect(hint.setText).toHaveBeenLastCalledWith('E: Pick up Eevee');
+    keyboardListeners.get('keydown')!({ code: 'KeyQ', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    expect(ability).toHaveBeenCalledOnce();
+    expect(hint.setText).toHaveBeenLastCalledWith('REJECTED: This Pokémon has no special ability');
+  });
+
   it('labels rejected interactions and clears the rejection when target changes', () => {
     const { scene, text } = setup();
     const hint = text.mock.results.find((result) => result.value.x === 32 &&
@@ -987,7 +1021,7 @@ describe('MapScene', () => {
     keyboardListeners.get('keydown')?.({ code: 'KeyD', preventDefault } as unknown as KeyboardEvent);
     scene.update(0, 16);
     expect(preventDefault).toHaveBeenCalled();
-    expect(sendInput).toHaveBeenCalledWith('right', false);
+    expect(sendInput).toHaveBeenCalledWith('right', false, false);
     scene.setAuthoritativePositions([
       { id: 'red', x: 470, y: 190, facing: 'right', carriedPatientId: '' },
       { id: 'blue', x: 518, y: 190, facing: 'left', carriedPatientId: '' },
@@ -997,7 +1031,7 @@ describe('MapScene', () => {
     expect(containers[1]?.setPosition).toHaveBeenLastCalledWith(...Object.values(mapViewportPoint({ x: 518, y: 190 })));
 
     windowListeners.get('blur')?.();
-    expect(sendInput).toHaveBeenLastCalledWith(null, false);
+    expect(sendInput).toHaveBeenLastCalledWith(null, false, false);
     scene.clearPlayers();
     expect(containers[0]?.destroy).toHaveBeenCalled();
     expect(containers[1]?.destroy).toHaveBeenCalled();

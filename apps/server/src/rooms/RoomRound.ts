@@ -3,6 +3,7 @@ import type { RoomMedicine } from './RoomMedicine.js';
 import type { RoomMovement } from './RoomMovement.js';
 import type { RoomPatients } from './RoomPatients.js';
 import type { RoomIncidents } from './RoomIncidents.js';
+import type { RoomAbilities } from './RoomAbilities.js';
 import { RoundResultsState, type RoomState } from './RoomState.js';
 
 export class RoomRound {
@@ -11,12 +12,14 @@ export class RoomRound {
 
   constructor(private readonly state: RoomState, private readonly patients: RoomPatients,
     private readonly medicine: RoomMedicine, private readonly movement: RoomMovement,
-    private readonly durationMs = ROUND_DURATION_MS, private readonly incidents?: RoomIncidents) {
+    private readonly durationMs = ROUND_DURATION_MS, private readonly incidents?: RoomIncidents,
+    private readonly abilities?: RoomAbilities) {
     this.reset();
   }
 
   reset(): void {
     this.incidents?.reset();
+    this.abilities?.reset();
     this.deadline = 0;
     this.lastUpdatedAt = 0;
     this.state.roundRemainingMs = this.durationMs;
@@ -44,6 +47,8 @@ export class RoomRound {
         (id) => this.movement.facing(id), exclusive);
       this.incidents?.advance(boundary, (id) => this.movement.position(id),
         (id) => this.movement.facing(id), exclusive);
+      this.abilities?.advance(boundary, (id) => this.movement.position(id),
+        (id) => this.movement.facing(id), exclusive);
       this.lastUpdatedAt = boundary;
     } while (this.lastUpdatedAt < end);
     this.state.roundRemainingMs = Math.max(0, this.deadline - now);
@@ -52,6 +57,7 @@ export class RoomRound {
       this.state.dischargedCount, this.state.lostCount, this.state.bestStreak));
     this.patients.finishRound();
     this.incidents?.finishRound();
+    this.abilities?.finishRound();
     this.medicine.reset();
     this.movement.stopAll();
     this.state.phase = 'results';

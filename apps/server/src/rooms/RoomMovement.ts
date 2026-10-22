@@ -16,6 +16,8 @@ interface TrackedPlayer {
 export class RoomMovement {
   private readonly players = new Map<string, TrackedPlayer>();
 
+  constructor(private readonly speedFor: (id: string) => number = () => 1) {}
+
   add(id: string): { position: Point; slot: number } {
     const usedSlots = new Set([...this.players.values()].map((player) => player.slot));
     const slot = SPAWN_POINTS.findIndex((_, index) => !usedSlots.has(index));
@@ -87,10 +89,13 @@ export class RoomMovement {
 
   advance(elapsedMs: number, now: number): void {
     const distance = PLAYER_SPEED * Math.min(Math.max(elapsedMs, 0), 100) / 1000;
-    for (const player of this.players.values()) {
+    for (const [id, player] of this.players) {
       if (!player.connected) continue;
       if (player.direction && now - player.lastInputAt >= 250) player.direction = null;
-      if (player.direction) player.position = moveWithinMap(player.position, player.direction, distance);
+      const multiplier = this.speedFor(id);
+      if (player.direction && Number.isFinite(multiplier) && multiplier > 0) {
+        player.position = moveWithinMap(player.position, player.direction, distance * multiplier);
+      }
     }
   }
 
@@ -113,6 +118,7 @@ function isPlayerInput(value: unknown): value is PlayerInput {
   return (input.roundId === null || typeof input.roundId === 'string') &&
     Number.isSafeInteger(input.sequence) && Number(input.sequence) > 0 &&
     (input.interactHeld === undefined || typeof input.interactHeld === 'boolean') &&
+    (input.abilityHeld === undefined || typeof input.abilityHeld === 'boolean') &&
     (input.direction === null || input.direction === 'up' || input.direction === 'down' ||
       input.direction === 'left' || input.direction === 'right');
 }

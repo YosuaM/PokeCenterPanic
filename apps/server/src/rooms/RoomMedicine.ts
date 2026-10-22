@@ -1,5 +1,5 @@
 import {
-  HEALING_MACHINE_FOOTPRINTS, MEDICINE_DISPOSAL_POINT, MEDICINE_KINDS, MEDICINE_PREPARATION_MS,
+  HEALING_MACHINE_FOOTPRINTS, MEDICINE_DISPOSAL_POINT, MEDICINE_KINDS, characterProfile,
   MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, RECEPTION_INTERACTION_POINTS,
   RECOVERY_INTERACTION_POINT, TREATMENT, WAITING_INTERACTION_POINTS, isInteractionReachable,
   stationInteractionBounds,
@@ -12,6 +12,7 @@ interface Preparation {
   startedAt: number;
   lastHeldAt: number;
   pointIndex: number;
+  durationMs: number;
 }
 
 const reject = (reason: string): PatientInteractionResult => ({ ok: false, reason });
@@ -84,9 +85,10 @@ export class RoomMedicine {
       if (player.carriedPatientId || player.carriedMedicineId) return reject('Hands must be empty');
       if (!stationary) return reject('Stop moving to prepare medicine');
       if (this.state.medicinePreparationOwners[index]) return reject('Preparation point occupied');
-      this.preparations.set(playerId, { playerId, startedAt: now, lastHeldAt: now, pointIndex: index });
+      const durationMs = characterProfile(player.character).preparationMs;
+      this.preparations.set(playerId, { playerId, startedAt: now, lastHeldAt: now, pointIndex: index, durationMs });
       this.state.medicinePreparationOwners[index] = playerId;
-      this.state.medicinePreparationRemainingMs[index] = MEDICINE_PREPARATION_MS;
+      this.state.medicinePreparationRemainingMs[index] = durationMs;
       this.releaseRequired.add(playerId);
       return success();
     }
@@ -194,11 +196,11 @@ export class RoomMedicine {
   advance(now: number, positionFor: (id: string) => Point | undefined,
     facingFor: (id: string) => Direction | undefined, exclusiveEnd = false): void {
     for (const preparation of [...this.preparations.values()]) {
-      const { playerId, pointIndex, startedAt, lastHeldAt } = preparation;
+      const { playerId, pointIndex, startedAt, lastHeldAt, durationMs } = preparation;
       const player = this.state.players.get(playerId);
       const position = positionFor(playerId);
       const facing = facingFor(playerId);
-      const completesAt = startedAt + MEDICINE_PREPARATION_MS;
+      const completesAt = startedAt + durationMs;
       const inputExpiresAt = lastHeldAt + 250;
       const completes = completesAt <= now && !(exclusiveEnd && completesAt === now);
       if (!player?.connected || !position || !facing ||
@@ -208,7 +210,7 @@ export class RoomMedicine {
         this.cancel(playerId);
         continue;
       }
-      const remaining = Math.max(0, MEDICINE_PREPARATION_MS - (now - startedAt));
+      const remaining = Math.max(0, durationMs - (now - startedAt));
       this.state.medicinePreparationRemainingMs[pointIndex] = remaining;
       if (!completes) continue;
       const dose = new MedicineDoseState();
