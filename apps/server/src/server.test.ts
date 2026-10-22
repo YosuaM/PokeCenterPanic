@@ -5,7 +5,7 @@ import { MedicineDoseState, type RoomState } from './rooms/RoomState.js';
 import type { RoomMovement } from './rooms/RoomMovement.js';
 import type { RoomPatients } from './rooms/RoomPatients.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { PROJECT_INFO, type PlayerPresence } from '@pokecenter/shared';
+import { PLAYER_CHARACTERS, PROJECT_INFO, type PlayerPresence } from '@pokecenter/shared';
 import { createGameServer, resolveCapacity, resolvePort } from './server.js';
 
 describe('resolvePort', () => {
@@ -64,8 +64,8 @@ describe('private room flow', () => {
 
   async function startRound(host: Awaited<ReturnType<Client['consumeSeatReservation']>>,
     members: Array<Awaited<ReturnType<Client['consumeSeatReservation']>>> = []): Promise<string> {
-    for (const room of [host, ...members]) {
-      room.send('player:select', { character: 'Chansey', sequence: 1, roundId: null });
+    for (const [index, room] of [host, ...members].entries()) {
+      room.send('player:select', { character: PLAYER_CHARACTERS[index], sequence: 1, roundId: null });
       room.send('player:ready', { ready: true, sequence: 2, roundId: null });
     }
     await vi.waitFor(() => {
@@ -170,8 +170,8 @@ describe('private room flow', () => {
     await vi.waitFor(() => expect((blue.state as { hostId: string }).hostId)
       .toBe(blue.sessionId), { timeout: 2000 });
     expect((green.state as { hostId: string }).hostId).toBe(blue.sessionId);
-    for (const guest of guests) {
-      guest.send('player:select', { character: 'Chansey', sequence: 1, roundId: null });
+    for (const [index, guest] of guests.entries()) {
+      guest.send('player:select', { character: PLAYER_CHARACTERS[index], sequence: 1, roundId: null });
       guest.send('player:ready', { ready: true, sequence: 2, roundId: null });
     }
     await vi.waitFor(() => expect(guests.every((guest) =>

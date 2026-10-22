@@ -20,12 +20,15 @@ export interface SpriteAnimation {
   image: string;
 }
 
+export type SpriteAnimationName = 'Idle' | 'Walk' | 'Dance' | 'Rotate';
+
 export interface SpeciesSprite {
   id: string;
   name: string;
   credits: string;
   idle: SpriteAnimation;
   walk?: SpriteAnimation;
+  selection?: SpriteAnimation;
 }
 
 export interface SpriteManifest {
@@ -63,7 +66,7 @@ export function animationRow(facing: Direction, directions: number): number {
   return { down: 0, right: 2, up: 4, left: 6 }[facing];
 }
 
-export function parseAnimationXml(xml: string, name: 'Idle' | 'Walk'):
+export function parseAnimationXml(xml: string, name: SpriteAnimationName):
   Omit<SpriteAnimation, 'image' | 'directions'> | undefined {
   const block = [...xml.matchAll(/<Anim>([\s\S]*?)<\/Anim>/g)].map((match) => match[1]!)
     .find((content) => /<Name>\s*([^<]+)\s*<\/Name>/.exec(content)?.[1]?.trim() === name);
@@ -87,7 +90,7 @@ export function pngDimensions(bytes: Uint8Array): { width: number; height: numbe
   return { width: view.getUint32(16), height: view.getUint32(20) };
 }
 
-export function validateAnimation(xml: string, name: 'Idle' | 'Walk', bytes: Uint8Array,
+export function validateAnimation(xml: string, name: SpriteAnimationName, bytes: Uint8Array,
   image: string): SpriteAnimation | undefined {
   const parsed = parseAnimationXml(xml, name);
   if (!parsed) return undefined;
@@ -106,7 +109,7 @@ export function parseSpriteManifest(value: unknown): SpriteManifest {
     throw new Error('Malformed PMD sprite manifest');
   }
   const validAnimation = (animation: SpriteAnimation | undefined, id: string,
-    name: 'Idle' | 'Walk'): boolean => Boolean(animation &&
+    name: SpriteAnimationName): boolean => Boolean(animation &&
     Number.isSafeInteger(animation.frameWidth) && animation.frameWidth > 1 &&
     Number.isSafeInteger(animation.frameHeight) && animation.frameHeight > 1 &&
     (animation.directions === 1 || animation.directions === 8) &&
@@ -116,7 +119,9 @@ export function parseSpriteManifest(value: unknown): SpriteManifest {
   for (const species of manifest.species) {
     if (!species || SPRITE_IDS[species.name] !== species.id || !species.credits ||
       !validAnimation(species.idle, species.id, 'Idle') ||
-      (species.walk && !validAnimation(species.walk, species.id, 'Walk'))) {
+      (species.walk && !validAnimation(species.walk, species.id, 'Walk')) ||
+      (species.selection && !validAnimation(species.selection, species.id, 'Dance') &&
+        !validAnimation(species.selection, species.id, 'Rotate'))) {
       throw new Error('Malformed PMD sprite manifest entry');
     }
   }

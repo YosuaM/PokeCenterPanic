@@ -1,7 +1,7 @@
 import type { Room } from '@colyseus/sdk';
 import type { Direction, HealingMachineSnapshot, MedicineDiscardEvent, MedicineDoseRecord, PatientInteractionRequest,
   PatientInteractionResult, PatientRecord, PlayerCharacter, PlayerPosition, PlayerPresence,
-  RoomPhaseSnapshot } from '@pokecenter/shared';
+  RoomPhaseSnapshot, RoundProgressSnapshot, RoundResults } from '@pokecenter/shared';
 import type { JoinedRoom } from './RoomGateway.js';
 
 export interface LobbyGateway {
@@ -22,6 +22,7 @@ export interface LobbyView {
   showDischargedCount(count: number): void;
   showLostCount(count: number): void;
   showPhase(snapshot: RoomPhaseSnapshot, localId: string): void;
+  showRound(snapshot: RoundProgressSnapshot): void;
   showLobbyResult(reason: string): void;
   showMenu(message: string): void;
 }
@@ -83,7 +84,7 @@ export class LobbyController {
     else this.room?.send('patient:interact', request);
   }
 
-  selectCharacter(character: PlayerCharacter): void {
+  selectCharacter(character: PlayerCharacter | null): void {
     if (!this.reconnecting) this.room?.send('player:select', { character,
       sequence: this.nextSequence(), roundId: null });
   }
@@ -96,6 +97,12 @@ export class LobbyController {
   startGame(): void {
     if (!this.reconnecting) this.room?.send('game:start', {
       sequence: this.nextSequence(), roundId: null });
+  }
+
+  replay(): void {
+    if (!this.room || this.reconnecting || this.phase.phase !== 'results' ||
+      this.phase.hostId !== this.room.sessionId) return;
+    this.room.send('game:replay', { sequence: this.nextSequence(), roundId: this.phase.roundId });
   }
 
   private nextSequence(): number {
@@ -142,6 +149,9 @@ export class LobbyController {
           hostId?: string;
           countdownRemainingMs?: number;
           roundId?: string;
+          roundRemainingMs?: number;
+          score?: number;
+          results?: RoundResults;
         };
         const players = snapshot.players;
         this.view.showPositions([...players].filter(([, player]) => player.connected !== false)
@@ -163,6 +173,13 @@ export class LobbyController {
           this.phase = { phase: snapshot.phase, hostId: snapshot.hostId,
             countdownRemainingMs: snapshot.countdownRemainingMs, roundId: snapshot.roundId };
           this.view.showPhase(this.phase, room.sessionId);
+        }
+        if (typeof snapshot.roundRemainingMs === 'number' && typeof snapshot.score === 'number') {
+          this.view.showRound({ remainingMs: snapshot.roundRemainingMs, score: snapshot.score,
+            results: snapshot.phase === 'results' && snapshot.results ? {
+              score: snapshot.results.score, admitted: snapshot.results.admitted,
+              discharged: snapshot.results.discharged, lost: snapshot.results.lost,
+              unfinished: snapshot.results.unfinished, stars: snapshot.results.stars } : null });
         }
       };
       room.onStateChange(updateState);

@@ -1,8 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SPRITE_IDS, validateAnimation, type SpeciesSprite, type SpriteManifest } from
+import { PLAYER_SPRITES, SPRITE_IDS, validateAnimation, type SpeciesSprite, type SpriteManifest } from
   '../apps/client/src/sprites/pmd.js';
+import { loadSelectionAnimation } from './pmd-selection-animation.js';
 
 const root = fileURLToPath(new URL('../apps/client/public/assets/external/pmd/', import.meta.url));
 const source = 'https://github.com/PMDCollab/SpriteCollab';
@@ -39,12 +40,17 @@ async function main(): Promise<void> {
         process.stderr.write(`${name}: optional Walk animation unavailable: ${String(error)}\n`);
       }
     }
+    const selection = PLAYER_SPRITES.some((character) => character === name) ?
+      await loadSelectionAnimation(xml, id, (animation) => fetchResource(`${base}/${animation}-Anim.png`),
+        (message) => process.stderr.write(`${name}: ${message}\n`)) : undefined;
     await mkdir(directory, { recursive: true });
     await writeFile(join(directory, 'Idle-Anim.png'), idleBytes);
     if (walk && walkBytes) await writeFile(join(directory, 'Walk-Anim.png'), walkBytes);
+    if (selection) await writeFile(join(root, selection.animation.image), selection.bytes);
     await writeFile(join(directory, 'credits.txt'), `${credits}\n`);
-    species.push({ id, name, credits, idle, ...(walk ? { walk } : {}) });
-    process.stdout.write(`${name}: idle${walk ? ', walk' : ''}\n`);
+    species.push({ id, name, credits, idle, ...(walk ? { walk } : {}),
+      ...(selection ? { selection: selection.animation } : {}) });
+    process.stdout.write(`${name}: idle${walk ? ', walk' : ''}${selection ? ', selection' : ''}\n`);
   }
   const manifest: SpriteManifest = { source, species };
   await writeFile(join(root, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);

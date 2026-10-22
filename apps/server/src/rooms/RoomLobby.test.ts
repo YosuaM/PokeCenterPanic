@@ -20,6 +20,65 @@ function setup(ids = ['red', 'blue']) {
 }
 
 describe('RoomLobby', () => {
+  it('reserves each Pokémon for one member and releases it on deselection without changing other players', () => {
+    const { state, lobby, command } = setup();
+    expect(lobby.select('red', command({ character: 'Meowth' })).ok).toBe(true);
+    expect(lobby.select('blue', command({ character: 'Audino' })).ok).toBe(true);
+    lobby.ready('blue', command({ ready: true }));
+    expect(lobby.select('blue', command({ character: 'Meowth' })).reason).toContain('already chosen');
+    expect(state.players.get('blue')).toMatchObject({ character: 'Audino', ready: true });
+    expect(lobby.select('blue', command({ character: 'Audino' })).ok).toBe(true);
+    expect(state.players.get('blue')?.ready).toBe(true);
+    lobby.ready('red', command({ ready: true }));
+    const clear = command({ character: null });
+    expect(lobby.select('red', clear).ok).toBe(true);
+    expect(state.players.get('red')).toMatchObject({ character: '', ready: false });
+    expect(lobby.ready('red', command({ ready: true })).ok).toBe(false);
+    expect(lobby.start('red', command(), 0).ok).toBe(false);
+    expect(lobby.select('blue', command({ character: 'Meowth' })).ok).toBe(true);
+    expect(state.players.get('blue')).toMatchObject({ character: 'Meowth', ready: false });
+    expect(lobby.select('red', clear).ok).toBe(false);
+    expect(lobby.select('red', command({ character: 'Meowth' })).ok).toBe(false);
+    expect(lobby.select('red', command({ character: 'Audino' })).ok).toBe(true);
+    for (const id of ['red', 'blue']) lobby.ready(id, command({ ready: true }));
+    expect(lobby.start('red', command(), 0).ok).toBe(true);
+  });
+
+  it('retains choices for disconnected reservations and frees them only after the member leaves or expires', () => {
+    const { state, lobby, command } = setup();
+    lobby.select('red', command({ character: 'Chansey' }));
+    lobby.departed('red', true);
+    expect(lobby.select('blue', command({ character: 'Chansey' })).ok).toBe(false);
+    expect(lobby.select('red', command({ character: null })).ok).toBe(false);
+    lobby.joined('red');
+    expect(state.players.get('red')?.character).toBe('Chansey');
+    expect(lobby.select('blue', command({ character: 'Chansey' })).ok).toBe(false);
+    state.players.delete('red'); lobby.departed('red');
+    expect(lobby.select('blue', command({ character: 'Chansey' })).ok).toBe(true);
+  });
+
+  it('rejects malformed deselection and phase-locked changes, and refuses a duplicate roster at start', () => {
+    const { state, lobby, command } = setup();
+    lobby.select('red', command({ character: 'Chansey' }));
+    lobby.select('blue', command({ character: 'Audino' }));
+    for (const id of ['red', 'blue']) lobby.ready(id, command({ ready: true }));
+    for (const character of [undefined, '', false, {}, []]) {
+      expect(lobby.select('red', command({ character })).ok).toBe(false);
+      expect(state.players.get('red')).toMatchObject({ character: 'Chansey', ready: true });
+    }
+    state.players.get('blue')!.character = 'Chansey';
+    expect(lobby.start('red', command(), 0).ok).toBe(false);
+    expect(state.phase).toBe('lobby');
+    state.players.get('blue')!.character = 'Audino';
+    expect(lobby.start('red', command(), 0).ok).toBe(true);
+    for (const phase of ['countdown', 'running', 'results']) {
+      state.phase = phase;
+      expect(lobby.select('red', command({ character: null })).ok).toBe(false);
+      expect(state.players.get('red')?.character).toBe('Chansey');
+    }
+  });
+
+
   it('elects by join order and then ID when orders tie', () => {
     expect(oldestConnectedMember([
       { id: 'green', joinOrder: 2 }, { id: 'blue', joinOrder: 1 },
@@ -36,8 +95,8 @@ describe('RoomLobby', () => {
     state.players.delete('red');
     lobby.departed('red');
     expect(state.hostId).toBe('blue');
-    for (const id of ['blue', 'green']) {
-      expect(lobby.select(id, command({ character: 'Chansey' })).ok).toBe(true);
+    for (const [index, id] of ['blue', 'green'].entries()) {
+      expect(lobby.select(id, command({ character: ['Chansey', 'Audino'][index] })).ok).toBe(true);
       expect(lobby.ready(id, command({ ready: true })).ok).toBe(true);
     }
     expect(lobby.start('green', command(), 0).reason).toBe('Only the host can start');
@@ -51,7 +110,7 @@ describe('RoomLobby', () => {
     lobby.departed('red', true);
     expect(state.hostId).toBe('blue');
     expect(state.players.get('red')?.ready).toBe(false);
-    lobby.select('blue', command({ character: 'Chansey' }));
+    lobby.select('blue', command({ character: 'Audino' }));
     lobby.ready('blue', command({ ready: true }));
     expect(lobby.start('blue', command(), 0).reason)
       .toBe('All players must choose a character and be ready');
@@ -76,7 +135,7 @@ describe('RoomLobby', () => {
     expect(lobby.ready('red', command({ ready: true })).ok).toBe(false);
     expect(lobby.select('red', command({ character: 'Chansey' })).ok).toBe(true);
     expect(lobby.ready('red', command({ ready: true })).ok).toBe(true);
-    expect(lobby.select('blue', command({ character: 'Chansey' })).ok).toBe(true);
+    expect(lobby.select('blue', command({ character: 'Audino' })).ok).toBe(true);
     expect(lobby.ready('blue', command({ ready: true })).ok).toBe(true);
     expect(lobby.start('blue', command(), 100).reason).toBe('Only the host can start');
     expect(lobby.start('red', command(), 100).ok).toBe(true);
@@ -108,8 +167,8 @@ describe('RoomLobby', () => {
 
   it('cancels countdown when a player departs and transfers the host', () => {
     const { state, lobby, command } = setup();
-    for (const id of ['red', 'blue']) {
-      lobby.select(id, command({ character: 'Meowth' }));
+    for (const [index, id] of ['red', 'blue'].entries()) {
+      lobby.select(id, command({ character: ['Meowth', 'Audino'][index] }));
       lobby.ready(id, command({ ready: true }));
     }
     expect(lobby.start('red', command(), 0).ok).toBe(true);

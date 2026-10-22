@@ -45,6 +45,7 @@ export * from './interaction.js';
 export * from './patient.js';
 export * from './patientTravel.js';
 export * from './medicine.js';
+export * from './round.js';
 
 export const PROJECT_INFO = {
   title: 'PokéCenter Panic',

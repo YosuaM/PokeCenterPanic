@@ -1,4 +1,5 @@
 import type { AddressInfo } from 'node:net';
+import { PLAYER_CHARACTERS } from '@pokecenter/shared';
 import { Client } from '@colyseus/sdk';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createGameServer } from './server.js';
@@ -21,7 +22,7 @@ describe('four-player rounds', () => {
     await server.gracefullyShutdown(false);
   });
 
-  it.each([1, 2, 3, 4])('starts a room with %i ready players sharing one character', async (count) => {
+  it.each([1, 2, 3, 4])('starts a room with %i ready players choosing different Pokémon', async (count) => {
     const reserve = async (path: string, name: string) => {
       const response = await fetch(`${endpoint}${path}`, { method: 'POST',
         headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) });
@@ -43,8 +44,8 @@ describe('four-player rounds', () => {
         status: 409, body: { error: 'Room is full' },
       });
     }
-    for (const member of members) {
-      member.send('player:select', { character: 'Chansey', sequence: 1, roundId: null });
+    for (const [index, member] of members.entries()) {
+      member.send('player:select', { character: PLAYER_CHARACTERS[index], sequence: 1, roundId: null });
       member.send('player:ready', { ready: true, sequence: 2, roundId: null });
     }
     const host = members[0]!;
@@ -54,7 +55,7 @@ describe('four-player rounds', () => {
       state().players?.get(member.sessionId)?.ready)).toBe(true), { timeout: 2000 });
     expect(members.map((member) => state().players.get(member.sessionId))).toEqual(
       members.map((_, index) => expect.objectContaining({ name: `Player ${index + 1}`,
-        slot: index, character: 'Chansey' })));
+        slot: index, character: PLAYER_CHARACTERS[index] })));
     host.send('game:start', { sequence: 3, roundId: null });
     await vi.waitFor(() => expect(members.every((member) =>
       (member.state as { phase: string }).phase === 'running')).toBe(true), { timeout: 2000 });

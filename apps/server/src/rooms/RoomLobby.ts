@@ -36,8 +36,17 @@ export class RoomLobby {
     if (!command) return reject('Invalid or repeated lobby command');
     if (this.state.phase !== 'lobby') return reject('Character selection is only available in the lobby');
     const character = (value as { character?: unknown }).character;
-    if (!PLAYER_CHARACTERS.includes(character as PlayerCharacter)) return reject('Choose a valid character');
     const player = this.state.players.get(playerId)!;
+    if (character === null) {
+      player.character = '';
+      player.ready = false;
+      return accepted;
+    }
+    if (!PLAYER_CHARACTERS.includes(character as PlayerCharacter)) return reject('Choose a valid character');
+    if ([...this.state.players].some(([id, member]) => id !== playerId && member.character === character)) {
+      return reject('This Pokémon is already chosen by another player');
+    }
+    if (player.character === character) return accepted;
     player.character = character as PlayerCharacter;
     player.ready = false;
     return accepted;
@@ -64,7 +73,8 @@ export class RoomLobby {
     if (this.state.hostId !== playerId) return reject('Only the host can start');
     const players = [...this.state.players.values()];
     if (!players.length || players.length !== this.connected.size || players.some((player) => !player.ready ||
-      !PLAYER_CHARACTERS.includes(player.character as PlayerCharacter))) {
+      !PLAYER_CHARACTERS.includes(player.character as PlayerCharacter)) ||
+      new Set(players.map((player) => player.character)).size !== players.length) {
       return reject('All players must choose a character and be ready');
     }
     this.state.roundId = this.nextRoundId();
@@ -124,7 +134,7 @@ export class RoomLobby {
   }
 
   private consume(playerId: string, value: unknown): boolean {
-    if (!this.state.players.has(playerId) || typeof value !== 'object' || value === null) return false;
+    if (!this.connected.has(playerId) || !this.state.players.has(playerId) || typeof value !== 'object' || value === null) return false;
     const command = value as { sequence?: unknown; roundId?: unknown };
     if (command.roundId !== null || !Number.isSafeInteger(command.sequence) ||
       Number(command.sequence) <= (this.sequences.get(playerId) ?? 0)) return false;

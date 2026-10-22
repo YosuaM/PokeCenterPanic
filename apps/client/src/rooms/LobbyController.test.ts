@@ -40,6 +40,7 @@ function setup(storage?: Storage) {
     showDischargedCount: vi.fn(),
     showLostCount: vi.fn(),
     showPhase: vi.fn(),
+    showRound: vi.fn(),
     showLobbyResult: vi.fn(),
     showMenu: vi.fn(),
   };
@@ -50,6 +51,7 @@ function setup(storage?: Storage) {
     result: (result: { ok: boolean; reason: string }) => messages.get('patient:result')?.(result as never),
     medicineResult: (result: { ok: boolean; reason: string }) =>
       messages.get('medicine:result')?.(result as never),
+    snapshot: (snapshot: object) => stateChange?.({ ...room.state, ...snapshot }),
     state: (positions: Map<string, { x: number; y: number; facing: 'up' | 'down' | 'left' | 'right';
       carriedPatientId: string }>, patients = new Map<string, PatientRecord>()) =>
       stateChange?.({ players: positions, patients,
@@ -61,6 +63,34 @@ function setup(storage?: Storage) {
 }
 
 describe('LobbyController', () => {
+
+  it('shows authoritative results after reconnect and sends host replay only for the current round', async () => {
+    const { controller, view, room, snapshot, drop, reconnect } = setup();
+    await controller.create('Red');
+    controller.replay();
+    expect(room.send).not.toHaveBeenCalledWith('game:replay', expect.anything());
+    const results = { score: 325, admitted: 5, discharged: 3, lost: 1, unfinished: 1, stars: 1 };
+    snapshot({ phase: 'running', roundId: 'round-1', roundRemainingMs: 1, score: 325 });
+    expect(view.showRound).toHaveBeenLastCalledWith({ remainingMs: 1, score: 325, results: null });
+    snapshot({ phase: 'results', roundId: 'round-1', roundRemainingMs: 0, score: 325, results });
+    expect(view.showRound).toHaveBeenLastCalledWith({ remainingMs: 0, score: 325, results });
+    vi.mocked(room.send).mockClear();
+    controller.sendInput('up');
+    controller.sendInteraction({ targetId: 'discharge', expectedOccupantId: 'patient-1' });
+    drop();
+    controller.replay();
+    expect(room.send).not.toHaveBeenCalled();
+    reconnect();
+    controller.replay();
+    expect(room.send).toHaveBeenCalledWith('game:replay', { sequence: 1, roundId: 'round-1' });
+    snapshot({ phase: 'results', hostId: 'other', roundId: 'round-1' });
+    vi.mocked(room.send).mockClear();
+    controller.replay();
+    expect(room.send).not.toHaveBeenCalled();
+    snapshot({ phase: 'lobby', roundId: '', roundRemainingMs: 360000, score: 0 });
+    expect(view.showRound).toHaveBeenLastCalledWith({ remainingMs: 360000, score: 0, results: null });
+  });
+
   it('shows confirmed discards once and ignores old rounds, reconnection and departed rooms', async () => {
     const test = setup();
     await test.controller.create('Staff');
@@ -194,6 +224,9 @@ describe('LobbyController', () => {
     expect(room.send).toHaveBeenCalledWith('player:ready',
       { ready: true, sequence: 2, roundId: null });
     expect(room.send).toHaveBeenCalledWith('game:start', { sequence: 3, roundId: null });
+    controller.selectCharacter(null);
+    expect(room.send).toHaveBeenLastCalledWith('player:select',
+      { character: null, sequence: 4, roundId: null });
     expect(view.showPhase).toHaveBeenCalledWith({ phase: 'lobby', hostId: 'host-id',
       countdownRemainingMs: 0, roundId: '' }, 'host-id');
   });

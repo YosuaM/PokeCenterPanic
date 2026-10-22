@@ -19,6 +19,22 @@ function png(width: number, height: number): Uint8Array {
 }
 
 describe('PMD sprite metadata', () => {
+  it('accepts optional Dance or Rotate selection sheets while keeping old manifests compatible', () => {
+    for (const name of ['Dance', 'Rotate'] as const) {
+      const selectionXml = xml.replace('<Name>Idle</Name>', `<Name>${name}</Name>`);
+      const selection = validateAnimation(selectionXml, name, png(32, 24), `0113/${name}-Anim.png`)!;
+      const idle = { ...selection, image: '0113/Idle-Anim.png' };
+      const species = { name: 'Chansey', id: '0113', credits: 'Fixture artist', idle };
+      expect(parseSpriteManifest({ source: 'fixture', species: [species] }).species[0]!.selection).toBeUndefined();
+      expect(parseSpriteManifest({ source: 'fixture', species: [{ ...species, selection }] }).species[0]!.selection).toEqual(selection);
+      for (const invalid of [{ ...selection, image: '0113/Hop-Anim.png' },
+        { ...selection, image: 'https://example.test/Rotate-Anim.png' }, { ...selection, directions: 2 }]) {
+        expect(() => parseSpriteManifest({ source: 'fixture', species: [{ ...species, selection: invalid }] }))
+          .toThrow('Malformed PMD sprite manifest entry');
+      }
+    }
+  });
+
   it('supports all six patient species and maps the four player slots deterministically', () => {
     expect(Object.keys(PATIENT_SPRITES)).toEqual([
       'Pikachu', 'Bulbasaur', 'Charmander', 'Squirtle', 'Eevee', 'Psyduck',

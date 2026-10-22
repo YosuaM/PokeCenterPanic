@@ -3,185 +3,116 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#262044" />
     <title>PokéCenter Panic</title>
-    <style>
-      html,
-      body,
-      #game {
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        overflow: hidden;
-      }
-
-      #game { position: relative; }
-      #game canvas { image-rendering: auto; }
-      #game > canvas:not(.center-3d-canvas) { position: relative; z-index: 1; }
-      .center-3d-canvas {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: min(100vw, 177.7778vh);
-        height: auto;
-        transform: translate(-50%, -50%);
-        pointer-events: none;
-      }
-
-      body {
-        background: #172d46;
-        color: #f7f5e8;
-        font-family: system-ui, sans-serif;
-      }
-
-      #room-panel {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        z-index: 2;
-        width: min(560px, calc(100% - 32px));
-        max-height: calc(100dvh - 24px);
-        transform: translate(-50%, -50%);
-        box-sizing: border-box;
-        overflow-y: auto;
-        padding: 28px;
-        border: 1px solid #88a6c0;
-        border-radius: 18px;
-        background: #10243b;
-        box-shadow: 0 16px 48px #07131faa;
-      }
-
-      /* Align room controls with the unused right margin of the fitted game canvas. */
-      #room-panel.is-playing {
-        --game-unit: min(0.1041667vw, 0.1851852vh);
-        top: calc(50% - 178 * var(--game-unit));
-        right: calc(50% - 464 * var(--game-unit));
-        left: auto;
-        width: calc(116 * var(--game-unit));
-        max-height: calc(330 * var(--game-unit));
-        padding: calc(8 * var(--game-unit));
-        transform: none;
-        border-radius: calc(6 * var(--game-unit));
-        border-color: #456b70;
-        background: #102f39f5;
-      }
-      #room-panel.is-playing h1,
-      #room-panel.is-playing #lobby-controls,
-      #room-panel.is-playing #room-phase,
-      #room-panel.is-playing #room-lobby > p:first-child { display: none; }
-      #room-panel.is-playing p {
-        margin: calc(8 * var(--game-unit)) 0;
-        font-size: calc(10 * var(--game-unit));
-        line-height: 1.4;
-        overflow-wrap: anywhere;
-      }
-      #room-panel.is-playing #room-code {
-        font-size: calc(15 * var(--game-unit));
-        letter-spacing: .08em;
-      }
-      #room-panel.is-playing button {
-        padding: calc(7 * var(--game-unit)) calc(4 * var(--game-unit));
-        margin: calc(4 * var(--game-unit)) 0 0;
-        font-size: calc(10 * var(--game-unit));
-        background: #9cddc5;
-      }
-      #room-panel.is-playing #room-status:empty { display: none; }
-      #room-players { display: block; margin-top: 8px; line-height: 1.6; }
-      #room-phase { margin-top: 12px; font-weight: 700; }
-      #lobby-controls { margin-top: 16px; }
-      #lobby-controls select { width: 100%; padding: 10px; border-radius: 8px; font: inherit; }
-
-      h1 { margin: 0 0 8px; font-size: 28px; }
-      p { line-height: 1.5; }
-      label { display: block; margin: 18px 0 6px; }
-      input, button {
-        box-sizing: border-box;
-        width: 100%;
-        padding: 12px 14px;
-        border-radius: 8px;
-        font: inherit;
-      }
-      input { border: 1px solid #88a6c0; background: #f7f5e8; color: #10243b; }
-      button { margin-top: 12px; border: 0; background: #f9cc5d; color: #10243b; font-weight: 700; cursor: pointer; }
-      button:disabled { opacity: .6; cursor: wait; }
-      #room-code { display: block; font-size: 32px; font-weight: 800; letter-spacing: .18em; }
-      #room-status { min-height: 24px; color: #ffd587; }
-      #patient-audio {
-        --game-unit: min(0.1041667vw, 0.1851852vh);
-        position: absolute;
-        left: calc(50% - 464 * var(--game-unit));
-        top: calc(50% + 154 * var(--game-unit));
-        width: calc(130 * var(--game-unit));
-        height: calc(22 * var(--game-unit));
-        z-index: 3;
-        display: flex;
-        align-items: center;
-        gap: calc(4 * var(--game-unit));
-      }
-      #room-panel:not(.is-playing):not([hidden]) ~ #patient-audio { display: none; }
-      #patient-audio button {
-        width: calc(64 * var(--game-unit));
-        height: 100%;
-        padding: 0;
-        margin: 0;
-        border: 1px solid #456b70;
-        border-radius: 4px;
-        background: #234b55;
-        color: #fff1d5;
-        font: 700 calc(9 * var(--game-unit)) system-ui, sans-serif;
-      }
-      #patient-audio input {
-        width: calc(62 * var(--game-unit));
-        height: 100%;
-        padding: 0;
-        margin: 0;
-        border: 0;
-        background: transparent;
-        accent-color: #9cddc5;
-      }
-      #patient-audio :focus-visible { outline: 2px solid #ffde8b; outline-offset: 2px; }
-      [hidden] { display: none !important; }
-    </style>
+    <link rel="stylesheet" href="/src/ui/room.css" />
   </head>
-  <body>
-    <main id="game" aria-label="PokéCenter Panic game"></main>
+  <body data-screen="menu">
+    <div class="menu-backdrop" aria-hidden="true"></div>
+    <main id="game" aria-label="PokéCenter Panic game" aria-hidden="true" inert></main>
     <section id="room-panel" aria-label="Private room">
-      <h1>PokéCenter Panic</h1>
-      <div id="room-menu">
-        <p>Create a private room or join a friend with their room code.</p>
-        <label for="player-name">Player name</label>
-        <input id="player-name" maxlength="16" autocomplete="nickname" />
-        <form id="create-room"><button type="submit">Create room</button></form>
-        <form id="join-room">
-          <label for="room-code-input">Room code</label>
-          <input id="room-code-input" maxlength="6" autocomplete="off" autocapitalize="characters" required />
-          <button type="submit">Join room</button>
-        </form>
-      </div>
-      <div id="room-lobby" hidden>
-        <p>Share this code with another player:</p>
-        <strong id="room-code"></strong>
-        <p>Players: <span id="room-players"></span></p>
-        <p id="room-phase"></p>
-        <div id="lobby-controls">
-          <label for="character-select">Your Pokémon</label>
-          <select id="character-select">
-            <option value="">Choose a character</option>
-            <option value="Chansey">Chansey</option>
-            <option value="Audino">Audino</option>
-            <option value="Machoke">Machoke</option>
-            <option value="Meowth">Meowth</option>
-          </select>
-          <button id="ready-button" type="button" disabled>Ready</button>
-          <button id="start-button" type="button" hidden>Start game</button>
+      <header class="site-header">
+        <a class="brand" href="/" aria-label="PokéCenter Panic home"><img src="/assets/original/pokecenter-panic-logo.webp" width="1774" height="887" alt="" decoding="async" /></a>
+        <span class="edition"><span class="status-dot"></span> 1–4 PLAYERS · CO-OP</span>
+        <button class="text-button" type="button" data-dialog="help-dialog">How to play <span aria-hidden="true">↗</span></button>
+      </header>
+
+      <div id="room-menu" class="entry-layout">
+        <div class="hero">
+          <p class="hero-kicker">A CO-OP POKÉMON FAN GAME</p>
+          <h1 class="game-logo"><img src="/assets/original/pokecenter-panic-logo.webp" width="1774" height="887" alt="PokéCenter Panic" fetchpriority="high" decoding="async" /></h1>
+          <p class="hero-description">Big hearts. Tiny patients. Total chaos.<br>Your next shift starts with friends.</p>
+          <div class="game-facts"><span><b>1–4</b> players</span><span><b>6 min</b> per shift</span><span><b>∞</b> good teamwork</span></div>
         </div>
-        <button id="leave-room" type="button">Leave room</button>
+
+        <section class="entry-card" aria-labelledby="entry-title">
+          <div class="card-topline"><span class="header-icon" aria-hidden="true">✚</span><h2 id="entry-title">Welcome to the team!</h2></div>
+          <div class="card-content">
+            <label for="player-name">Your name <span class="field-note">No sign-up needed!</span></label>
+            <input id="player-name" name="nickname" form="create-room" maxlength="16" autocomplete="nickname" placeholder="Enter your name…" pattern=".*\S.*" required aria-describedby="name-hint" />
+            <p id="name-hint" class="input-hint">Pick a name your team will recognise. Up to 16 characters.</p>
+            <div class="entry-tabs" role="tablist" aria-label="Room options">
+              <button id="create-tab" type="button" role="tab" aria-selected="true" aria-controls="create-room">Create a room</button>
+              <button id="join-tab" type="button" role="tab" aria-selected="false" aria-controls="join-room" tabindex="-1">Join a room</button>
+            </div>
+            <form id="create-room" role="tabpanel" aria-labelledby="create-tab">
+              <ul class="room-perks"><li><span class="perk-icon coral" aria-hidden="true">✚</span><span>Your own private Pokémon Center.</span></li><li><span class="perk-icon purple" aria-hidden="true">♟</span><span>Invite up to 3 friends with a room code.</span></li><li><span class="perk-icon gold" aria-hidden="true">★</span><span>Team up for a frantic six-minute shift!</span></li></ul>
+              <button class="primary-button" type="submit"><span>Create room</span><span aria-hidden="true">➜</span></button>
+            </form>
+            <form id="join-room" role="tabpanel" aria-labelledby="join-tab" hidden>
+              <label for="room-code-input">Room code</label>
+              <input id="room-code-input" class="code-input" minlength="6" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC234" required aria-describedby="code-hint" />
+              <p id="code-hint" class="input-hint">Enter the six-character code from your host.</p>
+              <button class="primary-button" type="submit"><span>Join room</span><span aria-hidden="true">→</span></button>
+            </form>
+            <p class="privacy-note">Just you, your friends, and a little medical mayhem.</p>
+          </div>
+          <div class="card-bottomline"><span class="status-dot"></span> Solo shifts welcome. Good teamwork encouraged!</div>
+        </section>
+      </div>
+
+      <div id="room-lobby" hidden>
+        <div class="lobby-heading"><div><p class="eyebrow">YOUR NEXT GREAT TEAM</p><h2>Assemble your care crew!</h2><p class="muted">Choose your Pokémon. Ready up. Let the chaos begin.</p></div><div class="room-invite"><span class="eyebrow">YOUR PRIVATE ROOM</span><div class="code-row"><strong id="room-code"></strong><button id="copy-code" class="text-button" type="button">Copy code</button></div><span class="input-hint">Share this code with your friends.</span></div></div>
+        <ul id="room-players" class="player-roster" aria-label="Room players"></ul>
+        <p id="room-phase" role="status" aria-live="polite" hidden></p>
+        <section id="countdown-card" hidden aria-label="Starting countdown"><span class="eyebrow">TAKE A DEEP BREATH</span><strong id="countdown-number"></strong><p>Your shift is about to begin.</p></section>
+        <section id="round-results" aria-label="Round results" hidden>
+          <p class="eyebrow">SHIFT REPORT / NICE TEAMWORK</p><h2>That's a wrap, team.</h2>
+          <p id="results-score"></p><p id="results-stars"></p><p id="results-patients"></p><p id="results-success"></p>
+          <button id="replay-button" class="primary-button" type="button">Back to the staff room <span aria-hidden="true">↗</span></button>
+          <p id="replay-hint" class="muted">Waiting for the host to return to the lobby.</p>
+        </section>
+        <div id="lobby-controls" class="lobby-controls">
+          <fieldset id="character-select" class="character-picker">
+            <legend>Choose your Pokémon!</legend>
+            <div class="character-grid">
+              <button class="character-card" type="button" data-character="Chansey" value="Chansey" aria-label="Chansey" aria-pressed="false">
+                <span class="character-art"><span class="character-number">#113</span><span id="portrait-Chansey" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
+                <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Chansey</strong><span class="character-type">Normal</span></span>
+                <span class="character-check" aria-hidden="true">✓</span>
+              </button>
+              <button class="character-card" type="button" data-character="Audino" value="Audino" aria-label="Audino" aria-pressed="false">
+                <span class="character-art"><span class="character-number">#531</span><span id="portrait-Audino" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
+                <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Audino</strong><span class="character-type">Normal</span></span>
+                <span class="character-check" aria-hidden="true">✓</span>
+              </button>
+              <button class="character-card" type="button" data-character="Machoke" value="Machoke" aria-label="Machoke" aria-pressed="false">
+                <span class="character-art"><span class="character-number">#067</span><span id="portrait-Machoke" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
+                <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Machoke</strong><span class="character-type">Fighting</span></span>
+                <span class="character-check" aria-hidden="true">✓</span>
+              </button>
+              <button class="character-card" type="button" data-character="Meowth" value="Meowth" aria-label="Meowth" aria-pressed="false">
+                <span class="character-art"><span class="character-number">#052</span><span id="portrait-Meowth" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
+                <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Meowth</strong><span class="character-type">Normal</span></span>
+                <span class="character-check" aria-hidden="true">✓</span>
+              </button>
+            </div>
+          </fieldset>
+        </div>
+        <div class="character-actions">
+          <button id="leave-room" class="secondary-button leave-button" type="button"><span aria-hidden="true">←</span> Leave room</button>
+          <div id="ready-actions" class="ready-actions">
+            <button id="ready-button" class="secondary-button" type="button" disabled>Ready up</button>
+            <button id="start-button" class="primary-button" type="button" hidden>Start shift <span aria-hidden="true">→</span></button>
+          </div>
+        </div>
       </div>
       <p id="room-status" role="status" aria-live="polite"></p>
+      <footer class="site-footer"><span class="footer-tagline">An unofficial, noncommercial Pokémon fan game. Made for playing together.</span><div><button class="text-button" type="button" data-dialog="credits-dialog">Credits</button><span class="version">BETA v0.1</span></div></footer>
     </section>
-    <section id="patient-audio" aria-label="Patient alert sounds">
-      <button id="patient-audio-toggle" type="button" aria-label="Patient alert sounds" aria-pressed="true">SOUND ON</button>
-      <input id="patient-audio-volume" type="range" min="0" max="100" value="35" aria-label="Alert volume" />
-    </section>
+    <section id="patient-audio" aria-label="Patient alert sounds"><button id="patient-audio-toggle" type="button" aria-label="Patient alert sounds" aria-pressed="true">SOUND ON</button><input id="patient-audio-volume" type="range" min="0" max="100" value="35" aria-label="Alert volume" /></section>
+
+    <dialog id="help-dialog" aria-labelledby="help-title">
+      <form method="dialog"><button class="dialog-close text-button" aria-label="Close help">✕</button></form>
+      <p class="eyebrow">A QUICK STAFF BRIEFING</p><h2 id="help-title">Care. Coordinate. Repeat.</h2><p>Work together to treat as many Pokémon as you can during a six-minute shift. Play solo or bring up to three friends.</p>
+      <ol class="help-steps"><li><b>Welcome your patients.</b> Pick up a patient from the waiting area and check their treatment icons.</li><li><b>Give them the right care.</b> Use the healing machine for injuries. Prepare Burn Heal or Antidote at the medicine table.</li><li><b>Send them home happy.</b> Carry fully treated patients to reception for discharge before their patience runs out.</li></ol>
+      <div class="key-guide"><span><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> Move</span><span><kbd>E</kbd> Pick up / interact</span><span>Hold <kbd>E</kbd> Prepare / repair</span></div>
+      <p class="input-hint">Desktop keyboard recommended. Communication is your best medicine.</p>
+    </dialog>
+    <dialog id="credits-dialog" aria-labelledby="credits-title">
+      <form method="dialog"><button class="dialog-close text-button" aria-label="Close credits">✕</button></form>
+      <p class="eyebrow">MADE WITH CARE</p><h2 id="credits-title">A little credit.</h2><p>PokéCenter Panic is a noncommercial cooperative fan game. Pokémon names and characters belong to their respective owners.</p><p>Original software is licensed under <a href="https://github.com/YosuaM/PokeCenterPanic/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">GNU GPL v3 only</a>. Clinic geometry, menu artwork, and patient alert sounds are original project work.</p><p>Local PMD sprites are sourced from <a href="https://github.com/PMDCollab/SpriteCollab" target="_blank" rel="noopener noreferrer">PMD Collab</a>. Selected Idle/Walk/Rotate credits: <b>CHUNSOFT</b> (Pikachu, Bulbasaur, Charmander, Squirtle, Eevee, Psyduck, Chansey, Machoke, Meowth); <b>baronessfaron</b> (Audino; prior record: JFain).</p><p class="input-hint">Third-party sprite rights require review before public distribution. See the project's <a href="https://github.com/YosuaM/PokeCenterPanic/blob/main/docs/asset-sources.md" target="_blank" rel="noopener noreferrer">asset sources and credits</a>.</p>
+    </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

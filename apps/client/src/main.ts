@@ -4,56 +4,22 @@ import { LobbyController } from './rooms/LobbyController.js';
 import { RoomGateway } from './rooms/RoomGateway.js';
 import { MapScene } from './scenes/MapScene.js';
 import { visualFixture } from './scenes/visualFixtures.js';
-import { PLAYER_CHARACTERS, type PlayerCharacter, type PlayerPresence,
-  type RoomPhaseSnapshot } from '@pokecenter/shared';
+import { RoomInterface } from './ui/RoomInterface.js';
+import { CharacterPortraits } from './ui/characterPortraits.js';
 
 const game = new Phaser.Game(GAME_CONFIG);
-
-const nameInput = document.querySelector<HTMLInputElement>('#player-name')!;
-const codeInput = document.querySelector<HTMLInputElement>('#room-code-input')!;
-const createForm = document.querySelector<HTMLFormElement>('#create-room')!;
-const joinForm = document.querySelector<HTMLFormElement>('#join-room')!;
-const leaveButton = document.querySelector<HTMLButtonElement>('#leave-room')!;
-const menu = document.querySelector<HTMLElement>('#room-menu')!;
-const lobby = document.querySelector<HTMLElement>('#room-lobby')!;
-const roomCode = document.querySelector<HTMLElement>('#room-code')!;
-const players = document.querySelector<HTMLElement>('#room-players')!;
-const status = document.querySelector<HTMLElement>('#room-status')!;
-const panel = document.querySelector<HTMLElement>('#room-panel')!;
-const phaseText = document.querySelector<HTMLElement>('#room-phase')!;
-const characterSelect = document.querySelector<HTMLSelectElement>('#character-select')!;
-const readyButton = document.querySelector<HTMLButtonElement>('#ready-button')!;
-const startButton = document.querySelector<HTMLButtonElement>('#start-button')!;
-const lobbyControls = document.querySelector<HTMLElement>('#lobby-controls')!;
-let currentPlayers: PlayerPresence[] = [];
-let currentLocalId = '';
-let currentPhase: RoomPhaseSnapshot = { phase: 'lobby', hostId: '',
-  countdownRemainingMs: 0, roundId: '' };
-
-function playerStatus(player: PlayerPresence): string {
-  if (player.connected === false) {
-    return `reconnecting (${Math.ceil((player.reconnectRemainingMs ?? 0) / 1000)}s)`;
-  }
-  return player.ready ? 'ready' : 'not ready';
-}
-
-function renderLobby(): void {
-  const self = currentPlayers.find((player) => player.id === currentLocalId);
-  players.textContent = currentPlayers.length ? currentPlayers.map((player) =>
-    `#${player.slot + 1} ${player.name}${player.id === currentLocalId ? ' (you)' : ''} · ${player.character || 'no character'} · ${playerStatus(player)}`
-  ).join('  |  ') : 'Connecting players…';
-  panel.classList.toggle('is-playing', currentPhase.phase === 'running');
-  lobbyControls.hidden = currentPhase.phase !== 'lobby';
-  phaseText.textContent = currentPhase.phase === 'countdown' ?
-    `Starting in ${Math.ceil(currentPhase.countdownRemainingMs / 1000)}…` :
-    currentPhase.phase === 'running' ? 'Round in progress' : 'Choose a character and ready up';
-  characterSelect.value = self?.character ?? '';
-  readyButton.textContent = self?.ready ? 'Not ready' : 'Ready';
-  readyButton.disabled = !self?.character;
-  startButton.hidden = currentPhase.hostId !== currentLocalId;
-  startButton.disabled = !currentPlayers.length || currentPlayers.some((player) => !player.ready ||
-    player.connected === false);
-}
+const portraits = new CharacterPortraits(document);
+const ui = new RoomInterface(document, {
+  create: (name) => { void controller.create(name); },
+  join: (code, name) => { void controller.join(code, name); },
+  leave: () => { void controller.leave(); },
+  selectCharacter: (character) => controller.selectCharacter(character),
+  ready: (ready) => controller.setReady(ready),
+  start: () => controller.startGame(),
+  replay: () => controller.replay(),
+}, undefined, portraits);
+void portraits.load();
+import.meta.hot?.dispose(() => portraits.dispose());
 
 function mapScene(): MapScene {
   return game.scene.getScene('map') as MapScene;
@@ -61,97 +27,52 @@ function mapScene(): MapScene {
 
 const serverUrl = import.meta.env.VITE_SERVER_URL ?? `${location.protocol}//${location.hostname}:2567`;
 const controller = new LobbyController(new RoomGateway(serverUrl), {
-  setBusy(busy) {
-    for (const button of [createForm, joinForm]) {
-      button.querySelector('button')!.disabled = busy;
-    }
-  },
-  showRoom(code, connectedPlayers, localId) {
-    menu.hidden = true;
-    lobby.hidden = false;
-    roomCode.textContent = code;
-    currentPlayers = connectedPlayers;
-    currentLocalId = localId;
-    renderLobby();
-    status.textContent = '';
-    mapScene().setPlayers(connectedPlayers.filter((player) => player.connected !== false), localId);
-    mapScene().setGameplayActive(currentPhase.phase === 'running');
+  setBusy: (busy) => ui.setBusy(busy),
+  showRoom(code, players, localId) {
+    ui.showRoom(code, players, localId);
+    mapScene().setPlayers(players.filter((player) => player.connected !== false), localId);
     mapScene().setInputSender((direction, interactHeld) => controller.sendInput(direction, interactHeld));
     mapScene().setInteractionSender((request) => controller.sendInteraction(request));
   },
-  showPositions(positions) {
-    mapScene().setAuthoritativePositions(positions);
-  },
-  showPatients(patients) {
-    mapScene().setPatients(patients);
-  },
-  showMedicines(doses, surfaces, owners, remainingMs) {
-    mapScene().setMedicines(doses, surfaces, owners, remainingMs);
-  },
-  showMedicineDiscard(event) {
-    mapScene().showMedicineDiscard(event);
-  },
-  showInteractionResult(result) {
-    mapScene().setInteractionResult(result);
-  },
-  showHealingMachine(machine) {
-    mapScene().setHealingMachine(machine);
-  },
-  showDischargedCount(count) {
-    mapScene().setDischargedCount(count);
-  },
-  showLostCount(count) {
-    mapScene().setLostCount(count);
-  },
-  showPhase(snapshot) {
-    currentPhase = snapshot;
-    renderLobby();
+  showPositions: (positions) => mapScene().setAuthoritativePositions(positions),
+  showPatients: (patients) => mapScene().setPatients(patients),
+  showMedicines: (doses, surfaces, owners, remainingMs) =>
+    mapScene().setMedicines(doses, surfaces, owners, remainingMs),
+  showMedicineDiscard: (event) => mapScene().showMedicineDiscard(event),
+  showInteractionResult: (result) => mapScene().setInteractionResult(result),
+  showHealingMachine: (machine) => mapScene().setHealingMachine(machine),
+  showDischargedCount: (count) => mapScene().setDischargedCount(count),
+  showLostCount: (count) => mapScene().setLostCount(count),
+  showPhase(snapshot, localId) {
+    ui.showPhase(snapshot, localId);
     mapScene().setGameplayActive(snapshot.phase === 'running');
+    if (snapshot.phase === 'running' && !game.loop.running) game.loop.wake();
+    if (snapshot.phase !== 'running' && game.loop.running) game.loop.sleep();
   },
-  showLobbyResult(reason) {
-    status.textContent = reason;
+  showRound(snapshot) {
+    if (snapshot.results) ui.showResults(snapshot.results);
   },
+  showLobbyResult: (reason) => ui.showStatus(reason),
   showMenu(message) {
-    menu.hidden = false;
-    lobby.hidden = true;
-    panel.classList.remove('is-playing');
-    currentPlayers = [];
-    currentLocalId = '';
-    currentPhase = { phase: 'lobby', hostId: '', countdownRemainingMs: 0, roundId: '' };
-    status.textContent = message;
+    ui.showMenu(message);
+    mapScene().setGameplayActive(false);
     mapScene().clearPlayers();
+    game.loop.sleep();
   },
 }, sessionStorage);
 
 if (import.meta.env.DEV && visualFixture(new URLSearchParams(location.search).get('artFixture'))) {
-  panel.hidden = true;
+  ui.showFixture();
 } else {
-  void controller.restore();
+  ui.setBusy(true);
+  game.events.once(Phaser.Core.Events.READY, () => {
+    const scene = mapScene();
+    scene.setGameplayActive(false);
+    scene.events.once(Phaser.Scenes.Events.CREATE, () => {
+      game.loop.sleep();
+      ui.setBusy(false);
+      ui.showStatus('');
+      void controller.restore();
+    });
+  });
 }
-
-createForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  void controller.create(nameInput.value);
-});
-
-joinForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  void controller.join(codeInput.value, nameInput.value);
-});
-
-leaveButton.addEventListener('click', () => {
-  void controller.leave();
-});
-
-characterSelect.addEventListener('change', () => {
-  const character = characterSelect.value;
-  if (PLAYER_CHARACTERS.includes(character as PlayerCharacter)) {
-    controller.selectCharacter(character as PlayerCharacter);
-  }
-});
-
-readyButton.addEventListener('click', () => {
-  controller.setReady(!currentPlayers.find((player) => player.id === currentLocalId)?.ready);
-});
-
-startButton.addEventListener('click', () => controller.startGame());

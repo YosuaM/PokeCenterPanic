@@ -3,7 +3,7 @@
 
 **Version:** 0.2 — MVP rules and acceptance scenarios\
 **Status:** Implementation baseline; balance values pending playtests\
-**Updated:** 2026-10-21\
+**Updated:** 2026-10-22\
 **Type:** Noncommercial cooperative fan game\
 **Primary platform:** Web browser\
 **Technologies:** Phaser, Three.js, TypeScript, Vite, Node.js, Colyseus
@@ -287,7 +287,7 @@ All initially have the same abilities, movement speed, and interactions.
 
 Differences are purely cosmetic.
 
-Duplicate character choices are allowed. Every player has a persistent room slot number and name label, so identical species remain distinguishable without relying on color alone.
+Each player must choose a different Pokémon. The server grants each species to one member at a time, including disconnected seat reservations. Deselecting, explicitly leaving, or an expired reservation releases the species for another player. Every player retains a persistent room slot number and name label.
 
 This simplifies balancing and lets any team complete the tasks.
 
@@ -513,6 +513,10 @@ Options:
 - Basic audio settings.
 - Credits.
 
+The entry screen uses a full-screen original pixel-art illustration of the clinic exterior at twilight, an original illustrated cream/yellow/coral title logo with a medical bag and stethoscope, and rounded white panels with colorful striped headers and buttons. The visual direction takes the playful game-menu presentation of PokéBonk as a reference. The lobby, countdown, results, and dialogs share this presentation. A shared player-name field supports separate create/join tabs. The menu includes keyboard-accessible help, credits, and persistent patient-alert audio controls. Connection attempts disable the entry controls; failed attempts keep the entered name and code and show the server's error. Room codes are accepted case-insensitively.
+
+The game canvas stays hidden and inaccessible during the main menu, lobby, countdown, and results. Its render loop sleeps outside active gameplay. The clinic appears only when the authoritative phase becomes running; leaving or losing a room returns to the standalone menu. Development art fixtures remain available separately.
+
 ## 8.2. Lobby
 
 The lobby shows:
@@ -522,6 +526,10 @@ The lobby shows:
 - Each player's chosen Pokémon.
 - Ready / not ready status.
 - Start game button for the host.
+
+Character selection uses four visual cards for Chansey, Audino, Machoke, and Meowth instead of a dropdown. Each card shows an animated sprite, species name, and type, with a visible selected marker. Unselected cards use front-facing Idle. A newly selected card and its room portrait play one complete celebration with Dance when available, falling back to Rotate, then return to Idle; the current four source sprites provide Rotate. Readiness updates never replay this celebration, while deselecting and selecting again starts a new one. The animation changes only after server confirmation, and the previous selection returns to Idle. Missing or invalid celebration sheets retain Idle, including with older caches. Animations retain the source frame durations and use a stable crop across all frames. Room player cards show the server-selected Pokémon instead of name initials, including on mobile; unchosen players show a question mark and open seats a plus. Readiness and reconnection updates retain the existing portrait animation. Animations pause outside the lobby and in hidden tabs, and reduced-motion preferences show a static first Idle frame. Native toggle buttons expose server-confirmed selection with aria-pressed. Pointer, Enter, and Space toggle a choice; Tab and arrow/Home/End keys navigate available cards. Activating the selected card again sends an explicit deselection (character: null). Cards occupied by another member are disabled and show that member's name. The highlighted choice follows the server-confirmed character; changing species clears readiness through the existing lobby rules. Each member must have a different assigned species before the host can start, and every character has the same gameplay abilities. Changing or clearing a choice resets readiness. The descriptive and current-pick text beneath the cards is omitted; selection is shown directly on the card and room roster. Cards are disabled outside the connected lobby. Missing local sprite assets keep a labeled fallback and never block selection. After replay, the cards retain the selected species while readiness resets.
+
+The host is identified by a readable badge beside the player name, wrapping with the name on narrow cards. Leave room uses the same rounded secondary-button style as the other controls, at the left of the same action row as Ready up and Start shift. Leaving remains available during countdown, gameplay and results, while readiness and start controls appear only in the lobby. The lobby omits its instructional phase banner; countdown announcements remain visible.
 
 Registration is not required.
 
@@ -645,7 +653,7 @@ Planned initial messages:
 | `player:input` | Client → server | Cardinal movement, facing, and held-interaction intent with round ID and sequence |
 | `player:interact` | Client → server | One E press with target ID, expected occupant ID (null for empty targets), round ID, and action sequence |
 | `player:ready` | Client → server | Change ready status |
-| `player:select` | Client → server | Select character |
+| `player:select` | Client → server | Claim an available character, or send character: null to deselect |
 | `game:start` | Client → server | Request game start |
 | `game:replay` | Client → server | Host requests return from results to lobby |
 | `action:result` | Server → requesting client | Action sequence, accepted/rejected outcome, and reason |
@@ -697,7 +705,7 @@ The first version uses a single server instance and in-memory rooms. A server re
 | Running | Rejected with game-in-progress message | Resume the same player with empty hands | No pause, restart, or force-finish control |
 | Results | Rejected; wait for lobby | Show frozen results | Return everyone to lobby with `game:replay` |
 
-Both connected players and reserved disconnected seats count toward capacity. Only the host may start or request replay; unauthorized requests change nothing. Starting requires 1–4 connected players, a valid character and ready confirmation from each, and no disconnected reservations. Character changes clear that player's ready status. Character and ready changes are rejected outside the lobby.
+Both connected players and reserved disconnected seats count toward capacity. Only the host may start or request replay; unauthorized requests change nothing. Starting requires 1–4 connected players, a valid and distinct character and ready confirmation from each, and no disconnected reservations. Character changes or deselection clear that player's ready status. Selection claims are resolved in server acceptance order; a conflicting claim leaves both players unchanged and returns an error. An unchanged valid choice is idempotent. Disconnected reservations retain their chosen species until expiry or explicit departure. Character and ready changes are rejected outside the lobby.
 
 A successful start locks membership and enters the three-second countdown. Any departure or disconnection during countdown returns the room to lobby and clears all ready flags; no partial round or score is created. A disconnect in the lobby also clears that player's readiness.
 
@@ -944,7 +952,7 @@ The project's original code will be published under GNU GPL version 3 only (`GPL
 - Adjustable volume.
 - Clear interaction indicators.
 - Show holding progress and rejection reasons using icons or short text as well as sound; the game remains playable muted.
-- Distinguish players by slot number and name even when they select identical species.
+- Identify players by slot number, name and selected species; disable species already assigned to another member.
 
 ---
 # 14. MVP acceptance criteria
@@ -954,7 +962,7 @@ The MVP is complete when the following scenarios pass. Deterministic server test
 | ID | Scenario | Required observable result |
 |---|---|---|
 | AC-01 | Create a room and join from three other browser sessions; attempt a fifth join and an invalid code | Four distinct members share one room; full-room and invalid-code errors are clear; no extra seat is allocated |
-| AC-02 | Select characters, including duplicate species; start with an unready member or from a non-host client | Players remain distinguishable; invalid starts change nothing; one ready solo player or all ready team members can start a three-second countdown |
+| AC-02 | Race to select the same character, deselect/reselect, and start with an unassigned or unready member or from a non-host client | Exactly one member claims each species; deselection frees it and clears readiness; invalid starts change nothing; only a fully assigned, distinct, ready connected roster can start a three-second countdown |
 | AC-03 | Disconnect during countdown, then attempt new code-based joins during running and results | Countdown cancels to lobby with all ready flags cleared; new joins during running/results are rejected without disturbing the round |
 | AC-04 | Move toward walls, another player, and a target across a wall; open the menu or stop input | Map collisions remain authoritative, players pass through each other, interaction cannot cross walls, menu does not pause the round, and movement/held actions stop after 250 ms without fresh input |
 | AC-05 | Two players pick up the same patient in the same update, including the front of recovery, then repeat/retry the winning command | Exactly one carrier owns that patient; the loser gets feedback instead of a different queued patient; no duplicate entity or repeated action occurs |
