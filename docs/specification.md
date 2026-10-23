@@ -82,6 +82,7 @@ Players collide with the map and solid station geometry, but pass through one an
 | Move | WASD or arrow keys |
 | Interact / pick up / place / apply medicine | Press E |
 | Prepare medicine / repair a machine | Hold E at the indicated target |
+| Take a prepared dose from a station's shelf | Tap E at that station |
 | View patient information | Automatic when nearby |
 | Use the Pokémon's ability | Hold Q at a seated patient (Chansey and Audino only) |
 | Local menu | Escape; the shared round keeps running |
@@ -107,7 +108,7 @@ The MVP uses a generic small stretcher with the patient's sprite above it; medic
 
 There will be no individual carrying animation for every combination of Pokémon.
 
-Patients cannot be manually dropped on the floor, on medicine surfaces, or back into the arrival queue. Medicine can be placed on an empty medicine surface or discarded at the medicine table's disposal point. Invalid placement leaves the carried entity unchanged.
+Patients cannot be manually dropped on the floor, on medicine surfaces, or back into the arrival queue. Medicine can be returned to its own station's shelf when it has room, placed on an empty medicine surface, or discarded at the medicine table's disposal point. Invalid placement leaves the carried entity unchanged.
 
 ## 2.4. Stations
 
@@ -134,7 +135,8 @@ Stations are interactive parts of the map with limited capacity and specific beh
 ### Medicine table
 
 - Has two labeled preparation sections, one for Burn Heal and one for Antidote; approaching the nearest section chooses the recipe without opening a menu or requiring a facing direction.
-- Each point supports one player preparing one dose. With empty hands, hold E for two seconds without moving to finish preparation; the dose goes directly into the player's hand.
+- Each point supports one player preparing one dose. With empty hands, hold E for two seconds without moving to finish preparation; the dose goes to that station's shelf.
+- Each station's shelf holds up to three prepared doses, shown as bottles on the back row of the table, filled left to right. Tapping E with empty hands (releasing within 250 ms) takes the newest dose; holding E prepares another one while the shelf has room. When a dose cannot be started — full shelf, player moving, or another player preparing there — pressing E takes a dose at once. A player carrying a matching dose can put it back while the shelf has room. A dose that finishes after the shelf filled up stays in the preparer's hand.
 - Releasing E, moving, opening the menu, losing input, or disconnecting cancels preparation and resets its progress. A failed or cancelled preparation creates no medicine.
 - Medicine applies instantly to a matching patient in reception, a waiting slot, the recovery area, or a completed healing machine. It cannot be applied to a carried patient or during healing or an outage.
 - A successful application consumes one dose and completes one pending treatment atomically. Wrong, redundant, or otherwise invalid medicine leaves both dose and patient unchanged.
@@ -168,7 +170,9 @@ All actions below require a running round, an in-range target, and server valida
 | Patient | Empty waiting slot | Place patient | Occupied slot |
 | Patient needing healing | Working, empty healing machine | Place and automatically start healing | Occupied, broken, or healing not needed |
 | Fully treated patient | Discharge point | Discharge once and award points | Any required treatment remains |
-| Empty | Free Burn Heal or Antidote preparation point | Hold for two seconds; receive one dose | Another player owns preparation |
+| Empty | Free Burn Heal or Antidote preparation point | Hold for two seconds; one dose goes to its shelf | Another player owns preparation; shelf full |
+| Empty | Station shelf with a dose | Tap to take the newest dose | Shelf empty |
+| Matching medicine | Station shelf with room | Return the dose | Shelf full; wrong medicine for that shelf |
 | Matching medicine | Patient in an allowed stationary location | Consume dose and complete the matching treatment | Carried, treating, broken machine, or treatment not pending |
 | Medicine | Empty medicine surface | Place dose | Occupied surface |
 | Empty | Medicine surface with a dose | Pick up dose | Dose already claimed |
@@ -489,7 +493,7 @@ Essential elements:
 - Entrance leading to eight waiting-room seats across two four-seat sofas that face into the room, their backs against the front wall; the central counter has a separate discharge point.
 - Eight waiting slots and the pickup-only recovery area.
 - Two healing machines.
-- Medicine table with two preparation points and one disposal point.
+- Medicine table with two preparation points, a three-dose shelf for each, and one disposal point.
 - Four surfaces for placing medicine.
 - Two passages through the counter row, plus decorative PC desk and entrance planters as solid obstacles.
 - Discharge area.
@@ -732,7 +736,7 @@ Each room has:
 - Temporary player data.
 - Complete Pokémon Center state.
 
-**Bots:** in the lobby, the host can fill any open seat with a bot and remove it again. A bot takes the first free Pokémon, is always ready and never becomes host. If a person chooses a bot's Pokémon, the bot switches to a free one. Bots occupy seats, so people can only join while seats remain. They count as connected staff for difficulty scaling (section 5.3). During a round, each bot runs on the server through the same validated commands as people and favors its Pokémon's specialty: Chansey heals (preferring Soft-Boiled), Audino prepares and applies medicine and calms impatient patients, Machoke carries patients to machines and repairs outages, and Meowth handles pickups and discharges. Bots coordinate so two never chase the same patient or station, and they help with any other work when their specialty has none. When the last person leaves, every bot is removed.
+**Bots:** in the lobby, the host can fill any open seat with a bot and remove it again. A bot takes the first free Pokémon, is always ready and never becomes host. If a person chooses a bot's Pokémon, the bot switches to a free one. Bots occupy seats, so people can only join while seats remain. They count as connected staff for difficulty scaling (section 5.3). During a round, each bot runs on the server through the same validated commands as people and favors its Pokémon's specialty: Chansey heals (preferring Soft-Boiled), Audino keeps the shelves stocked to match waiting demand, applies medicine and calms impatient patients, Machoke carries patients to machines and repairs outages, and Meowth handles pickups and discharges. Bots coordinate so two never chase the same patient or station, and they help with any other work when their specialty has none. A bot fetches a dose only when a patient who needs it can be treated right away and no one is already bringing one; a dose it cannot use goes back to its shelf. When the last person leaves, every bot is removed.
 
 The first version uses a single server instance and in-memory rooms. A server restart ends all rooms; clients return to the menu with a connection error. Restoring rounds after a process restart is outside the MVP.
 
@@ -757,7 +761,7 @@ Phase 1 may configure a two-seat prototype for validation. The capacity is confi
 
 ## 9.7. Disconnections
 
-On server-detected disconnection, clear input, cancel preparation/repair, hide the avatar, and release carried entities in the same state update. A carried patient moves to the first empty waiting slot by slot ID, or joins the end of the recovery queue if waiting is full, retaining patience and medical progress. A carried medicine dose moves to the first free medicine surface, or is discarded if all four surfaces are full. No patient is deleted, healed, or penalized solely because its carrier disconnected.
+On server-detected disconnection, clear input, cancel preparation/repair, hide the avatar, and release carried entities in the same state update. A carried patient moves to the first empty waiting slot by slot ID, or joins the end of the recovery queue if waiting is full, retaining patience and medical progress. A carried medicine dose returns to its station's shelf, else moves to the first free medicine surface, or is discarded if the shelf and all four surfaces are full. No patient is deleted, healed, or penalized solely because its carrier disconnected.
 
 Preserve the player's ID, character, and seat for 30 seconds from detection, using an opaque server-validated reconnect credential. A name or room code does not establish reconnection identity. A valid return before expiry restores that seat and an empty-handed avatar at the walkable entry point; released objects stay where the server placed them. At or after expiry the reservation is removed. Subsequent code-based joining follows the normal phase rules. Explicitly leaving the room performs the same cleanup but releases the seat immediately, without a reservation.
 
@@ -1016,7 +1020,7 @@ The MVP is complete when the following scenarios pass. Deterministic server test
 | AC-13 | Run with 1, 2, 3, and 4 players; cross difficulty stages; disconnect a player while above the reduced cap | Configured intervals, treatment mixes, patience budgets, and caps apply; existing patients are preserved; future spawns use the new team size; no admission occurs at or after 330 seconds |
 | AC-14 | Reproduce section 5.4's five-patient scoring example and the empty-round case | Results show 355 points, three discharged, one lost, one unfinished, 60.0%, one star, and a best streak of three; zero admissions give zero score, N/A success, and zero stars |
 | AC-15 | Discharge before, exactly at, and after the round deadline; expire patience exactly at the deadline | Only the pre-deadline discharge succeeds; every remaining patient is unfinished; score/result snapshot never changes afterward; a pre-deadline patience/discharge tie instead produces one loss |
-| AC-16 | Disconnect while carrying a patient with all waiting slots full; separately disconnect with medicine and full surfaces | Within one simulation update after detection, patient enters accessible recovery unchanged, medicine is discarded, avatar disappears, and all player preparation/repair locks are released |
+| AC-16 | Disconnect while carrying a patient with all waiting slots full; separately disconnect with medicine while its shelf and all surfaces are full | Within one simulation update after detection, patient enters accessible recovery unchanged, medicine is discarded, avatar disappears, and all player preparation/repair locks are released |
 | AC-17 | Abruptly lose transport; reconnect with a valid credential before 30 seconds, at expiry, and with an invalid credential | Detection meets the ten-second liveness bound; timely return restores only the reserved identity with empty hands; expired/invalid returns cannot reclaim that seat or inventory |
 | AC-18 | Disconnect the host, reconnect it, and disconnect all members | Earliest remaining member becomes host; former host does not reclaim control; no arrivals/incidents occur with nobody connected; timely return sees the advanced round/results; expired abandonment resets to lobby and 60-second emptiness disposes the room |
 | AC-19 | Finish a round, request replay, and start again; deliver an old-round interaction | Code and character selections persist; readiness, entities, counters, locks, outages, and timers reset; old-round input has no effect and spawns do not double |
@@ -1108,6 +1112,6 @@ The priority is to produce a playable prototype for friends quickly, learn from 
 | 0.3 | Activated the timed two-treatment and patience schedule; added the four-patient guided opening, the discharge streak bonus with best streak in results, and first-use contextual tips |
 | 0.4 | Replaced the enlarged clinic with a compact 22 × 14 tile layout: central counter with discharge in the middle, two passages through the counter row, PC corner and recovery at its ends, sofas and planters by the entrance, staff spawning behind the counter, and route budgets pinned by tests |
 | 0.5 | Gave each Pokémon a specialty (faster healing, preparation, carrying, repair or walking), added Chansey's Soft-Boiled and Audino's Calm on Q, and let the host fill open seats with server-side bots that play to their Pokémon's specialty |
-| 0.6 | Replaced the in-game panels with a floating DOM HUD over a tighter camera; turned the waiting sofas to face the room, centred seated patients on their cushions and limited their idle animation to occasional loops; carried patients lie down on the stretcher |
+| 0.6 | Added a three-dose shelf per medicine station (tap E to take, hold to prepare) and stopped bots from juggling unneeded doses; replaced the in-game panels with a floating DOM HUD over a tighter camera; turned the waiting sofas to face the room, centred seated patients on their cushions and limited their idle animation to occasional loops; carried patients lie down on the stretcher |
 
 **End of document — Version 0.6**

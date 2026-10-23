@@ -4,6 +4,14 @@ import { patientRenderPosition } from '../sprites/pmd.js';
 import { visualFixture, transportPreviewPositions } from './visualFixtures.js';
 
 describe('visual QA fixtures', () => {
+  it('previews a stocked medicine shelf with the staff member at the Burn Heal station', () => {
+    const fixture = visualFixture('medicine-shelf')!;
+    expect(fixture.medicineDoses?.map((dose) => [dose.kind, dose.location, dose.slotIndex])).toEqual([
+      ['burnHeal', 'stock', 0], ['burnHeal', 'stock', 1], ['burnHeal', 'stock', 2],
+      ['antidote', 'stock', 3], ['antidote', 'stock', 4]]);
+    expect(fixture.positions.every(isWalkable)).toBe(true);
+  });
+
   it('shows the enlarged clinic with patients in waiting, treatment and recovery instead of on the counter', () => {
     const fixture = visualFixture('clinic-layout')!;
     expect(fixture.patients.map((patient) => patient.location)).toEqual([

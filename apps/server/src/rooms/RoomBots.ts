@@ -1,4 +1,5 @@
-import { CALM_PATIENCE_RATIO, MEDICINE_KINDS, SPAWN_POINTS, TREATMENT, characterProfile, isInteractionReachable,
+import { CALM_PATIENCE_RATIO, MEDICINE_KINDS, MEDICINE_STOCK_CAPACITY, SPAWN_POINTS, TREATMENT, characterProfile,
+  isInteractionReachable, medicineStockSlot,
   patientPatienceRatio, patientPresentation, type CharacterRole, type Direction, type MedicineKind,
   type PatientInteractionResult, type Point } from '@pokecenter/shared';
 import { distanceField, reachCells, steer, targetGeometry, warmNavigation, type DistanceField } from './botNavigation.js';
@@ -217,7 +218,10 @@ export class RoomBots {
       .sort((a, b) => field.distanceTo(reachCells(a.targetId)) - field.distanceTo(reachCells(b.targetId)))[0] ?? null;
 
     if (player.carriedPatientId) return nearest(this.carryPatientGoals(player.carriedPatientId));
-    if (player.carriedMedicineId) return nearest(this.carryDoseGoals(player.carriedMedicineId));
+    if (player.carriedMedicineId) {
+      // Treat someone if possible; otherwise put the dose away instead of wandering with it.
+      return nearest(this.medicateGoals(player.carriedMedicineId)) ?? nearest(this.storeDoseGoals(player.carriedMedicineId));
+    }
 
     const role = characterProfile(player.character).role;
     const options: { goal: Goal; score: number }[] = [];
@@ -245,18 +249,24 @@ export class RoomBots {
       .filter((goal): goal is Goal => goal !== null);
   }
 
-  private carryDoseGoals(doseId: string): Goal[] {
+  private medicateGoals(doseId: string): Goal[] {
     const dose = this.state.medicineDoses.get(doseId);
     if (!dose) return [];
     const flag = dose.kind === 'burnHeal' ? TREATMENT.burnHeal : TREATMENT.antidote;
-    const goals: Goal[] = [];
-    for (const { patient, targetId } of this.stationaryPatients(true)) {
-      if (pending(patient) & flag) {
-        goals.push({ claim: `medicate:${patient.id}`, targetId: `medicine:apply:${targetId}`,
-          expectedOccupantId: patient.id, channel: 'medicine', hold: 'none' });
-      }
+    return this.stationaryPatients(true).filter(({ patient }) => pending(patient) & flag)
+      .map(({ patient, targetId }) => ({ claim: `medicate:${patient.id}`, targetId: `medicine:apply:${targetId}`,
+        expectedOccupantId: patient.id, channel: 'medicine' as const, hold: 'none' as const }));
+  }
+
+  /** Back to its own shelf, else a free counter surface, else the bin. */
+  private storeDoseGoals(doseId: string): Goal[] {
+    const dose = this.state.medicineDoses.get(doseId);
+    if (!dose) return [];
+    const station = MEDICINE_KINDS.indexOf(dose.kind as MedicineKind);
+    if (this.stockCount(station) < MEDICINE_STOCK_CAPACITY) {
+      return [{ claim: `shelf:${doseId}`, targetId: `medicine:prep:${station}`, expectedOccupantId: doseId,
+        channel: 'medicine', hold: 'none' }];
     }
-    if (goals.length) return goals;
     const surfaces: Goal[] = [];
     [...this.state.medicineSurfaces].forEach((occupant, index) => {
       if (!occupant) surfaces.push({ claim: `surface:${index}`, targetId: `medicine:surface:${index}`,
@@ -264,6 +274,14 @@ export class RoomBots {
     });
     return surfaces.length ? surfaces : [{ claim: `disposal:${doseId}`, targetId: 'medicine:disposal',
       expectedOccupantId: doseId, channel: 'medicine', hold: 'none' }];
+  }
+
+  private stockCount(station: number): number {
+    let count = 0;
+    for (let position = 0; position < MEDICINE_STOCK_CAPACITY; position += 1) {
+      if (this.state.medicineStock[medicineStockSlot(station, position)]) count += 1;
+    }
+    return count;
   }
 
   private emptyHandGoals(id: string, player: PlayerState): [TaskType, Goal][] {
@@ -306,16 +324,23 @@ export class RoomBots {
       }
     }
     for (const [index, kind] of MEDICINE_KINDS.entries()) {
-      const demand = this.medicineDemand(kind);
-      if (demand > 0 && !this.state.medicinePreparationOwners[index]) {
+      const stocked = this.stockCount(index);
+      if (this.medicineDemand(kind) > 0 && !this.state.medicinePreparationOwners[index] &&
+        stocked < MEDICINE_STOCK_CAPACITY) {
+        // Holding ends once the dose lands on the shelf (or preparation is cancelled).
         goals.push(['prepare', { claim: `prep:${index}`, targetId: `medicine:prep:${index}`, expectedOccupantId: '',
-          channel: 'medicine', hold: 'interact', done: () => player.carriedMedicineId !== '' ||
-            this.state.medicinePreparationOwners[index] !== id }]);
+          channel: 'medicine', hold: 'interact', done: () => this.state.medicinePreparationOwners[index] !== id }]);
+      }
+      // Fetch a dose only for a patient who can be treated right now and nobody is already bringing one to.
+      if (this.treatableNow(kind) <= this.carriedDoses(kind)) continue;
+      if (stocked > 0) {
+        goals.push(['collectDose', { claim: `collect:${kind}`, targetId: `medicine:prep:${index}`,
+          expectedOccupantId: '', channel: 'medicine', hold: 'none' }]);
       }
       for (const [surface, doseId] of [...this.state.medicineSurfaces].entries()) {
         const dose = this.state.medicineDoses.get(doseId);
-        if (dose?.kind === kind && demand > -1) {
-          goals.push(['collectDose', { claim: `dose:${dose.id}`, targetId: `medicine:surface:${surface}`,
+        if (dose?.kind === kind) {
+          goals.push(['collectDose', { claim: `collect:${kind}`, targetId: `medicine:surface:${surface}`,
             expectedOccupantId: dose.id, channel: 'medicine', hold: 'none' }]);
         }
       }
@@ -323,15 +348,24 @@ export class RoomBots {
     return goals;
   }
 
-  /** Patients waiting for this medicine minus doses already prepared, carried or being prepared. */
+  /** Patients waiting for this medicine minus doses already shelved, stored, carried or being prepared. */
   private medicineDemand(kind: MedicineKind): number {
     const flag = kind === 'burnHeal' ? TREATMENT.burnHeal : TREATMENT.antidote;
     const patients = [...this.state.patients.values()].filter((patient) => patient.lifecycle === 'active' &&
       (pending(patient) & flag)).length;
-    const doses = [...this.state.medicineDoses.values()].filter((dose) => dose.kind === kind &&
-      (dose.location === 'carrier' || dose.location === 'surface')).length;
+    const doses = [...this.state.medicineDoses.values()].filter((dose) => dose.kind === kind).length;
     const preparing = this.state.medicinePreparationOwners[MEDICINE_KINDS.indexOf(kind)] ? 1 : 0;
     return patients - doses - preparing;
+  }
+
+  private treatableNow(kind: MedicineKind): number {
+    const flag = kind === 'burnHeal' ? TREATMENT.burnHeal : TREATMENT.antidote;
+    return this.stationaryPatients(true).filter(({ patient }) => pending(patient) & flag).length;
+  }
+
+  private carriedDoses(kind: MedicineKind): number {
+    return [...this.state.medicineDoses.values()].filter((dose) => dose.kind === kind && dose.location === 'carrier')
+      .length;
   }
 
   /** Active patients a bot can reach in place, with the target that exposes each one. */

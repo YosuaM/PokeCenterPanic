@@ -57,10 +57,10 @@ describe('character advantages', () => {
         medicine.onInput('red', true, null, now);
         medicine.advance(now, () => position, () => 'up');
       }
-      expect(state.players.get('red')!.carriedMedicineId).toBe('');
+      expect(state.medicineStock[0]).toBe('');
       medicine.onInput('red', true, null, durationMs);
       medicine.advance(durationMs, () => position, () => 'up');
-      expect(state.players.get('red')!.carriedMedicineId).not.toBe('');
+      expect(state.medicineStock[0]).not.toBe('');
     });
 
   it.each([['Machoke', 1000], ['Meowth', REPAIR_DURATION_MS]] as const)(

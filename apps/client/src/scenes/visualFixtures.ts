@@ -109,6 +109,12 @@ export function visualFixture(name: string | null): VisualFixture | null {
         };
       }
       break;
+    case 'medicine-shelf':
+      fixture.positions = [{ id: staff.id, x: 400, y: 70, facing: 'up', carriedPatientId: '' }];
+      fixture.patients = [];
+      fixture.medicineDoses = [0, 1, 2, 3, 4].map((slotIndex) => ({ id: `shelf-${slotIndex}`,
+        kind: slotIndex < 3 ? 'burnHeal' as const : 'antidote' as const, location: 'stock' as const, carrierId: '', slotIndex }));
+      break;
     case 'medicine-sway':
     case 'medicine-bottles':
       fixture.players.push({ id: 'fixture-2', name: 'Antidote', slot: 1, character: 'Audino' });

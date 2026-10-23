@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { Box3, Mesh, Vector3 } from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MAP_OBSTACLES, TILE_SIZE } from '@pokecenter/shared';
+import { CENTER_3D_FOOTPRINTS, MEDICINE_STOCK_3D, MEDICINE_STOCK_SHELF_HEIGHT } from '../apps/client/src/scenes/center3dLayout.js';
 
 const bytes = readFileSync(new URL(
   '../apps/client/public/assets/original/models/medicine-table.glb', import.meta.url));
@@ -53,6 +54,21 @@ describe('medicine table GLB', () => {
       expect(position.y).toBeCloseTo(0.66);
       expect(position.z).toBeCloseTo(1.04);
     }
+  });
+
+  it('marks an empty three-dose shelf per station where the runtime shows prepared doses', () => {
+    asset.scene.updateMatrixWorld(true);
+    const table = CENTER_3D_FOOTPRINTS[3]!;
+    for (let slot = 0; slot < 6; slot++) {
+      const anchor = asset.scene.getObjectByName(`StockAnchor${slot + 1}`)!.getWorldPosition(new Vector3());
+      expect(anchor.x).toBeCloseTo(MEDICINE_STOCK_3D[slot]!.x - table.x);
+      expect(anchor.z).toBeCloseTo(MEDICINE_STOCK_3D[slot]!.z - table.z);
+      expect(anchor.y).toBeCloseTo(MEDICINE_STOCK_SHELF_HEIGHT);
+      expect(anchor.x < 0).toBe(slot < 3);
+    }
+    // The decorative reagent bottles (topping out at 1.19) are gone from the back row.
+    const bounds = new Box3().setFromObject(asset.scene);
+    expect(bounds.max.y).toBeLessThan(1.1);
   });
 
   it('stays within the mesh, triangle and download budgets', () => {

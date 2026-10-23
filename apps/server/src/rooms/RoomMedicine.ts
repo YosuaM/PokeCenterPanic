@@ -1,9 +1,10 @@
 import {
-  HEALING_MACHINE_FOOTPRINTS, MEDICINE_DISPOSAL_POINT, MEDICINE_KINDS, characterProfile,
+  HEALING_MACHINE_FOOTPRINTS, MEDICINE_DISPOSAL_POINT, MEDICINE_KINDS, MEDICINE_STOCK_CAPACITY,
+  MEDICINE_TAKE_TAP_MS, characterProfile, medicineStockSlot, medicineStockStation,
   MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, RECEPTION_INTERACTION_POINTS,
   RECOVERY_INTERACTION_POINT, TREATMENT, WAITING_INTERACTION_POINTS, isInteractionReachable,
   stationInteractionBounds,
-  type Direction, type MedicineDiscardEvent, type MedicineInteractionRequest, type PatientInteractionResult, type Point,
+  type Direction, type MedicineDiscardEvent, type MedicineKind, type MedicineInteractionRequest, type PatientInteractionResult, type Point,
 } from '@pokecenter/shared';
 import { MedicineDoseState, roomHealingMachines, type RoomState } from './RoomState.js';
 
@@ -34,6 +35,7 @@ export class RoomMedicine {
   constructor(private readonly state: RoomState,
     private readonly onDiscard: (event: MedicineDiscardEvent) => void = () => {}) {
     for (let index = 0; index < MEDICINE_SURFACE_POINTS.length; index += 1) state.medicineSurfaces.push('');
+    for (let index = 0; index < MEDICINE_KINDS.length * MEDICINE_STOCK_CAPACITY; index += 1) state.medicineStock.push('');
     for (let index = 0; index < MEDICINE_PREPARATION_POINTS.length; index += 1) {
       state.medicinePreparationOwners.push('');
       state.medicinePreparationRemainingMs.push(0);
@@ -46,6 +48,7 @@ export class RoomMedicine {
     for (let index = 0; index < this.state.medicineSurfaces.length; index += 1) {
       this.state.medicineSurfaces[index] = '';
     }
+    for (let index = 0; index < this.state.medicineStock.length; index += 1) this.state.medicineStock[index] = '';
     for (let index = 0; index < this.state.medicinePreparationOwners.length; index += 1) {
       this.state.medicinePreparationOwners[index] = '';
       this.state.medicinePreparationRemainingMs[index] = 0;
@@ -81,8 +84,17 @@ export class RoomMedicine {
     }
     if (prep) {
       const index = Number(prep[1]);
+      if (player.carriedPatientId) return reject('Hands must be empty');
+      if (player.carriedMedicineId) {
+        if (request.expectedOccupantId !== player.carriedMedicineId) return reject('Preparation point changed');
+        return this.restock(playerId, index);
+      }
       if (request.expectedOccupantId !== '') return reject('Preparation point changed');
-      if (player.carriedPatientId || player.carriedMedicineId) return reject('Hands must be empty');
+      // A press takes a dose straight away whenever a new one could not be started here.
+      const stocked = this.stockSlots(index).filter(Boolean).length;
+      const cannotPrepare = stocked >= MEDICINE_STOCK_CAPACITY || !stationary ||
+        Boolean(this.state.medicinePreparationOwners[index]);
+      if (cannotPrepare && stocked > 0) return this.take(playerId, index);
       if (!stationary) return reject('Stop moving to prepare medicine');
       if (this.state.medicinePreparationOwners[index]) return reject('Preparation point occupied');
       const durationMs = characterProfile(player.character).preparationMs;
@@ -183,6 +195,14 @@ export class RoomMedicine {
 
   onInput(playerId: string, interactHeld: boolean, direction: Direction | null, now: number): void {
     if (!interactHeld) {
+      // A quick tap at a stocked station takes a dose instead of preparing another one.
+      const preparation = this.preparations.get(playerId);
+      const player = this.state.players.get(playerId);
+      if (preparation && now - preparation.startedAt < MEDICINE_TAKE_TAP_MS && player && !player.carriedMedicineId &&
+        !player.carriedPatientId && this.stockSlots(preparation.pointIndex).some(Boolean)) {
+        this.cancel(playerId);
+        this.take(playerId, preparation.pointIndex);
+      }
       this.cancel(playerId);
       this.releaseRequired.delete(playerId);
       return;
@@ -216,11 +236,15 @@ export class RoomMedicine {
       const dose = new MedicineDoseState();
       dose.id = `dose-${this.nextId++}`;
       dose.kind = MEDICINE_KINDS[pointIndex]!;
-      dose.location = 'carrier';
-      dose.carrierId = playerId;
-      dose.slotIndex = -1;
+      dose.carrierId = '';
       this.state.medicineDoses.set(dose.id, dose);
-      player.carriedMedicineId = dose.id;
+      // The finished dose waits on the shelf; if someone restocked it full meanwhile, it stays in hand.
+      if (!this.shelve(dose, pointIndex)) {
+        dose.location = 'carrier';
+        dose.carrierId = playerId;
+        dose.slotIndex = -1;
+        player.carriedMedicineId = dose.id;
+      }
       this.cancel(playerId);
       this.assertOwnership();
     }
@@ -243,16 +267,67 @@ export class RoomMedicine {
     if (!dose || dose.location !== 'carrier' || dose.carrierId !== playerId) {
       throw new Error('Invalid medicine carrier');
     }
-    const index = this.state.medicineSurfaces.findIndex((id) => !id);
-    if (index < 0) this.state.medicineDoses.delete(dose.id);
-    else {
-      dose.location = 'surface';
-      dose.carrierId = '';
-      dose.slotIndex = index;
-      this.state.medicineSurfaces[index] = dose.id;
-    }
     player.carriedMedicineId = '';
+    // A dropped dose returns to its shelf, else to a free counter surface, else it is lost.
+    if (!this.shelve(dose, MEDICINE_KINDS.indexOf(dose.kind as MedicineKind))) {
+      const index = this.state.medicineSurfaces.findIndex((id) => !id);
+      if (index < 0) this.state.medicineDoses.delete(dose.id);
+      else {
+        dose.location = 'surface';
+        dose.carrierId = '';
+        dose.slotIndex = index;
+        this.state.medicineSurfaces[index] = dose.id;
+      }
+    }
     this.assertOwnership();
+  }
+
+  private stockSlots(station: number): string[] {
+    return Array.from({ length: MEDICINE_STOCK_CAPACITY },
+      (_, position) => this.state.medicineStock[medicineStockSlot(station, position)] ?? '');
+  }
+
+  /** Puts a dose in the first free slot of its station's shelf; false when the shelf is full. */
+  private shelve(dose: MedicineDoseState, station: number): boolean {
+    const position = this.stockSlots(station).findIndex((id) => !id);
+    if (station < 0 || position < 0) return false;
+    const slot = medicineStockSlot(station, position);
+    dose.location = 'stock';
+    dose.carrierId = '';
+    dose.slotIndex = slot;
+    this.state.medicineStock[slot] = dose.id;
+    return true;
+  }
+
+  private take(playerId: string, station: number): PatientInteractionResult {
+    const player = this.state.players.get(playerId)!;
+    const slots = this.stockSlots(station);
+    let position = slots.length - 1;
+    while (position >= 0 && !slots[position]) position -= 1;
+    const slot = medicineStockSlot(station, position);
+    const dose = this.state.medicineDoses.get(this.state.medicineStock[slot] ?? '');
+    if (position < 0 || !dose) return reject('Shelf empty');
+    this.state.medicineStock[slot] = '';
+    dose.location = 'carrier';
+    dose.carrierId = playerId;
+    dose.slotIndex = -1;
+    player.carriedMedicineId = dose.id;
+    this.releaseRequired.add(playerId);
+    this.assertOwnership();
+    return success();
+  }
+
+  private restock(playerId: string, station: number): PatientInteractionResult {
+    const player = this.state.players.get(playerId)!;
+    const dose = this.state.medicineDoses.get(player.carriedMedicineId);
+    if (!dose || dose.location !== 'carrier' || dose.carrierId !== playerId) return reject('Carried medicine unavailable');
+    if (dose.kind !== MEDICINE_KINDS[station]) return reject('Wrong shelf for this medicine');
+    if (!this.stockSlots(station).some((id) => !id)) return reject('Shelf full');
+    this.shelve(dose, station);
+    player.carriedMedicineId = '';
+    this.releaseRequired.add(playerId);
+    this.assertOwnership();
+    return success();
   }
 
   assertOwnership(): void {
@@ -262,13 +337,15 @@ export class RoomMedicine {
       if (player.carriedMedicineId) owners.set(player.carriedMedicineId,
         (owners.get(player.carriedMedicineId) ?? 0) + 1);
     }
-    for (const id of this.state.medicineSurfaces) {
+    for (const id of [...this.state.medicineSurfaces, ...this.state.medicineStock]) {
       if (id) owners.set(id, (owners.get(id) ?? 0) + 1);
     }
     for (const [id, dose] of this.state.medicineDoses) {
       if (owners.get(id) !== 1 || (dose.location === 'carrier' ?
         dose.carrierId === '' || dose.slotIndex !== -1 ||
           this.state.players.get(dose.carrierId)?.carriedMedicineId !== id :
+        dose.location === 'stock' ? dose.carrierId !== '' || this.state.medicineStock[dose.slotIndex] !== id ||
+          MEDICINE_KINDS[medicineStockStation(dose.slotIndex)] !== dose.kind :
         dose.location !== 'surface' || dose.carrierId !== '' ||
           this.state.medicineSurfaces[dose.slotIndex] !== id)) {
         throw new Error('Invalid medicine ownership');

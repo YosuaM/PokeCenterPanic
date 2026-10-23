@@ -767,6 +767,38 @@ describe('MapScene', () => {
     scene.setMedicines([], ['', '', '', ''], ['', ''], [0, 0]);
   });
 
+  it('explains tapping, holding and returning at a medicine station from its shelf', () => {
+    const { scene, keyboardListeners, hudState, container } = setup();
+    const send = vi.fn();
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0 }], 'red');
+    scene.setInteractionSender(send);
+    const at = (carriedMedicineId = '') => scene.setAuthoritativePositions([{ id: 'red', x: 400, y: 70,
+      facing: 'up', carriedPatientId: '', carriedMedicineId }]);
+    const shelf = (count: number, kind: 'burnHeal' | 'antidote' = 'burnHeal') => Array.from({ length: count },
+      (_, slot) => ({ id: `shelf-${slot}`, kind, location: 'stock' as const, carrierId: '', slotIndex: slot }));
+    const show = (doses: ReturnType<typeof shelf>, carried?: { id: string; kind: 'burnHeal' | 'antidote' }) => {
+      scene.setMedicines([...doses, ...(carried ? [{ ...carried, location: 'carrier' as const, carrierId: 'red',
+        slotIndex: -1 }] : [])], ['', '', '', ''], ['', ''], [0, 0]);
+      at(carried?.id);
+      return hudState().action;
+    };
+    expect(show([])).toMatchObject({ label: 'Prepare Burn Heal', tone: 'hold' });
+    expect(show(shelf(1))).toMatchObject({ label: 'Take Burn Heal · hold E to prepare', tone: 'ready' });
+    expect(hudState().tip).toBe(HINT_TEXT.take);
+    expect(container).toHaveBeenCalledWith(...Object.values(mapViewportPoint({ x: 360, y: -40 })), expect.any(Array));
+    expect(show(shelf(3))).toMatchObject({ label: 'Take Burn Heal', tone: 'ready' });
+    expect(show(shelf(1), { id: 'mine', kind: 'burnHeal' })).toMatchObject({ label: 'Return Burn Heal to the shelf' });
+    keyboardListeners.get('keydown')?.({ code: 'KeyE', repeat: false, preventDefault: vi.fn() } as unknown as KeyboardEvent);
+    expect(send).toHaveBeenLastCalledWith({ targetId: 'medicine:prep:0', expectedOccupantId: 'mine' });
+    expect(show(shelf(3), { id: 'mine', kind: 'burnHeal' })).toMatchObject({ label: 'Shelf full', tone: 'blocked' });
+    expect(show([], { id: 'other', kind: 'antidote' })).toMatchObject({ label: 'This shelf holds Burn Heal', tone: 'blocked' });
+    scene.setMedicines(shelf(2), ['', '', '', ''], ['blue', ''], [1_000, 0]);
+    at();
+    expect(hudState().action).toMatchObject({ label: 'Take Burn Heal' });
+    scene.setMedicines([], ['', '', '', ''], ['blue', ''], [1_000, 0]);
+    expect(hudState().action).toMatchObject({ label: 'Preparation occupied', tone: 'blocked' });
+  });
+
   it('publishes machine and preparation snapshots, keeping each healing duration', () => {
     const { scene, hudState } = setup();
     scene.setHealingMachine({ patientId: 'patient', status: 'treating', remainingMs: 2_000, durationMs: 2_857 },

@@ -8,7 +8,8 @@ import { IDLE_ACTION, type HudAction, type HudSink, type HudState } from '../ui/
 import { ABILITY_DURATION_MS, DISCHARGE_INTERACTION_POINT, DISCHARGE_POSITION,
   HEALING_MACHINE_POSITION, MAP_OBSTACLES, MEDICINE_DISPOSAL_POINT,
   HEALING_MACHINE_POSITIONS, HEALING_INTERACTION_POINTS,
-  MEDICINE_PREPARATION_POINTS, MEDICINE_SURFACE_POINTS, characterProfile, type CharacterAbility,
+  MEDICINE_KINDS, MEDICINE_PREPARATION_POINTS, MEDICINE_STOCK_CAPACITY, MEDICINE_SURFACE_POINTS, characterProfile,
+  medicineStockStation, type CharacterAbility,
   RECOVERY_INTERACTION_POINT, RECOVERY_POSITION,
   RECEPTION_INTERACTION_POINTS, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS, TILE_SIZE,
   TREATMENT, WALK_BOUNDS, WAITING_BENCHES, WAITING_INTERACTION_POINTS, WAITING_SLOT_POSITIONS, isWalkable, patientPresentation, patientTravelPose,
@@ -28,7 +29,7 @@ import { animationRow, parseSpriteManifest, patientRenderPosition, playerSpriteS
 
 const STRETCHER_FACING: Direction = 'down';
 const PATIENT_SLOT_TARGET = /^(?:(?:reception|waiting):\d+|recovery)$/;
-const ACTIONABLE_LABEL = /^(?:Pick up |Place|Discharge patient|Apply |Discard medicine|Hold E:|Preparing )/;
+const ACTIONABLE_LABEL = /^(?:Pick up |Place|Discharge patient|Apply |Discard medicine|Hold E:|Preparing |Take |Return )/;
 const PLAYER_COLORS = [0x4cc9c0, 0xf29c75, 0xb2a0f7, 0xf5ce69];
 // Label heights above the floor, in 3D world units, for the HUD's world anchors.
 const PLAYER_LABEL_HEIGHT = 2.05;
@@ -38,6 +39,12 @@ const PREPARATION_LABEL_HEIGHT = 1.9;
 const DISCHARGE_LABEL_HEIGHT = 2.2;
 
 type SheetName = 'idle' | 'walk' | 'laying';
+
+/** 2D map point of a medicine shelf slot: a row on the back of the table behind its station. */
+function stockPoint(slot: number): Point {
+  const station = MEDICINE_PREPARATION_POINTS[medicineStockStation(slot)]!;
+  return { x: station.x + (slot % MEDICINE_STOCK_CAPACITY - 1) * 40, y: -40 };
+}
 
 /** PMD sheets the scene loads for a species, keyed by their animation role. */
 function spriteSheets(species: SpeciesSprite): [SheetName, SpriteAnimation | undefined][] {
@@ -722,7 +729,7 @@ export class MapScene extends Phaser.Scene {
         fontFamily: 'monospace', fontSize: '11px', fontStyle: 'bold',
       }).setOrigin(0.5);
       const position = dose.location === 'surface' ? MEDICINE_SURFACE_POINTS[dose.slotIndex] :
-        this.avatars.get(dose.carrierId)?.position;
+        dose.location === 'stock' ? stockPoint(dose.slotIndex) : this.avatars.get(dose.carrierId)?.position;
       const screen = mapViewportPoint(position ?? { x: 480, y: 270 });
       const marker = this.add.container(screen.x, screen.y, [bottle, icon]);
       marker.setDepth((position?.y ?? 0) + 1);
@@ -734,8 +741,8 @@ export class MapScene extends Phaser.Scene {
       this.medicineMarkers.delete(id);
     }
     for (const dose of this.medicineDoses) {
-      if (dose.location !== 'surface') continue;
-      const point = MEDICINE_SURFACE_POINTS[dose.slotIndex];
+      if (dose.location === 'carrier') continue;
+      const point = dose.location === 'stock' ? stockPoint(dose.slotIndex) : MEDICINE_SURFACE_POINTS[dose.slotIndex];
       if (point) {
         const screen = mapViewportPoint(point);
         this.medicineMarkers.get(dose.id)?.setPosition(screen.x, screen.y);
@@ -844,14 +851,8 @@ export class MapScene extends Phaser.Scene {
           'Medicine does not match';
       };
       for (let index = 0; index < MEDICINE_PREPARATION_POINTS.length; index += 1) {
-        const kind = index === 0 ? 'Burn Heal' : 'Antidote';
-        const owner = this.medicineOwners[index];
-        const remaining = this.medicineRemainingMs[index] ?? 0;
         targets.push({ id: `medicine:prep:${index}`, position: MEDICINE_PREPARATION_POINTS[index]!,
-          expectedOccupantId: '', label: owner ? owner === this.localId ?
-            `Preparing ${kind} (${Math.ceil(remaining / 1000)}s)` : 'Preparation occupied' :
-            local.carriedMedicineId || local.carriedPatientId ? 'Hands must be empty' :
-              `Hold E: prepare ${kind}` });
+          expectedOccupantId: carriedDose?.id ?? '', label: this.stationLabel(index, local, carriedDose) });
       }
       for (let index = 0; index < MEDICINE_SURFACE_POINTS.length; index += 1) {
         const occupantId = this.medicineSurfaces[index] ?? '';
@@ -934,6 +935,23 @@ export class MapScene extends Phaser.Scene {
       entry.lifecycle === 'active' && entry.id === selected?.expectedOccupantId);
     this.focusedPatientId = patient?.id ?? '';
     this.publishHud();
+  }
+
+  /** What E does at a medicine station: prepare (hold), take from its shelf (tap) or put a dose back. */
+  private stationLabel(index: number, local: PlayerPosition, carriedDose: MedicineDoseRecord | undefined): string {
+    const kind = MEDICINE_KINDS[index]!;
+    const name = kind === 'burnHeal' ? 'Burn Heal' : 'Antidote';
+    const owner = this.medicineOwners[index];
+    const stocked = this.medicineDoses.filter((dose) => dose.location === 'stock' &&
+      medicineStockStation(dose.slotIndex) === index).length;
+    if (owner === this.localId) return `Preparing ${name} (${Math.ceil((this.medicineRemainingMs[index] ?? 0) / 1000)}s)`;
+    if (local.carriedPatientId) return 'Hands must be empty';
+    if (carriedDose) {
+      if (carriedDose.kind !== kind) return `This shelf holds ${name}`;
+      return stocked < MEDICINE_STOCK_CAPACITY ? `Return ${name} to the shelf` : 'Shelf full';
+    }
+    if (stocked >= MEDICINE_STOCK_CAPACITY || owner) return stocked ? `Take ${name}` : 'Preparation occupied';
+    return stocked ? `Take ${name} · hold E to prepare` : `Hold E: prepare ${name}`;
   }
 
   /** The E/Q prompt: a rejection, the ability being held, the selected station, or a nudge to move. */

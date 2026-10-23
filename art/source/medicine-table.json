@@ -7,7 +7,7 @@
   "origin": "original-project-geometry",
   "externalResources": [],
   "blenderVersion": "5.2.2 LTS",
-  "editableMeshes": 83,
+  "editableMeshes": 65,
   "mapTilePixels": 48,
   "root": "MedicineTable",
   "runtimeUpAxis": "+Y",
@@ -28,16 +28,25 @@
   },
   "runtimeMeshes": 11,
   "runtimeMaterials": 11,
-  "runtimeTriangles": 10372,
-  "runtimeBytes": 404012,
+  "runtimeTriangles": 7468,
+  "runtimeBytes": 403044,
   "interactionAnchors": [
     "BurnHealAnchor",
     "AntidoteAnchor",
     "DisposalAnchor"
   ],
-  "exportNotes": "Evaluated bevels and normals; grouped by material; selected hierarchy in active scene only. No external textures, fonts, lights, cameras or studio. Anchors align with shared interaction X coordinates at the front edge; gameplay points remain unchanged.",
+  "exportNotes": "Evaluated bevels and normals; grouped by material; no external textures, fonts, lights, cameras or studio. The back shelf is empty: StockAnchor1-3 (Burn Heal) and 4-6 (Antidote) mark where the runtime shows prepared doses. Gameplay points remain unchanged.",
   "stateNodes": [
     "BurnHealGlow",
     "AntidoteGlow"
+  ],
+  "shelfScript": "art/source/blender/medicine_table_shelf.py",
+  "stockAnchors": [
+    "StockAnchor1",
+    "StockAnchor2",
+    "StockAnchor3",
+    "StockAnchor4",
+    "StockAnchor5",
+    "StockAnchor6"
   ]
 }

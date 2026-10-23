@@ -10,7 +10,7 @@ import { RoomMedicine } from './RoomMedicine.js';
 import { RoomMovement } from './RoomMovement.js';
 import { RoomPatients } from './RoomPatients.js';
 import { RoomRound } from './RoomRound.js';
-import { PlayerState, RoomState, roomHealingMachines } from './RoomState.js';
+import { MedicineDoseState, PlayerState, RoomState, roomHealingMachines } from './RoomState.js';
 
 /** Real gameplay modules driven by a simulated 50 ms server tick, with no network. */
 function clinic(characters: readonly PlayerCharacter[], withHost = false) {
@@ -174,6 +174,38 @@ describe('bot care by specialty', () => {
     expect(world.run(80_000, () => world.state.dischargedCount === plan.length)).toBe(true);
     expect(world.state.lostCount).toBe(0);
     expect(() => world.patients.assertOwnership()).not.toThrow();
+  });
+
+  it('leaves an early dose on the shelf instead of juggling it until its patient can be treated', () => {
+    const world = clinic(['Audino']);
+    world.start();
+    const patient = world.admit('Bulbasaur', TREATMENT.antidote, 7);
+    const bot = world.state.players.get(world.ids[0]!)!;
+    let pickups = 0;
+    let carrying = '';
+    expect(world.run(60_000, () => {
+      if (bot.carriedMedicineId && bot.carriedMedicineId !== carrying) pickups += 1;
+      carrying = bot.carriedMedicineId;
+      // While the patient is still walking in, the prepared dose must wait on the shelf.
+      if (patient.travelKind === 'arriving') expect(bot.carriedMedicineId).toBe('');
+      return world.state.dischargedCount === 1;
+    })).toBe(true);
+    expect(pickups).toBe(1);
+  });
+
+  it('puts an unneeded dose back on its shelf and then stays empty-handed', () => {
+    const world = clinic(['Meowth']);
+    world.start();
+    const bot = world.state.players.get(world.ids[0]!)!;
+    const dose = new MedicineDoseState();
+    Object.assign(dose, { id: 'spare', kind: 'antidote', location: 'carrier', carrierId: world.ids[0]!, slotIndex: -1 });
+    world.state.medicineDoses.set(dose.id, dose);
+    bot.carriedMedicineId = dose.id;
+    expect(world.run(15_000, () => world.state.medicineStock[3] === 'spare')).toBe(true);
+    let pickups = 0;
+    world.run(10_000, () => { if (bot.carriedMedicineId) pickups += 1; return false; });
+    expect(pickups).toBe(0);
+    expect(dose).toMatchObject({ location: 'stock', slotIndex: 3 });
   });
 
   it('does nothing outside a running round', () => {

@@ -70,6 +70,7 @@ export const RoomState = schema({
   patients: t.map(PatientState),
   medicineDoses: t.map(MedicineDoseState),
   medicineSurfaces: t.array('string'),
+  medicineStock: t.array('string'),
   medicinePreparationOwners: t.array('string'),
   medicinePreparationRemainingMs: t.array('number'),
   receptionSlots: t.array('string'),

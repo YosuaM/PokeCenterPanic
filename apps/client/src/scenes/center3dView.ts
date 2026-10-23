@@ -21,7 +21,8 @@ import { MedicineDisposalModel } from './medicineDisposalModel.js';
 import { MedicineTableModel } from './medicineTableModel.js';
 import { HealingMachineModels } from './healingMachineModels.js';
 import { createCenter3DEnvironment } from './center3dEnvironment.js';
-import { CAMERA_HALF_HEIGHT, CAMERA_HALF_WIDTH, CAMERA_SHIFT_X, WORLD_SCALE, cameraPosition,
+import { CAMERA_HALF_HEIGHT, CAMERA_HALF_WIDTH, CAMERA_SHIFT_X, MEDICINE_STOCK_3D, MEDICINE_STOCK_SHELF_HEIGHT,
+  WORLD_SCALE, cameraPosition,
   worldPosition } from './center3dLayout.js';
 
 export interface Center3DCharacter {
@@ -272,9 +273,10 @@ export class Center3DView {
     }
     for (const dose of doses) {
       if (this.discardedMedicines.has(dose.id)) continue;
+      const shelf = dose.location === 'stock' ? MEDICINE_STOCK_3D[dose.slotIndex] : undefined;
       const point = dose.location === 'surface' ? MEDICINE_SURFACE_POINTS[dose.slotIndex] :
-        carriers.get(dose.carrierId);
-      if (!point) continue;
+        dose.location === 'carrier' ? carriers.get(dose.carrierId) : undefined;
+      if (!point && !shelf) continue;
       present.add(dose.id);
       let group = this.medicines.get(dose.id);
       if (group && group.userData.medicineKind !== dose.kind) {
@@ -286,10 +288,10 @@ export class Center3DView {
         this.scene.add(group);
         this.medicines.set(dose.id, group);
       }
-      const position = worldPosition(point);
-      group.position.set(position.x, dose.location === 'carrier' ?
+      const position = shelf ?? worldPosition(point!);
+      group.position.set(position.x, shelf ? MEDICINE_STOCK_SHELF_HEIGHT : dose.location === 'carrier' ?
         MEDICINE_BOTTLE_CARRIED_HEIGHT : MEDICINE_BOTTLE_SURFACE_HEIGHT, position.z);
-      const motion = this.medicineBottles.motion(group, point,
+      const motion = this.medicineBottles.motion(group, point ?? { x: 0, y: 0 },
         dose.location === 'carrier' ? dose.carrierId : '', timeMs);
       group.position.y += motion.lift;
       group.rotation.z = motion.roll;

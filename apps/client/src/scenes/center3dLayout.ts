@@ -55,6 +55,10 @@ export const CENTER_3D_FOOTPRINTS = MAP_OBSTACLES.map(worldFootprint);
 export const RECEPTION_3D_SLOTS = RECEPTION_SLOT_POSITIONS.map(worldPosition);
 export const WAITING_3D_SLOTS = WAITING_SLOT_POSITIONS.map(worldPosition);
 export const STAFF_3D_SPAWNS = SPAWN_POINTS.map(worldPosition);
+/** Shelf slots on the medicine table's back row, matching its StockAnchor1–6 (Burn Heal 1–3, Antidote 4–6). */
+export const MEDICINE_STOCK_SHELF_HEIGHT = 0.78;
+export const MEDICINE_STOCK_3D: readonly WorldPosition[] = [-2.227, -1.667, -1.107, 1.107, 1.667, 2.227]
+  .map((offset) => ({ x: CENTER_3D_FOOTPRINTS[3]!.x + offset, z: CENTER_3D_FOOTPRINTS[3]!.z - 0.7 }));
 
 export const CENTER_3D_ROSTER = [
   ...['Pikachu', 'Bulbasaur', 'Charmander', 'Squirtle'].map((name, index) => ({

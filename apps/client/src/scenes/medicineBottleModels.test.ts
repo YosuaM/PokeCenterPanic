@@ -6,7 +6,7 @@ import { MEDICINE_SURFACE_POINTS, type MedicineKind, type MedicineDoseRecord } f
 import { MedicineBottleModels, MEDICINE_BOTTLE_CARRIED_HEIGHT,
   MEDICINE_BOTTLE_SURFACE_HEIGHT } from './medicineBottleModels.js';
 import { Center3DView } from './center3dView.js';
-import { worldPosition } from './center3dLayout.js';
+import { MEDICINE_STOCK_3D, MEDICINE_STOCK_SHELF_HEIGHT, worldPosition } from './center3dLayout.js';
 import { visualFixture } from './visualFixtures.js';
 
 async function asset(kind: MedicineKind) {
@@ -16,6 +16,28 @@ async function asset(kind: MedicineKind) {
 }
 
 describe('medicine bottle models', () => {
+  it('stands shelved doses still on their table slot and moves one into hands when taken', async () => {
+    const models = new MedicineBottleModels(asset);
+    await models.ready;
+    const scene = new THREE.Scene();
+    const medicines = new Map<string, THREE.Group>();
+    const view = Object.create(Center3DView.prototype) as Center3DView;
+    Object.assign(view, { scene, medicines, medicineBottles: models, discardedMedicines: new Set<string>() });
+    const shelf: MedicineDoseRecord[] = [
+      { id: 'b2', kind: 'burnHeal', location: 'stock', carrierId: '', slotIndex: 2 },
+      { id: 'a1', kind: 'antidote', location: 'stock', carrierId: '', slotIndex: 4 },
+    ];
+    view.syncMedicines(shelf, new Map(), 0);
+    expect(medicines.get('b2')!.position.toArray()).toEqual([MEDICINE_STOCK_3D[2]!.x, MEDICINE_STOCK_SHELF_HEIGHT, MEDICINE_STOCK_3D[2]!.z]);
+    expect(medicines.get('a1')!.position.toArray()).toEqual([MEDICINE_STOCK_3D[4]!.x, MEDICINE_STOCK_SHELF_HEIGHT, MEDICINE_STOCK_3D[4]!.z]);
+    expect(medicines.get('a1')!.rotation.z).toBe(0);
+    view.syncMedicines([{ ...shelf[0]!, location: 'carrier', carrierId: 'staff', slotIndex: -1 }],
+      new Map([['staff', { x: 400, y: 100 }]]), 100);
+    expect(medicines.get('b2')!.position.y).toBeGreaterThanOrEqual(MEDICINE_BOTTLE_CARRIED_HEIGHT);
+    expect(medicines.has('a1')).toBe(false);
+    models.dispose();
+  });
+
   it.each(['burnHeal', 'antidote'] as const)('sways carried %s smoothly and resets on placement and handoff', async (kind) => {
     const models = new MedicineBottleModels(asset);
     await models.ready;
