@@ -18,7 +18,8 @@ const state = vi.hoisted(() => {
     setReady: vi.fn(), startGame: vi.fn(), replay: vi.fn(), sendInput: vi.fn(),
     sendInteraction: vi.fn(), restore: vi.fn() };
   return { gameEvents, sceneEvents, scene, loop, ui, controller, portraits: { load: vi.fn(async () => {}), dispose: vi.fn() }, fixture: false,
-    view: undefined as LobbyView | undefined };
+    view: undefined as LobbyView | undefined, interfaceArgs: [] as unknown[], transition: { destroy: vi.fn() },
+    transitionArgs: [] as unknown[] };
 });
 
 vi.mock('phaser', () => ({ default: {
@@ -31,11 +32,16 @@ vi.mock('phaser', () => ({ default: {
 } }));
 vi.mock('./ui/characterPortraits.js', () => ({ CharacterPortraits: class { constructor() { return state.portraits; } } }));
 vi.mock('./ui/screenFit.js', () => ({ ScreenFit: class { destroy = vi.fn(); } }));
+vi.mock('./ui/screenTransition.js', () => ({ ScreenTransition: class {
+  constructor(...args: unknown[]) { state.transitionArgs = args; return state.transition; }
+} }));
 vi.mock('./ui/menuAtmosphere.js', () => ({ initializeMenuAtmosphere: vi.fn(() => vi.fn()) }));
 vi.mock('./gameConfig.js', () => ({ GAME_CONFIG: {} }));
 vi.mock('./scenes/MapScene.js', () => ({ MapScene: class {} }));
 vi.mock('./scenes/visualFixtures.js', () => ({ visualFixture: () => state.fixture }));
-vi.mock('./ui/RoomInterface.js', () => ({ RoomInterface: class { constructor() { return state.ui; } } }));
+vi.mock('./ui/RoomInterface.js', () => ({ RoomInterface: class {
+  constructor(...args: unknown[]) { state.interfaceArgs = args; return state.ui; }
+} }));
 vi.mock('./rooms/RoomGateway.js', () => ({ RoomGateway: class {} }));
 vi.mock('./rooms/LobbyController.js', () => ({ LobbyController: class {
   constructor(_gateway: unknown, view: LobbyView) { state.view = view; return state.controller; }
@@ -47,6 +53,13 @@ beforeEach(() => {
   vi.stubGlobal('document', { querySelector: () => null, defaultView: null });
   vi.stubGlobal('location', { protocol: 'http:', hostname: 'localhost', search: '' });
   vi.stubGlobal('sessionStorage', {});
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }));
+});
+
+it('gives the room interface a Pokéball transition that respects reduced motion', async () => {
+  await import('./main.js');
+  expect(state.transitionArgs[1]).toEqual({ matches: false, media: '(prefers-reduced-motion: reduce)' });
+  expect(state.interfaceArgs.at(-1)).toBe(state.transition);
 });
 
 it('waits until the map has loaded before restoring rooms and sleeps the hidden renderer', async () => {

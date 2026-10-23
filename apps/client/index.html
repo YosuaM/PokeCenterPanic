@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/src/ui/hud.css" />
     <link rel="stylesheet" href="/src/ui/menuAtmosphere.css" />
     <link rel="stylesheet" href="/src/ui/logo-motion.css" />
+    <link rel="stylesheet" href="/src/ui/screenTransition.css" />
   </head>
   <body data-screen="menu">
     <div class="menu-backdrop" aria-hidden="true"><canvas id="menu-atmosphere" hidden></canvas></div>
@@ -127,6 +128,7 @@
       <form method="dialog"><button class="dialog-close text-button" aria-label="Close credits">✕</button></form>
       <p class="eyebrow">MADE WITH CARE</p><h2 id="credits-title">A little credit.</h2><p>PokéCenter Panic is a noncommercial cooperative fan game. Pokémon names and characters belong to their respective owners.</p><p>Original software is licensed under <a href="https://github.com/YosuaM/PokeCenterPanic/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">GNU GPL v3 only</a>. Clinic geometry, menu artwork, and patient alert sounds are original project work.</p><p>Local PMD sprites are sourced from <a href="https://github.com/PMDCollab/SpriteCollab" target="_blank" rel="noopener noreferrer">PMD Collab</a>. Selected Idle/Walk/Rotate credits: <b>CHUNSOFT</b> (Pikachu, Bulbasaur, Charmander, Squirtle, Eevee, Psyduck, Chansey, Machoke, Meowth, Lugia); <b>baronessfaron</b> (Audino; prior record: JFain).</p><p class="input-hint">Third-party sprite rights require review before public distribution. See the project's <a href="https://github.com/YosuaM/PokeCenterPanic/blob/main/docs/asset-sources.md" target="_blank" rel="noopener noreferrer">asset sources and credits</a>.</p>
     </dialog>
+    <div id="screen-transition" class="screen-transition" aria-hidden="true" hidden><div class="pokeball"><div class="pokeball-half pokeball-top"></div><div class="pokeball-half pokeball-bottom"></div><div class="pokeball-button"><span></span></div></div><div class="screen-transition-flash"></div></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

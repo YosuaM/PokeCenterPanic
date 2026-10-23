@@ -1,0 +1,50 @@
+/* Keyframe durations mirror POKEBALL_TIMING in screenTransition.ts. */
+.screen-transition { --ball-ink: #37324f; position: fixed; z-index: 1000; inset: 0; overflow: hidden; }
+.screen-transition[hidden] { display: none; }
+.screen-transition[data-stage='opening'] { pointer-events: none; }
+
+/* Sized so the closed ball still covers every corner of the viewport. */
+.pokeball { position: absolute; top: 50%; left: 50%; width: 146vmax; aspect-ratio: 1; transform: translate(-50%, -50%); }
+.pokeball-half { position: absolute; left: 0; width: 100%; height: 50%; }
+.pokeball-top { top: 0; border-bottom: 1.6vmax solid var(--ball-ink); border-radius: 73vmax 73vmax 0 0;
+  background: radial-gradient(ellipse 13% 9% at 32% 64%, #ffffffc0, #fff0 72%), linear-gradient(#ff7b7f, #ec4a55 82%, #c9334a);
+  box-shadow: 0 0 0 1.4vmax var(--ball-ink); }
+.pokeball-bottom { bottom: 0; border-top: 1.6vmax solid var(--ball-ink); border-radius: 0 0 73vmax 73vmax;
+  background: linear-gradient(#fcfbff, #ece7f4 22%, #c9bfdc); box-shadow: 0 0 0 1.4vmax var(--ball-ink); }
+.pokeball-button { position: absolute; top: 50%; left: 50%; display: grid; place-items: center; width: 20%; aspect-ratio: 1;
+  border: 2.6vmax solid var(--ball-ink); border-radius: 50%; background: #fcfbff; transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1.4vmax #fcfbff inset; }
+.pokeball-button span { width: 52%; aspect-ratio: 1; border: .9vmax solid #d8d0e8; border-radius: 50%; background: #fff; }
+.screen-transition-flash { position: absolute; inset: 0; background: radial-gradient(circle, #fff 0 18%, #fff0 70%); opacity: 0; }
+
+.screen-transition[data-stage='closing'] .pokeball { animation: pokeball-throw 560ms cubic-bezier(.55, .05, .7, .2) both; }
+.screen-transition[data-stage='holding'] .pokeball-button { animation: pokeball-wobble 460ms ease-in-out both; }
+.screen-transition[data-stage='holding'] .pokeball-button span { animation: pokeball-glow 460ms ease-in both; }
+.screen-transition[data-stage='opening'] .pokeball-top { animation: pokeball-top-open 560ms cubic-bezier(.4, -.25, .5, 1) both; }
+.screen-transition[data-stage='opening'] .pokeball-bottom { animation: pokeball-bottom-open 560ms cubic-bezier(.4, -.25, .5, 1) both; }
+.screen-transition[data-stage='opening'] .pokeball-button { animation: pokeball-release 240ms ease-in both; }
+.screen-transition[data-stage='opening'] .screen-transition-flash { animation: pokeball-flash 420ms ease-out both; }
+
+@keyframes pokeball-throw {
+  from { transform: translate(-50%, -50%) scale(.03) rotate(-720deg); }
+  to { transform: translate(-50%, -50%) scale(1) rotate(0); }
+}
+@keyframes pokeball-wobble {
+  0%, 10% { transform: translate(-50%, -50%) rotate(0); }
+  30% { transform: translate(-50%, -50%) rotate(-10deg); }
+  50% { transform: translate(-50%, -50%) rotate(8deg); }
+  70%, 100% { transform: translate(-50%, -50%) rotate(0); }
+}
+@keyframes pokeball-glow {
+  0%, 55% { background: #fff; box-shadow: none; }
+  100% { background: #fff6c8; box-shadow: 0 0 0 .8vmax #ffcf58, 0 0 4vmax #ffcf58; }
+}
+@keyframes pokeball-top-open { from { transform: none; } to { transform: translateY(-62vh) rotate(-4deg); } }
+@keyframes pokeball-bottom-open { from { transform: none; } to { transform: translateY(62vh) rotate(3deg); } }
+@keyframes pokeball-release {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
+}
+@keyframes pokeball-flash { 0% { opacity: 0; } 25% { opacity: .9; } 100% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) { .screen-transition { display: none; } }

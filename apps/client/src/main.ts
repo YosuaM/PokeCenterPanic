@@ -10,6 +10,7 @@ import { loadMenuCritters } from './ui/menuCritters.js';
 import { CharacterPortraits } from './ui/characterPortraits.js';
 import { invitedCode } from './ui/lobbyModel.js';
 import { ScreenFit } from './ui/screenFit.js';
+import { ScreenTransition } from './ui/screenTransition.js';
 
 const game = new Phaser.Game(GAME_CONFIG);
 const disposeAtmosphere = initializeMenuAtmosphere(document, undefined, () => loadMenuCritters(document));
@@ -17,6 +18,9 @@ import.meta.hot?.dispose(disposeAtmosphere);
 const screenFit = new ScreenFit(document.querySelector<HTMLElement>('#screen-stage')!, document.defaultView);
 import.meta.hot?.dispose(() => screenFit.destroy());
 const portraits = new CharacterPortraits(document);
+const screenTransition = new ScreenTransition(document.querySelector<HTMLElement>('#screen-transition')!,
+  matchMedia('(prefers-reduced-motion: reduce)'));
+import.meta.hot?.dispose(() => screenTransition.destroy());
 const ui = new RoomInterface(document, {
   create: (name) => { void controller.create(name); },
   join: (code, name) => { void controller.join(code, name); },
@@ -28,7 +32,7 @@ const ui = new RoomInterface(document, {
   addBot: () => controller.addBot(),
   removeBot: (botId) => controller.removeBot(botId),
   setBotCharacter: (botId, character) => controller.setBotCharacter(botId, character),
-}, undefined, portraits, `${location.origin}${location.pathname}`);
+}, undefined, portraits, `${location.origin}${location.pathname}`, screenTransition);
 void portraits.load();
 import.meta.hot?.dispose(() => portraits.dispose());
 

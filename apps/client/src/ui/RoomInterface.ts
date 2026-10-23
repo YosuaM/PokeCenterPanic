@@ -4,6 +4,7 @@ import { resultsPresentation } from '../rooms/roundPresentation.js';
 import type { CharacterPortraits } from './characterPortraits.js';
 import { CHARACTER_ROLE_TEXT } from './characterRoles.js';
 import { ROOM_SEATS, canStart, cycleCharacter, inviteLink, lobbyHint, openSeats } from './lobbyModel.js';
+import { needsScreenTransition, type ScreenTransition } from './screenTransition.js';
 
 interface RoomActions {
   create(name: string): void;
@@ -41,12 +42,16 @@ export class RoomInterface {
   private roomCode = '';
   private rosterSignature = '';
   private busy = false;
+  private inRoom = false;
+  private screen = '';
+  private covered = false;
   private readonly copyLabels = new Map<HTMLElement, string>();
 
   constructor(private readonly document: Document, private readonly actions: RoomActions,
     private readonly clipboard: Pick<Clipboard, 'writeText'> | null = globalThis.navigator?.clipboard ?? null,
     private readonly portraits?: Pick<CharacterPortraits, 'create' | 'release' | 'setActive' | 'setSelected'>,
-    private readonly inviteBase = '') {
+    private readonly inviteBase = '',
+    private readonly transition?: Pick<ScreenTransition, 'play'>) {
     this.panel = this.element('#room-panel');
     this.game = this.element('#game');
     this.name = this.element('#player-name');
@@ -150,22 +155,21 @@ export class RoomInterface {
   }
 
   showRoom(code: string, players: PlayerPresence[], localId: string): void {
-    const entering = this.element('#room-menu').hidden === false;
-    this.element('#room-menu').hidden = true;
-    this.element('#room-lobby').hidden = false;
+    const entering = !this.inRoom;
+    this.inRoom = true;
     this.element('#room-code').textContent = code;
     if (this.roomCode !== code) for (const [button, label] of this.copyLabels) button.textContent = label;
     this.roomCode = code;
     this.players = players;
     this.localId = localId;
-    this.render();
+    this.present();
     if (entering) this.showStatus('');
   }
 
   showPhase(phase: RoomPhaseSnapshot, localId: string): void {
     this.phase = phase;
     this.localId = localId;
-    this.render();
+    this.present();
   }
 
   showResults(results: RoundResults): void {
@@ -179,18 +183,11 @@ export class RoomInterface {
   }
 
   showMenu(message: string): void {
-    this.portraits?.setSelected(undefined);
-    const roster = this.element('#room-players');
-    this.portraits?.release(roster);
-    roster.replaceChildren();
-    this.rosterSignature = '';
     this.players = [];
     this.localId = '';
     this.phase = EMPTY_PHASE;
-    this.element('#room-menu').hidden = false;
-    this.element('#room-lobby').hidden = true;
-    this.panel.classList.remove('is-playing', 'is-results');
-    this.setScreen('menu');
+    this.inRoom = false;
+    this.present();
     this.showStatus(message);
   }
 
@@ -229,7 +226,33 @@ export class RoomInterface {
     this.showStatus('');
   }
 
+  /** Applies the current view, behind a screen transition when the visible screen changes. */
+  private present(): void {
+    if (this.covered) return;
+    const next = this.inRoom ? this.phase.phase : 'menu';
+    if (!this.transition || !needsScreenTransition(this.screen, next)) { this.applyView(); return; }
+    this.covered = true;
+    this.transition.play(() => {
+      this.covered = false;
+      this.applyView();
+    });
+  }
+
+  private applyView(): void {
+    this.element('#room-menu').hidden = this.inRoom;
+    this.element('#room-lobby').hidden = !this.inRoom;
+    if (this.inRoom) { this.render(); return; }
+    this.portraits?.setSelected(undefined);
+    const roster = this.element('#room-players');
+    this.portraits?.release(roster);
+    roster.replaceChildren();
+    this.rosterSignature = '';
+    this.panel.classList.remove('is-playing', 'is-results');
+    this.setScreen('menu');
+  }
+
   private setScreen(screen: string): void {
+    this.screen = screen;
     this.portraits?.setActive(screen === 'lobby');
     const visible = screen === 'running' || screen === 'fixture';
     this.document.body.dataset.screen = screen;

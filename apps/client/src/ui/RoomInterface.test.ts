@@ -40,7 +40,8 @@ class Element extends EventTarget {
   }
 }
 
-function setup(clipboard: Pick<Clipboard, 'writeText'> | null = { writeText: vi.fn(async () => {}) }, inviteBase = '') {
+function setup(clipboard: Pick<Clipboard, 'writeText'> | null = { writeText: vi.fn(async () => {}) }, inviteBase = '',
+  transition?: { play(apply: () => void): void }) {
   const elements = new Map<string, Element>();
   const element = (selector: string) => {
     if (!elements.has(selector)) elements.set(selector, new Element());
@@ -62,7 +63,7 @@ function setup(clipboard: Pick<Clipboard, 'writeText'> | null = { writeText: vi.
     const portrait = new Element(); portrait.dataset.character = character;
     return portrait as unknown as HTMLElement;
   }), release: vi.fn(), setActive: vi.fn(), setSelected: vi.fn() };
-  const ui = new RoomInterface(document as unknown as Document, actions, clipboard, portraits, inviteBase);
+  const ui = new RoomInterface(document as unknown as Document, actions, clipboard, portraits, inviteBase, transition);
   const click = (selector: string) => element(selector).dispatchEvent(new Event('click'));
   const submit = (selector: string) => element(selector).dispatchEvent(new Event('submit', { cancelable: true }));
   const phase = (phase: RoomPhaseSnapshot['phase'], hostId = 'host', countdownRemainingMs = 0) =>
@@ -281,6 +282,42 @@ describe('room interface', () => {
     expect(body.dataset.screen).toBe('fixture');
     expect(element('#game').inert).toBe(false);
     expect(element('#room-panel').hidden).toBe(true);
+  });
+
+  it('swaps screens behind the Pokéball transition and keeps the countdown inside the staff room', () => {
+    const covers: (() => void)[] = [];
+    const transition = { play: vi.fn((apply: () => void) => { covers.push(apply); }) };
+    const { ui, body, element, phase, portraits } = setup(undefined, '', transition);
+    ui.showRoom('ABC234', roster, 'host');
+    ui.showRoom('ABC234', [roster[0]!], 'host');
+    expect(transition.play).toHaveBeenCalledOnce();
+    expect(body.dataset.screen).toBe('menu');
+    expect(element('#room-lobby').hidden).toBe(true);
+    covers.shift()!();
+    expect(body.dataset.screen).toBe('lobby');
+    expect(element('#room-menu').hidden).toBe(true);
+    expect(element('#room-players').children.filter((card) => !card.classes.has('is-empty'))).toHaveLength(1);
+    phase('countdown', 'host', 900);
+    expect(transition.play).toHaveBeenCalledOnce();
+    expect(body.dataset.screen).toBe('countdown');
+    phase('running');
+    expect(transition.play).toHaveBeenCalledTimes(2);
+    expect(body.dataset.screen).toBe('countdown');
+    expect(element('#game').inert).toBe(true);
+    covers.shift()!();
+    expect(body.dataset.screen).toBe('running');
+    expect(element('#game').inert).toBe(false);
+    portraits.release.mockClear();
+    ui.showMenu('You left the room.');
+    expect(transition.play).toHaveBeenCalledTimes(3);
+    expect(portraits.release).not.toHaveBeenCalled();
+    expect(element('#room-panel').classes.has('is-playing')).toBe(true);
+    covers.shift()!();
+    expect(body.dataset.screen).toBe('menu');
+    expect(element('#room-menu').hidden).toBe(false);
+    expect(element('#room-panel').classes.size).toBe(0);
+    expect(portraits.release).toHaveBeenCalledWith(element('#room-players'));
+    expect(element('#room-status').textContent).toBe('You left the room.');
   });
 
   it('switches entry forms with the keyboard without submitting or losing typed values', () => {
