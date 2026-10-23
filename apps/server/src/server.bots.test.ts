@@ -66,9 +66,16 @@ it('lets only the host fill empty seats with ready bots that start, play and lea
   await vi.waitFor(() => expect(results.get(host)!.at(-1)?.reason).toBe('Unknown bot'));
   send(host, 'lobby:removeBot', { botId: bots[1]!.id });
   await vi.waitFor(() => expect(roster.filter((player) => player.bot)).toHaveLength(1));
-  send(host, 'player:select', { character: bots[0]!.character });
-  await vi.waitFor(() => expect(state().players.get(host.sessionId)?.character).toBe(bots[0]!.character));
-  expect(state().players.get(bots[0]!.id)?.character).not.toBe(bots[0]!.character);
+  const spare = ['Chansey', 'Audino', 'Machoke', 'Meowth'].find((character) => character !== bots[0]!.character)!;
+  send(guest, 'lobby:botCharacter', { botId: bots[0]!.id, character: spare });
+  send(host, 'lobby:botCharacter', { botId: bots[0]!.id, character: 'Mew' });
+  await vi.waitFor(() => expect(results.get(host)!.at(-1)?.reason).toBe('Choose a valid character'));
+  send(host, 'lobby:botCharacter', { botId: bots[0]!.id, character: spare });
+  await vi.waitFor(() => expect(roster.find((player) => player.id === bots[0]!.id)?.character).toBe(spare));
+  expect(results.get(guest)!.at(-1)?.reason).toBe('Only the host can manage bots');
+  send(host, 'player:select', { character: spare });
+  await vi.waitFor(() => expect(state().players.get(host.sessionId)?.character).toBe(spare));
+  expect(state().players.get(bots[0]!.id)?.character).not.toBe(spare);
   send(guest, 'player:select', { character: [...['Chansey', 'Audino', 'Machoke', 'Meowth']]
     .find((character) => ![...state().players.values()].some((player) => player.character === character)) });
   send(host, 'player:ready', { ready: true });

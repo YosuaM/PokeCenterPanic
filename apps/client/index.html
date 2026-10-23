@@ -6,98 +6,111 @@
     <meta name="theme-color" content="#262044" />
     <title>PokéCenter Panic</title>
     <link rel="stylesheet" href="/src/ui/room.css" />
+    <link rel="stylesheet" href="/src/ui/lobby.css" />
     <link rel="stylesheet" href="/src/ui/hud.css" />
     <link rel="stylesheet" href="/src/ui/menuAtmosphere.css" />
     <link rel="stylesheet" href="/src/ui/logo-motion.css" />
   </head>
   <body data-screen="menu">
     <div class="menu-backdrop" aria-hidden="true"><canvas id="menu-atmosphere" hidden></canvas></div>
-    <button id="menu-motion" class="menu-motion" type="button" aria-pressed="true" hidden>Pause ambience</button>
     <main id="game" aria-label="PokéCenter Panic game" aria-hidden="true" inert></main>
     <section id="room-panel" aria-label="Private room">
       <header class="site-header">
         <a class="brand" href="/" aria-label="PokéCenter Panic home"><img src="/assets/original/pokecenter-panic-logo.webp" width="1774" height="887" alt="" decoding="async" /></a>
         <span class="edition"><span class="status-dot"></span> 1–4 PLAYERS · CO-OP</span>
+        <button id="menu-motion" class="menu-motion" type="button" aria-pressed="true" hidden>Pause ambience</button>
         <button class="text-button" type="button" data-dialog="help-dialog">How to play <span aria-hidden="true">↗</span></button>
       </header>
 
-      <div id="room-menu" class="entry-layout">
-        <div class="hero">
-          <p class="hero-kicker">A CO-OP POKÉMON FAN GAME</p>
-          <h1 class="game-logo"><img src="/assets/original/pokecenter-panic-logo.webp" width="1774" height="887" alt="PokéCenter Panic" fetchpriority="high" decoding="async" /></h1>
-          <p class="hero-description">Big hearts. Tiny patients. Total chaos.<br>Your next shift starts with friends.</p>
-          <div class="game-facts"><span><b>1–4</b> players</span><span><b>6 min</b> per shift</span><span><b>∞</b> good teamwork</span></div>
-        </div>
-
-        <section class="entry-card" aria-labelledby="entry-title">
-          <div class="card-topline"><span class="header-icon" aria-hidden="true">✚</span><h2 id="entry-title">Welcome to the team!</h2></div>
-          <div class="card-content">
-            <label for="player-name">Your name <span class="field-note">No sign-up needed!</span></label>
-            <input id="player-name" name="nickname" form="create-room" maxlength="16" autocomplete="nickname" placeholder="Enter your name…" pattern=".*\S.*" required aria-describedby="name-hint" />
-            <p id="name-hint" class="input-hint">Pick a name your team will recognise. Up to 16 characters.</p>
-            <div class="entry-tabs" role="tablist" aria-label="Room options">
-              <button id="create-tab" type="button" role="tab" aria-selected="true" aria-controls="create-room">Create a room</button>
-              <button id="join-tab" type="button" role="tab" aria-selected="false" aria-controls="join-room" tabindex="-1">Join a room</button>
-            </div>
-            <form id="create-room" role="tabpanel" aria-labelledby="create-tab">
-              <ul class="room-perks"><li><span class="perk-icon coral" aria-hidden="true">✚</span><span>Your own private Pokémon Center.</span></li><li><span class="perk-icon purple" aria-hidden="true">♟</span><span>Invite up to 3 friends, or fill seats with bots.</span></li><li><span class="perk-icon gold" aria-hidden="true">★</span><span>Team up for a frantic six-minute shift!</span></li></ul>
-              <button class="primary-button" type="submit"><span>Create room</span><span aria-hidden="true">➜</span></button>
-            </form>
-            <form id="join-room" role="tabpanel" aria-labelledby="join-tab" hidden>
-              <label for="room-code-input">Room code</label>
-              <input id="room-code-input" class="code-input" minlength="6" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC234" required aria-describedby="code-hint" />
-              <p id="code-hint" class="input-hint">Enter the six-character code from your host.</p>
-              <button class="primary-button" type="submit"><span>Join room</span><span aria-hidden="true">→</span></button>
-            </form>
-            <p class="privacy-note">Just you, your friends, and a little medical mayhem.</p>
+      <div id="screen-stage" class="screen-stage">
+        <div id="room-menu" class="entry-layout">
+          <div class="hero">
+            <p class="hero-kicker">A CO-OP POKÉMON FAN GAME</p>
+            <h1 class="game-logo"><img src="/assets/original/pokecenter-panic-logo.webp" width="1774" height="887" alt="PokéCenter Panic" fetchpriority="high" decoding="async" /></h1>
+            <p class="hero-description">Big hearts. Tiny patients. Total chaos.<br>Your next shift starts with friends.</p>
+            <div class="game-facts"><span><b>1–4</b> players</span><span><b>6 min</b> per shift</span><span><b>∞</b> good teamwork</span></div>
           </div>
-          <div class="card-bottomline"><span class="status-dot"></span> Solo shifts welcome. Good teamwork encouraged!</div>
-        </section>
-      </div>
 
-      <div id="room-lobby" hidden>
-        <div class="lobby-heading"><div><p class="eyebrow">YOUR NEXT GREAT TEAM</p><h2>Assemble your care crew!</h2><p class="muted">Choose your Pokémon. Ready up. Let the chaos begin.</p></div><div class="room-invite"><span class="eyebrow">YOUR PRIVATE ROOM</span><div class="code-row"><strong id="room-code"></strong><button id="copy-code" class="text-button" type="button">Copy code</button></div><span class="input-hint">Share this code with your friends.</span></div></div>
-        <ul id="room-players" class="player-roster" aria-label="Room players"></ul>
-        <p id="room-phase" role="status" aria-live="polite" hidden></p>
-        <section id="countdown-card" hidden aria-label="Starting countdown"><span class="eyebrow">TAKE A DEEP BREATH</span><strong id="countdown-number"></strong><p>Your shift is about to begin.</p></section>
-        <section id="round-results" aria-label="Round results" hidden>
-          <p class="eyebrow">SHIFT REPORT / NICE TEAMWORK</p><h2>That's a wrap, team.</h2>
-          <p id="results-score"></p><p id="results-stars"></p><p id="results-patients"></p><p id="results-success"></p><p id="results-streak"></p>
-          <button id="replay-button" class="primary-button" type="button">Back to the staff room <span aria-hidden="true">↗</span></button>
-          <p id="replay-hint" class="muted">Waiting for the host to return to the lobby.</p>
-        </section>
-        <div id="lobby-controls" class="lobby-controls">
-          <fieldset id="character-select" class="character-picker">
-            <legend>Choose your Pokémon!</legend>
-            <div class="character-grid">
-              <button class="character-card" type="button" data-character="Chansey" value="Chansey" aria-label="Chansey" aria-pressed="false">
-                <span class="character-art"><span class="character-number">#113</span><span id="portrait-Chansey" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
-                <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Chansey</strong><span class="character-type">Normal</span></span>
-                <span class="character-check" aria-hidden="true">✓</span>
-              </button>
-              <button class="character-card" type="button" data-character="Audino" value="Audino" aria-label="Audino" aria-pressed="false">
-                <span class="character-art"><span class="character-number">#531</span><span id="portrait-Audino" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
-                <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Audino</strong><span class="character-type">Normal</span></span>
-                <span class="character-check" aria-hidden="true">✓</span>
-              </button>
-              <button class="character-card" type="button" data-character="Machoke" value="Machoke" aria-label="Machoke" aria-pressed="false">
-                <span class="character-art"><span class="character-number">#067</span><span id="portrait-Machoke" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
-                <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Machoke</strong><span class="character-type">Fighting</span></span>
-                <span class="character-check" aria-hidden="true">✓</span>
-              </button>
-              <button class="character-card" type="button" data-character="Meowth" value="Meowth" aria-label="Meowth" aria-pressed="false">
-                <span class="character-art"><span class="character-number">#052</span><span id="portrait-Meowth" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
-                <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Meowth</strong><span class="character-type">Normal</span></span>
-                <span class="character-check" aria-hidden="true">✓</span>
-              </button>
+          <section class="entry-card" aria-labelledby="entry-title">
+            <div class="card-topline"><span class="header-icon" aria-hidden="true">✚</span><h2 id="entry-title">Welcome to the team!</h2></div>
+            <div class="card-content">
+              <label for="player-name">Your name <span class="field-note">No sign-up needed!</span></label>
+              <input id="player-name" name="nickname" form="create-room" maxlength="16" autocomplete="nickname" placeholder="Enter your name…" pattern=".*\S.*" required aria-describedby="name-hint" />
+              <p id="name-hint" class="input-hint">Pick a name your team will recognise. Up to 16 characters.</p>
+              <div class="entry-tabs" role="tablist" aria-label="Room options">
+                <button id="create-tab" type="button" role="tab" aria-selected="true" aria-controls="create-room">Create a room</button>
+                <button id="join-tab" type="button" role="tab" aria-selected="false" aria-controls="join-room" tabindex="-1">Join a room</button>
+              </div>
+              <form id="create-room" role="tabpanel" aria-labelledby="create-tab">
+                <ul class="room-perks"><li><span class="perk-icon coral" aria-hidden="true">✚</span><span>Your own private Pokémon Center.</span></li><li><span class="perk-icon purple" aria-hidden="true">♟</span><span>Invite up to 3 friends, or fill seats with bots.</span></li><li><span class="perk-icon gold" aria-hidden="true">★</span><span>Team up for a frantic six-minute shift!</span></li></ul>
+                <button class="primary-button" type="submit"><span>Create room</span><span aria-hidden="true">➜</span></button>
+              </form>
+              <form id="join-room" role="tabpanel" aria-labelledby="join-tab" hidden>
+                <label for="room-code-input">Room code</label>
+                <input id="room-code-input" class="code-input" minlength="6" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC234" required aria-describedby="code-hint" />
+                <p id="code-hint" class="input-hint">Enter the six-character code from your host.</p>
+                <button class="primary-button" type="submit"><span>Join room</span><span aria-hidden="true">→</span></button>
+              </form>
+              <p class="privacy-note">Just you, your friends, and a little medical mayhem.</p>
             </div>
-          </fieldset>
+            <div class="card-bottomline"><span class="status-dot"></span> Solo shifts welcome. Good teamwork encouraged!</div>
+          </section>
         </div>
-        <div class="character-actions">
-          <button id="leave-room" class="secondary-button leave-button" type="button"><span aria-hidden="true">←</span> Leave room</button>
-          <div id="ready-actions" class="ready-actions">
-            <button id="ready-button" class="secondary-button" type="button" disabled>Ready up</button>
-            <button id="start-button" class="primary-button" type="button" hidden>Start shift <span aria-hidden="true">→</span></button>
+
+        <div id="room-lobby" hidden>
+          <div class="lobby-heading">
+            <div class="lobby-title"><p class="eyebrow">STAFF ROOM · UP TO 4 PLAYERS</p><h2>Assemble your care crew!</h2></div>
+            <div class="room-invite">
+              <span class="eyebrow">ROOM CODE</span>
+              <strong id="room-code"></strong>
+              <div class="invite-buttons"><button id="copy-code" class="invite-button" type="button">Copy code</button><button id="copy-link" class="invite-button is-link" type="button">Copy invite link</button></div>
+              <span class="input-hint">Friends can join with the code or the link.</span>
+            </div>
+          </div>
+          <ul id="room-players" class="player-roster" aria-label="Room players"></ul>
+          <p id="room-phase" role="status" aria-live="polite" hidden></p>
+          <section id="countdown-card" hidden aria-label="Starting countdown"><span class="eyebrow">TAKE A DEEP BREATH</span><strong id="countdown-number"></strong><p>Your shift is about to begin.</p></section>
+          <section id="round-results" aria-label="Round results" hidden>
+            <p class="eyebrow">SHIFT REPORT / NICE TEAMWORK</p><h2>That's a wrap, team.</h2>
+            <p id="results-score"></p><p id="results-stars"></p><p id="results-patients"></p><p id="results-success"></p><p id="results-streak"></p>
+            <button id="replay-button" class="primary-button" type="button">Back to the staff room <span aria-hidden="true">↗</span></button>
+            <p id="replay-hint" class="muted">Waiting for the host to return to the lobby.</p>
+          </section>
+          <div id="lobby-controls" class="lobby-controls">
+            <fieldset id="character-select" class="character-picker">
+              <legend>Choose your Pokémon!</legend>
+              <div class="character-grid">
+                <button class="character-card" type="button" data-character="Chansey" value="Chansey" aria-label="Chansey" aria-pressed="false">
+                  <span class="character-art"><span class="character-number">#113</span><span id="portrait-Chansey" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
+                  <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Chansey</strong><span class="character-type">Normal</span></span>
+                  <span class="character-check" aria-hidden="true">✓</span>
+                </button>
+                <button class="character-card" type="button" data-character="Audino" value="Audino" aria-label="Audino" aria-pressed="false">
+                  <span class="character-art"><span class="character-number">#531</span><span id="portrait-Audino" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
+                  <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Audino</strong><span class="character-type">Normal</span></span>
+                  <span class="character-check" aria-hidden="true">✓</span>
+                </button>
+                <button class="character-card" type="button" data-character="Machoke" value="Machoke" aria-label="Machoke" aria-pressed="false">
+                  <span class="character-art"><span class="character-number">#067</span><span id="portrait-Machoke" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
+                  <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Machoke</strong><span class="character-type">Fighting</span></span>
+                  <span class="character-check" aria-hidden="true">✓</span>
+                </button>
+                <button class="character-card" type="button" data-character="Meowth" value="Meowth" aria-label="Meowth" aria-pressed="false">
+                  <span class="character-art"><span class="character-number">#052</span><span id="portrait-Meowth" class="character-portrait" aria-hidden="true"><span class="portrait-fallback"><b>?</b><small>No preview</small></span><img alt="" decoding="async" hidden /></span></span>
+                  <span class="character-caption"><span class="character-invite">I CHOOSE YOU!</span><strong>Meowth</strong><span class="character-type">Normal</span></span>
+                  <span class="character-check" aria-hidden="true">✓</span>
+                </button>
+              </div>
+            </fieldset>
+          </div>
+          <div class="character-actions">
+            <button id="leave-room" class="secondary-button leave-button" type="button"><span aria-hidden="true">←</span> Leave room</button>
+            <p id="lobby-hint" class="lobby-hint" role="status" aria-live="polite"></p>
+            <div id="ready-actions" class="ready-actions">
+              <button id="fill-bots" class="secondary-button bots-button" type="button" hidden>Fill with bots</button>
+              <button id="ready-button" class="secondary-button" type="button" disabled>Ready up</button>
+              <button id="start-button" class="primary-button" type="button" hidden>Start shift <span aria-hidden="true">→</span></button>
+            </div>
           </div>
         </div>
       </div>

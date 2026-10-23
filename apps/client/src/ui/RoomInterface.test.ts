@@ -40,7 +40,7 @@ class Element extends EventTarget {
   }
 }
 
-function setup(clipboard: Pick<Clipboard, 'writeText'> | null = { writeText: vi.fn(async () => {}) }) {
+function setup(clipboard: Pick<Clipboard, 'writeText'> | null = { writeText: vi.fn(async () => {}) }, inviteBase = '') {
   const elements = new Map<string, Element>();
   const element = (selector: string) => {
     if (!elements.has(selector)) elements.set(selector, new Element());
@@ -48,6 +48,8 @@ function setup(clipboard: Pick<Clipboard, 'writeText'> | null = { writeText: vi.
   };
   element('#join-room').hidden = true;
   element('#room-lobby').hidden = true;
+  element('#copy-code').textContent = 'Copy code';
+  element('#copy-link').textContent = 'Copy invite link';
   const body = new Element();
   const dialogButton = new Element();
   dialogButton.dataset.dialog = 'help-dialog';
@@ -60,7 +62,7 @@ function setup(clipboard: Pick<Clipboard, 'writeText'> | null = { writeText: vi.
     const portrait = new Element(); portrait.dataset.character = character;
     return portrait as unknown as HTMLElement;
   }), release: vi.fn(), setActive: vi.fn(), setSelected: vi.fn() };
-  const ui = new RoomInterface(document as unknown as Document, actions, clipboard, portraits);
+  const ui = new RoomInterface(document as unknown as Document, actions, clipboard, portraits, inviteBase);
   const click = (selector: string) => element(selector).dispatchEvent(new Event('click'));
   const submit = (selector: string) => element(selector).dispatchEvent(new Event('submit', { cancelable: true }));
   const phase = (phase: RoomPhaseSnapshot['phase'], hostId = 'host', countdownRemainingMs = 0) =>
@@ -117,7 +119,7 @@ describe('room interface', () => {
     const cards = element('#room-players').children;
     const avatar = cards[0]!.querySelector('.player-avatar');
     expect(avatar.children[0]!.dataset.character).toBe('Chansey');
-    expect(portraits.create).toHaveBeenCalledExactlyOnceWith('Chansey');
+    expect(portraits.create).toHaveBeenCalledExactlyOnceWith('Chansey', 96);
     expect(cards[1]!.querySelector('.player-avatar').textContent).toBe('?');
     expect(cards[2]!.querySelector('.player-avatar').textContent).toBe('+');
     expect(cards.every((card) => card.children.every((child) => child.className !== 'player-initial'))).toBe(true);
@@ -125,7 +127,7 @@ describe('room interface', () => {
     expect(portraits.create).toHaveBeenCalledOnce();
     ui.showRoom('ABC234', [{ ...players[0]!, character: 'Meowth' }, players[1]!], 'host');
     expect(element('#room-players').children[0]!.querySelector('.player-avatar').children[0]!.dataset.character).toBe('Meowth');
-    expect(portraits.create).toHaveBeenLastCalledWith('Meowth');
+    expect(portraits.create).toHaveBeenLastCalledWith('Meowth', 96);
   });
 
   it('retains animated avatars across readiness, host and reconnect updates, and releases them on leaving', () => {
@@ -436,7 +438,7 @@ describe('room interface', () => {
     click('#copy-code');
     await Promise.resolve();
     expect(clipboard!.writeText).toHaveBeenCalledWith('ABC234');
-    expect(element('#copy-code').textContent).toBe('Copied!');
+    expect(element('#copy-code').textContent).toBe('Code copied!');
     vi.mocked(clipboard!.writeText).mockRejectedValue(new Error('Denied'));
     click('#copy-code');
     await Promise.resolve(); await Promise.resolve();
@@ -445,6 +447,45 @@ describe('room interface', () => {
     unavailable.ui.showRoom('DEF567', roster, 'host');
     unavailable.click('#copy-code');
     expect(unavailable.element('#room-status').textContent).toContain('Copy the room code');
+  });
+
+  it('copies an invite link from the ticket or an open seat and resets the labels for a new room', async () => {
+    const { ui, element, clipboard, phase } = setup(undefined, 'https://play.example/panic/?old=1#top');
+    const fresh = setup(undefined, 'https://play.example/panic/');
+    fresh.ui.showRoom('ABC234', roster, 'host');
+    fresh.click('#copy-link');
+    await Promise.resolve();
+    expect(fresh.clipboard!.writeText).toHaveBeenCalledWith('https://play.example/panic/?room=ABC234');
+    expect(fresh.element('#copy-link').textContent).toBe('Link copied!');
+    fresh.ui.showRoom('DEF567', roster, 'host');
+    expect(fresh.element('#copy-link').textContent).toBe('Copy invite link');
+    ui.showRoom('ABC234', roster, 'host');
+    phase('lobby');
+    const seat = element('#room-players').children[2]!;
+    const invite = seat.children.find((child) => child.className === 'seat-invite')!;
+    expect(invite.attributes.get('aria-label')).toBe('Copy an invite link for this seat');
+    invite.dispatchEvent(new Event('click'));
+    await Promise.resolve();
+    expect(clipboard!.writeText).toHaveBeenCalledWith('https://play.example/panic/?room=ABC234');
+    expect(invite.textContent).toBe('Link copied!');
+    phase('running');
+    expect(element('#room-players').children.some((card) => card.children.some((child) => child.className === 'seat-invite')))
+      .toBe(false);
+    const codeOnly = setup();
+    codeOnly.ui.showRoom('GHJ234', roster, 'host');
+    codeOnly.click('#copy-link');
+    expect(codeOnly.clipboard!.writeText).toHaveBeenCalledWith('GHJ234');
+  });
+
+  it('opens the join form with an invited room code', () => {
+    const { ui, element } = setup();
+    ui.prefillInvite('ABC234');
+    expect(element('#join-room').hidden).toBe(false);
+    expect(element('#create-room').hidden).toBe(true);
+    expect(element('#room-code-input').value).toBe('ABC234');
+    expect(element('#join-tab').attributes.get('aria-selected')).toBe('true');
+    expect(element('#room-status').textContent).toContain('invited to room ABC234');
+    expect(element('#player-name').focus).toHaveBeenCalled();
   });
 
   it('lets the host fill open seats with bots and remove them, with a visible bot badge', () => {
@@ -464,7 +505,7 @@ describe('room interface', () => {
     expect(button(cards[1]!, 'bot-remove')?.attributes.get('aria-label')).toBe('Remove Bot 2');
     button(cards[1]!, 'bot-remove')!.dispatchEvent(new Event('click'));
     expect(extended.removeBot).toHaveBeenCalledWith('bot-1');
-    expect(cards.slice(2).every((card) => button(card, 'bot-add')?.textContent === '+ Add bot')).toBe(true);
+    expect(cards.slice(2).every((card) => button(card, 'bot-add')?.textContent === '+ Bot')).toBe(true);
     button(cards[2]!, 'bot-add')!.dispatchEvent(new Event('click'));
     expect(extended.addBot).toHaveBeenCalledOnce();
     expect(element('#start-button').disabled).toBe(false);
@@ -476,6 +517,54 @@ describe('room interface', () => {
     phase('running');
     expect(element('#room-players').children.some((card) => button(card, 'bot-add') || button(card, 'bot-remove')))
       .toBe(false);
+  });
+
+  it('fills every open seat at once and lets the host switch a bot to a free Pokémon', () => {
+    const { ui, element, actions, phase, click } = setup();
+    const extended = actions as typeof actions & { addBot: ReturnType<typeof vi.fn>;
+      setBotCharacter: ReturnType<typeof vi.fn> };
+    extended.addBot = vi.fn();
+    extended.setBotCharacter = vi.fn();
+    const players: PlayerPresence[] = [{ ...roster[0]!, character: 'Audino' },
+      { id: 'bot-1', name: 'Bot 2', slot: 1, character: 'Chansey', ready: true, connected: true, bot: true }];
+    ui.showRoom('ABC234', players, 'host');
+    phase('lobby');
+    expect(element('#fill-bots').hidden).toBe(false);
+    click('#fill-bots');
+    expect(extended.addBot).toHaveBeenCalledTimes(2);
+    const bot = element('#room-players').children[1]!;
+    const control = (className: string) => bot.children.find((child) => child.className === className)!;
+    expect(control('bot-cycle is-next').attributes.get('aria-label')).toBe('Switch Bot 2 to Machoke');
+    control('bot-cycle is-next').dispatchEvent(new Event('click'));
+    expect(extended.setBotCharacter).toHaveBeenLastCalledWith('bot-1', 'Machoke');
+    control('bot-cycle is-previous').dispatchEvent(new Event('click'));
+    expect(extended.setBotCharacter).toHaveBeenLastCalledWith('bot-1', 'Meowth');
+    ui.showRoom('ABC234', [...players,
+      { id: 'c', name: 'C', slot: 2, character: 'Machoke', ready: true, connected: true },
+      { id: 'd', name: 'D', slot: 3, character: 'Meowth', ready: true, connected: true }], 'host');
+    expect(element('#fill-bots').hidden).toBe(true);
+    const full = element('#room-players').children[1]!.children.find((child) => child.className === 'bot-cycle is-next')!;
+    expect(full.disabled).toBe(true);
+    expect(full.attributes.get('aria-label')).toBe('No other Pokémon is free');
+    full.dispatchEvent(new Event('click'));
+    expect(extended.setBotCharacter).toHaveBeenCalledTimes(2);
+    ui.showRoom('ABC234', players, 'host');
+    phase('lobby', 'other');
+    expect(element('#fill-bots').hidden).toBe(true);
+    phase('countdown');
+    expect(element('#fill-bots').hidden).toBe(true);
+  });
+
+  it('tells the team what it is waiting for and hides the hint outside the lobby', () => {
+    const { ui, element, phase } = setup();
+    ui.showRoom('ABC234', [{ ...roster[0]!, character: undefined, ready: false }], 'host');
+    phase('lobby');
+    expect(element('#lobby-hint').textContent).toBe('Pick a Pokémon below to join the shift.');
+    expect(element('#lobby-hint').dataset.tone).toBe('action');
+    ui.showRoom('ABC234', roster, 'host');
+    expect(element('#lobby-hint').textContent).toBe('Waiting for Blue to get ready…');
+    phase('running');
+    expect(element('#lobby-hint').hidden).toBe(true);
   });
 
   it('describes every Pokémon specialty on its card and in its accessible name', () => {

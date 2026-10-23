@@ -170,6 +170,12 @@ export function createPrivateRoomType(directory: RoomDirectory, capacity: number
         if (result.ok) this.updateSeatLimit();
         respond(client, result, true);
       });
+      this.onMessage('lobby:botCharacter', (client, value: unknown) => {
+        let result = this.lobby.hostCommand(client.sessionId, value);
+        const command = value as { botId?: unknown; character?: unknown } | null;
+        if (result.ok) result = this.lobby.setBotCharacter(command?.botId, command?.character);
+        respond(client, result, true);
+      });
       this.onMessage('player:input', (client, input: unknown) => {
         this.advanceRound(performance.now());
         this.commands.input(client.sessionId, input, performance.now());

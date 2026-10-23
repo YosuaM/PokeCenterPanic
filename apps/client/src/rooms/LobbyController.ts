@@ -97,6 +97,11 @@ export class LobbyController {
     if (!this.reconnecting) this.room?.send('lobby:removeBot', { botId, sequence: this.nextSequence(), roundId: null });
   }
 
+  setBotCharacter(botId: string, character: PlayerCharacter): void {
+    if (!this.reconnecting) this.room?.send('lobby:botCharacter', { botId, character,
+      sequence: this.nextSequence(), roundId: null });
+  }
+
   selectCharacter(character: PlayerCharacter | null): void {
     if (!this.reconnecting) this.room?.send('player:select', { character,
       sequence: this.nextSequence(), roundId: null });

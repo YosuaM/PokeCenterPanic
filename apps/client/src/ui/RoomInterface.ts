@@ -3,6 +3,7 @@ import { PLAYER_CHARACTERS, type PlayerCharacter, type PlayerPresence,
 import { resultsPresentation } from '../rooms/roundPresentation.js';
 import type { CharacterPortraits } from './characterPortraits.js';
 import { CHARACTER_ROLE_TEXT } from './characterRoles.js';
+import { ROOM_SEATS, canStart, cycleCharacter, inviteLink, lobbyHint, openSeats } from './lobbyModel.js';
 
 interface RoomActions {
   create(name: string): void;
@@ -14,7 +15,10 @@ interface RoomActions {
   replay(): void;
   addBot?(): void;
   removeBot?(botId: string): void;
+  setBotCharacter?(botId: string, character: PlayerCharacter): void;
 }
+
+const ROSTER_PORTRAIT_SIZE = 96;
 
 const EMPTY_PHASE: RoomPhaseSnapshot = { phase: 'lobby', hostId: '',
   countdownRemainingMs: 0, roundId: '' };
@@ -37,10 +41,12 @@ export class RoomInterface {
   private roomCode = '';
   private rosterSignature = '';
   private busy = false;
+  private readonly copyLabels = new Map<HTMLElement, string>();
 
   constructor(private readonly document: Document, private readonly actions: RoomActions,
-    clipboard: Pick<Clipboard, 'writeText'> | null = globalThis.navigator?.clipboard ?? null,
-    private readonly portraits?: Pick<CharacterPortraits, 'create' | 'release' | 'setActive' | 'setSelected'>) {
+    private readonly clipboard: Pick<Clipboard, 'writeText'> | null = globalThis.navigator?.clipboard ?? null,
+    private readonly portraits?: Pick<CharacterPortraits, 'create' | 'release' | 'setActive' | 'setSelected'>,
+    private readonly inviteBase = '') {
     this.panel = this.element('#room-panel');
     this.game = this.element('#game');
     this.name = this.element('#player-name');
@@ -109,11 +115,13 @@ export class RoomInterface {
     this.ready.addEventListener('click', () => actions.ready(!this.self()?.ready));
     this.start.addEventListener('click', () => actions.start());
     this.element('#replay-button').addEventListener('click', () => actions.replay());
-    this.element('#copy-code').addEventListener('click', () => {
-      if (!clipboard) { this.showStatus('Copy the room code shown above to invite your friends.'); return; }
-      void clipboard.writeText(this.roomCode).then(() => {
-        this.element('#copy-code').textContent = 'Copied!';
-      }).catch(() => this.showStatus('Could not copy automatically. Select and copy the room code above.'));
+    for (const [selector, done] of [['#copy-code', 'Code copied!'], ['#copy-link', 'Link copied!']] as const) {
+      const button = this.element(selector);
+      this.copyLabels.set(button, button.textContent ?? '');
+      button.addEventListener('click', () => this.copy(button, selector === '#copy-code' ? this.roomCode : this.invite(), done));
+    }
+    this.element('#fill-bots').addEventListener('click', () => {
+      for (let seat = 0; seat < openSeats(this.players); seat += 1) actions.addBot?.();
     });
     for (const button of this.document.querySelectorAll<HTMLButtonElement>('[data-dialog]')) {
       button.addEventListener('click', () => {
@@ -121,6 +129,14 @@ export class RoomInterface {
       });
     }
     this.setScreen('menu');
+  }
+
+  /** Opens the join form for a room code taken from an invite link. */
+  prefillInvite(code: string): void {
+    this.selectTab(true);
+    this.code.value = code;
+    this.showStatus(`You're invited to room ${code}. Enter your name and join!`);
+    this.name.focus();
   }
 
   setBusy(busy: boolean): void {
@@ -138,7 +154,7 @@ export class RoomInterface {
     this.element('#room-menu').hidden = true;
     this.element('#room-lobby').hidden = false;
     this.element('#room-code').textContent = code;
-    if (this.roomCode !== code) this.element('#copy-code').textContent = 'Copy code';
+    if (this.roomCode !== code) for (const [button, label] of this.copyLabels) button.textContent = label;
     this.roomCode = code;
     this.players = players;
     this.localId = localId;
@@ -187,6 +203,16 @@ export class RoomInterface {
     return this.document.querySelector<T>(selector)!;
   }
 
+  private copy(button: HTMLElement, text: string, done: string): void {
+    if (!this.clipboard) { this.showStatus('Copy the room code shown above to invite your friends.'); return; }
+    void this.clipboard.writeText(text).then(() => { button.textContent = done; })
+      .catch(() => this.showStatus('Could not copy automatically. Select and copy the room code above.'));
+  }
+
+  private invite(): string {
+    try { return this.inviteBase ? inviteLink(this.inviteBase, this.roomCode) : this.roomCode; } catch { return this.roomCode; }
+  }
+
   private self(): PlayerPresence | undefined {
     return this.players.find((player) => player.id === this.localId);
   }
@@ -224,10 +250,13 @@ export class RoomInterface {
     this.element('#replay-button').hidden = !host;
     this.element('#replay-hint').hidden = host;
     this.start.hidden = !host;
-    const canStart = this.players.length > 0 && this.players.every((player) =>
-      player.ready && PLAYER_CHARACTERS.includes(player.character as PlayerCharacter) && player.connected !== false) &&
-      new Set(this.players.map((player) => player.character)).size === this.players.length;
-    this.start.disabled = !canStart;
+    this.start.disabled = !canStart(this.players);
+    this.element('#fill-bots').hidden = !host || phase !== 'lobby' || openSeats(this.players) === 0;
+    const hint = lobbyHint(this.players, this.localId, this.phase.hostId);
+    const hintLabel = this.element('#lobby-hint');
+    hintLabel.hidden = phase !== 'lobby';
+    hintLabel.textContent = hint.text;
+    hintLabel.dataset.tone = hint.tone;
     const self = this.self();
     this.renderCharacterSelection();
     this.ready.textContent = self?.ready ? 'Cancel ready' : 'Ready up';
@@ -251,6 +280,7 @@ export class RoomInterface {
       const takenByBot = !!owner && !selected && owner.bot === true;
       const taken = !!owner && !selected && !takenByBot;
       character.setAttribute('aria-pressed', String(selected));
+      character.dataset.ownerSlot = owner ? String(owner.slot) : '';
       character.disabled = this.phase.phase !== 'lobby' || !self || self.connected === false || taken;
       const role = CHARACTER_ROLE_TEXT[character.value as PlayerCharacter];
       character.setAttribute('aria-label', `${character.value}${role ? `, ${role.title}: ${role.perks}` : ''}${
@@ -267,8 +297,9 @@ export class RoomInterface {
     this.rosterSignature = signature;
     const roster = this.element('#room-players');
     const previous = [...roster.children] as HTMLElement[];
+    const managesBots = this.phase.phase === 'lobby' && this.phase.hostId === this.localId && !!this.localId;
     const cards: HTMLElement[] = [];
-    for (let slot = 0; slot < 4; slot += 1) {
+    for (let slot = 0; slot < ROOM_SEATS; slot += 1) {
       const player = this.players.find((candidate) => candidate.slot === slot);
       const card = this.document.createElement('li');
       card.className = 'player-card';
@@ -282,7 +313,17 @@ export class RoomInterface {
         card.append(part);
         return part;
       };
-      add('seat-label', `STAFF / 0${slot + 1}${player?.id === this.phase.hostId ? ' · HOST' : ''}`);
+      const button = (className: string, text: string, label: string, onClick: () => void) => {
+        const control = this.document.createElement('button');
+        control.type = 'button';
+        control.className = className;
+        control.textContent = text;
+        control.setAttribute('aria-label', label);
+        control.addEventListener('click', onClick);
+        card.append(control);
+        return control;
+      };
+      add('seat-label', `P${slot + 1}${player?.id === this.phase.hostId ? ' · HOST' : ''}`);
       const old = previous.find((entry) => entry.dataset.slot === String(slot));
       let avatar = old?.dataset.playerId === card.dataset.playerId &&
         old?.dataset.character === card.dataset.character ? old.querySelector<HTMLElement>('.player-avatar') : null;
@@ -290,8 +331,9 @@ export class RoomInterface {
         avatar = this.document.createElement('span');
         avatar.className = 'player-avatar';
         avatar.setAttribute('aria-hidden', 'true');
-        if (player?.character && this.portraits) avatar.append(this.portraits.create(player.character));
-        else avatar.textContent = player ? '?' : '+';
+        if (player?.character && this.portraits) {
+          avatar.append(this.portraits.create(player.character as PlayerCharacter, ROSTER_PORTRAIT_SIZE));
+        } else avatar.textContent = player ? '?' : '+';
       }
       card.append(avatar);
       const name = add('player-name', player ? `${player.name}${player.id === this.localId ? ' (you)' : ''}` : 'Open seat');
@@ -304,21 +346,29 @@ export class RoomInterface {
         name.textContent += ' ';
         name.append(badge);
       }
-      const managesBots = this.phase.phase === 'lobby' && this.phase.hostId === this.localId && !!this.localId;
-      if (managesBots && (!player || player.bot)) {
-        const button = this.document.createElement('button');
-        button.type = 'button';
-        button.className = player ? 'bot-remove' : 'bot-add';
-        button.textContent = player ? 'Remove' : '+ Add bot';
-        button.setAttribute('aria-label', player ? `Remove ${player.name}` : 'Add a bot to this seat');
-        const botId = player?.id;
-        button.addEventListener('click', () => botId ? this.actions.removeBot?.(botId) : this.actions.addBot?.());
-        card.append(button);
-      }
-      add('player-character', player?.character || (player ? 'Choosing a Pokémon…' : 'Invite a friend'));
+      const role = player?.character ? CHARACTER_ROLE_TEXT[player.character as PlayerCharacter] : undefined;
+      add('player-character', player?.character ? `${player.character}${role ? ` · ${role.title}` : ''}` :
+        player ? 'Choosing a Pokémon…' : managesBots ? 'Invite a friend or add a bot' : 'Invite a friend');
       add('player-state', !player ? 'Waiting for staff' : player.connected === false ?
-        `Reconnecting · ${Math.ceil((player.reconnectRemainingMs ?? 0) / 1000)}s` : player.ready ? '✓ Ready' : 'Getting ready');
+        `Reconnecting · ${Math.ceil((player.reconnectRemainingMs ?? 0) / 1000)}s` : player.ready ? 'Ready!' : 'Getting ready');
+      if (!player && this.phase.phase === 'lobby') {
+        const invite = button('seat-invite', 'Invite', 'Copy an invite link for this seat', () => {
+          this.copy(invite, this.invite(), 'Link copied!');
+        });
+        if (managesBots) button('bot-add', '+ Bot', 'Add a bot to this seat', () => this.actions.addBot?.());
+      }
+      if (player?.bot && managesBots) {
+        const botId = player.id;
+        for (const [step, text, className] of [[-1, '‹', 'bot-cycle is-previous'], [1, '›', 'bot-cycle is-next']] as const) {
+          const next = cycleCharacter(player, this.players, step);
+          const control = button(className, text, next ? `Switch ${player.name} to ${next}` : 'No other Pokémon is free',
+            () => { if (next) this.actions.setBotCharacter?.(botId, next); });
+          control.disabled = !next;
+        }
+        button('bot-remove', '×', `Remove ${player.name}`, () => this.actions.removeBot?.(botId));
+      }
       card.classList.toggle('is-empty', !player);
+      card.classList.toggle('is-bot', player?.bot === true);
       card.classList.toggle('is-local', player?.id === this.localId);
       card.classList.toggle('is-ready', player?.ready === true && player.connected !== false);
       card.classList.toggle('is-disconnected', player?.connected === false);

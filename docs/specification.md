@@ -1,7 +1,7 @@
 # PokéCenter Panic
 **Functional and technical specification**
 
-**Version:** 0.6 — Floating in-game HUD\
+**Version:** 0.7 — Staff room lobby\
 **Status:** Implementation baseline; balance values pending playtests\
 **Updated:** 2026-10-23\
 **Type:** Noncommercial cooperative fan game\
@@ -540,7 +540,7 @@ Options:
 - Basic audio settings.
 - Credits.
 
-The entry screen uses a full-screen original pixel-art illustration of the clinic exterior at twilight, an original illustrated cream/yellow/coral title logo with a medical bag and stethoscope, and rounded white panels with colorful striped headers and buttons. The visual direction takes the playful game-menu presentation of PokéBonk as a reference. The lobby, countdown, results, and dialogs share this presentation. A shared player-name field supports separate create/join tabs. The menu includes keyboard-accessible help, credits, and persistent patient-alert audio controls. Connection attempts disable the entry controls; failed attempts keep the entered name and code and show the server's error. Room codes are accepted case-insensitively.
+The entry screen uses a full-screen original pixel-art illustration of the clinic exterior at twilight, an original illustrated cream/yellow/coral title logo with a medical bag and stethoscope, and rounded white panels with colorful striped headers and buttons. The visual direction takes the playful game-menu presentation of PokéBonk as a reference. The lobby, countdown, results, and dialogs share this presentation. Like a game title screen, these screens never scroll: the panel fills the viewport, phones and tablets get compact layouts (two-by-two seats and picker, no perk lists on the entry card), and the visible screen shrinks uniformly to fit, down to half size, before scrolling becomes the last resort. The ambience toggle sits in the header beside How to play. A shared player-name field supports separate create/join tabs. The menu includes keyboard-accessible help, credits, and persistent patient-alert audio controls. Connection attempts disable the entry controls; failed attempts keep the entered name and code and show the server's error. Room codes are accepted case-insensitively.
 
 The game canvas stays hidden and inaccessible during the main menu, lobby, countdown, and results. Its render loop sleeps outside active gameplay. The clinic appears only when the authoritative phase becomes running; leaving or losing a room returns to the standalone menu. Development art fixtures remain available separately.
 
@@ -548,15 +548,17 @@ The game canvas stays hidden and inaccessible during the main menu, lobby, count
 
 The lobby shows:
 
-- Room code.
-- Connected players.
-- Each player's chosen Pokémon.
-- Ready / not ready status.
+- Room code, with buttons to copy the code or an invite link.
+- Four numbered seats (P1–P4), each a podium with the player's animated Pokémon, name plate, role, and Host/Bot badges.
+- Ready / not ready status, shown as a "Ready!" stamp on the seat.
+- A hint line saying what the team is waiting for (your pick, your ready, a reconnecting or unready teammate, or the host's start).
 - Start game button for the host.
+
+The screen follows the in-game HUD's game look: a skewed title ribbon, seat colours (pink, lilac, blue, gold) shared with the picker, and chunky rounded buttons. Open seats offer **Invite**, which copies the invite link, and, for the host, **+ Bot**. The host also gets **Fill with bots** while seats are open. On a bot's seat the host can remove the bot or switch it to the previous or next free Pokémon with arrow buttons. An invite link is the current page with `?room=CODE`; opening it switches the entry card to the join tab with the code filled in. A saved reconnection still takes precedence. The Pokémon picker shows compact tiles because the seats already show the large sprites. A tile chosen by someone carries that player's seat colour and name.
 
 Character selection uses four visual cards for Chansey, Audino, Machoke, and Meowth instead of a dropdown. Each card shows an animated sprite, species name, and type, with a visible selected marker. Unselected cards use front-facing Idle. A newly selected card and its room portrait play one complete celebration with Dance when available, falling back to Rotate, then return to Idle; the current four source sprites provide Rotate. Readiness updates never replay this celebration, while deselecting and selecting again starts a new one. The animation changes only after server confirmation, and the previous selection returns to Idle. Missing or invalid celebration sheets retain Idle, including with older caches. Animations retain the source frame durations and use a stable crop across all frames. Room player cards show the server-selected Pokémon instead of name initials, including on mobile; unchosen players show a question mark and open seats a plus. Readiness and reconnection updates retain the existing portrait animation. Animations pause outside the lobby and in hidden tabs, and reduced-motion preferences show a static first Idle frame. Native toggle buttons expose server-confirmed selection with aria-pressed. Pointer, Enter, and Space toggle a choice; Tab and arrow/Home/End keys navigate available cards. Activating the selected card again sends an explicit deselection (character: null). Cards occupied by another member are disabled and show that member's name. The highlighted choice follows the server-confirmed character; changing species clears readiness through the existing lobby rules. Each member must have a different assigned species before the host can start, and every character has the same gameplay abilities. Changing or clearing a choice resets readiness. The descriptive and current-pick text beneath the cards is omitted; selection is shown directly on the card and room roster. Cards are disabled outside the connected lobby. Missing local sprite assets keep a labeled fallback and never block selection. After replay, the cards retain the selected species while readiness resets.
 
-The host is identified by a readable badge beside the player name, wrapping with the name on narrow cards. Leave room uses the same rounded secondary-button style as the other controls, at the left of the same action row as Ready up and Start shift. Leaving remains available during countdown, gameplay and results, while readiness and start controls appear only in the lobby. The lobby omits its instructional phase banner; countdown announcements remain visible.
+The host is identified by a readable badge beside the player name, wrapping with the name on narrow cards. Leave room uses the same rounded secondary-button style as the other controls, at the left of the same action row as the hint, Fill with bots, Ready up, and Start shift. Leaving remains available during countdown, gameplay and results, while readiness and start controls appear only in the lobby. The lobby omits its instructional phase banner; countdown announcements remain visible.
 
 Registration is not required.
 
@@ -736,7 +738,7 @@ Each room has:
 - Temporary player data.
 - Complete Pokémon Center state.
 
-**Bots:** in the lobby, the host can fill any open seat with a bot and remove it again. A bot takes the first free Pokémon, is always ready and never becomes host. If a person chooses a bot's Pokémon, the bot switches to a free one. Bots occupy seats, so people can only join while seats remain. They count as connected staff for difficulty scaling (section 5.3). During a round, each bot runs on the server through the same validated commands as people and favors its Pokémon's specialty: Chansey heals (preferring Soft-Boiled), Audino keeps the shelves stocked to match waiting demand, applies medicine and calms impatient patients, Machoke carries patients to machines and repairs outages, and Meowth handles pickups and discharges. Bots coordinate so two never chase the same patient or station, and they help with any other work when their specialty has none. A bot fetches a dose only when a patient who needs it can be treated right away and no one is already bringing one; a dose it cannot use goes back to its shelf. When the last person leaves, every bot is removed.
+**Bots:** in the lobby, the host can fill any open seat with a bot, switch a bot to another Pokémon nobody holds (`lobby:botCharacter`), and remove it again. A bot takes the first free Pokémon, is always ready and never becomes host. If a person chooses a bot's Pokémon, the bot switches to a free one. Bots occupy seats, so people can only join while seats remain. They count as connected staff for difficulty scaling (section 5.3). During a round, each bot runs on the server through the same validated commands as people and favors its Pokémon's specialty: Chansey heals (preferring Soft-Boiled), Audino keeps the shelves stocked to match waiting demand, applies medicine and calms impatient patients, Machoke carries patients to machines and repairs outages, and Meowth handles pickups and discharges. Bots coordinate so two never chase the same patient or station, and they help with any other work when their specialty has none. A bot fetches a dose only when a patient who needs it can be treated right away and no one is already bringing one; a dose it cannot use goes back to its shelf. When the last person leaves, every bot is removed.
 
 The first version uses a single server instance and in-memory rooms. A server restart ends all rooms; clients return to the menu with a connection error. Restoring rounds after a process restart is outside the MVP.
 
@@ -1113,5 +1115,6 @@ The priority is to produce a playable prototype for friends quickly, learn from 
 | 0.4 | Replaced the enlarged clinic with a compact 22 × 14 tile layout: central counter with discharge in the middle, two passages through the counter row, PC corner and recovery at its ends, sofas and planters by the entrance, staff spawning behind the counter, and route budgets pinned by tests |
 | 0.5 | Gave each Pokémon a specialty (faster healing, preparation, carrying, repair or walking), added Chansey's Soft-Boiled and Audino's Calm on Q, and let the host fill open seats with server-side bots that play to their Pokémon's specialty |
 | 0.6 | Added a three-dose shelf per medicine station (tap E to take, hold to prepare) and stopped bots from juggling unneeded doses; replaced the in-game panels with a floating DOM HUD over a tighter camera; turned the waiting sofas to face the room, centred seated patients on their cushions and limited their idle animation to occasional loops; carried patients lie down on the stretcher |
+| 0.7 | Redesigned the lobby as a staff room with seat podiums, invite links, a team hint, Fill with bots and host-chosen bot Pokémon; menus fit the viewport without scrolling |
 
 **End of document — Version 0.6**

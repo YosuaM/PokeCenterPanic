@@ -7,10 +7,14 @@ import { visualFixture } from './scenes/visualFixtures.js';
 import { RoomInterface } from './ui/RoomInterface.js';
 import { initializeMenuAtmosphere } from './ui/menuAtmosphere.js';
 import { CharacterPortraits } from './ui/characterPortraits.js';
+import { invitedCode } from './ui/lobbyModel.js';
+import { ScreenFit } from './ui/screenFit.js';
 
 const game = new Phaser.Game(GAME_CONFIG);
 const disposeAtmosphere = initializeMenuAtmosphere(document);
 import.meta.hot?.dispose(disposeAtmosphere);
+const screenFit = new ScreenFit(document.querySelector<HTMLElement>('#screen-stage')!, document.defaultView);
+import.meta.hot?.dispose(() => screenFit.destroy());
 const portraits = new CharacterPortraits(document);
 const ui = new RoomInterface(document, {
   create: (name) => { void controller.create(name); },
@@ -22,7 +26,8 @@ const ui = new RoomInterface(document, {
   replay: () => controller.replay(),
   addBot: () => controller.addBot(),
   removeBot: (botId) => controller.removeBot(botId),
-}, undefined, portraits);
+  setBotCharacter: (botId, character) => controller.setBotCharacter(botId, character),
+}, undefined, portraits, `${location.origin}${location.pathname}`);
 void portraits.load();
 import.meta.hot?.dispose(() => portraits.dispose());
 
@@ -80,6 +85,8 @@ if (import.meta.env.DEV && visualFixture(new URLSearchParams(location.search).ge
       game.loop.sleep();
       ui.setBusy(false);
       ui.showStatus('');
+      const invited = invitedCode(location.search);
+      if (invited) ui.prefillInvite(invited);
       void controller.restore();
     });
   });

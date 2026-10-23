@@ -95,6 +95,28 @@ describe('bot lobby seats', () => {
   });
 });
 
+describe('bot Pokémon changes', () => {
+  it('moves a bot only to a valid Pokémon nobody else holds', () => {
+    const { state, bots, lobby } = clinic([], true);
+    const [first, second] = [bots.add()!, bots.add()!];
+    const held = state.players.get(second)!.character;
+    expect(lobby.setBotCharacter('host', 'Meowth')).toEqual({ ok: false, reason: 'Unknown bot' });
+    expect(lobby.setBotCharacter(42, 'Meowth').reason).toBe('Unknown bot');
+    expect(lobby.setBotCharacter(first, 'Mew').reason).toBe('Choose a valid character');
+    expect(lobby.setBotCharacter(first, held).reason).toBe('This Pokémon is already chosen');
+    expect(lobby.select('host', { sequence: 1, roundId: null, character: lobby.freeCharacters()[0] }).ok).toBe(true);
+    const free = lobby.freeCharacters();
+    expect(free).toHaveLength(1);
+    expect(lobby.setBotCharacter(first, state.players.get('host')!.character).reason)
+      .toBe('This Pokémon is already chosen');
+    expect(lobby.setBotCharacter(first, state.players.get(first)!.character).ok).toBe(true);
+    expect(lobby.setBotCharacter(first, free[0])).toEqual({ ok: true, reason: '' });
+    expect(state.players.get(first)!.character).toBe(free[0]);
+    expect(state.players.get(first)!.ready).toBe(true);
+    expect(new Set([...state.players.values()].map((player) => player.character)).size).toBe(3);
+  });
+});
+
 describe('bot readiness across lobby resets', () => {
   it('keeps bots ready when a countdown is cancelled or the host returns to the lobby', () => {
     const { state, bots, lobby } = clinic([], true);

@@ -13,7 +13,7 @@ const state = vi.hoisted(() => {
   const loop = { running: true, sleep: vi.fn(() => { loop.running = false; }),
     wake: vi.fn(() => { loop.running = true; }) };
   const ui = { setBusy: vi.fn(), showRoom: vi.fn(), showPhase: vi.fn(), showResults: vi.fn(),
-    showStatus: vi.fn(), showMenu: vi.fn(), showFixture: vi.fn() };
+    showStatus: vi.fn(), showMenu: vi.fn(), showFixture: vi.fn(), prefillInvite: vi.fn() };
   const controller = { create: vi.fn(), join: vi.fn(), leave: vi.fn(), selectCharacter: vi.fn(),
     setReady: vi.fn(), startGame: vi.fn(), replay: vi.fn(), sendInput: vi.fn(),
     sendInteraction: vi.fn(), restore: vi.fn() };
@@ -30,6 +30,7 @@ vi.mock('phaser', () => ({ default: {
   },
 } }));
 vi.mock('./ui/characterPortraits.js', () => ({ CharacterPortraits: class { constructor() { return state.portraits; } } }));
+vi.mock('./ui/screenFit.js', () => ({ ScreenFit: class { destroy = vi.fn(); } }));
 vi.mock('./ui/menuAtmosphere.js', () => ({ initializeMenuAtmosphere: vi.fn(() => vi.fn()) }));
 vi.mock('./gameConfig.js', () => ({ GAME_CONFIG: {} }));
 vi.mock('./scenes/MapScene.js', () => ({ MapScene: class {} }));
@@ -43,7 +44,7 @@ vi.mock('./rooms/LobbyController.js', () => ({ LobbyController: class {
 beforeEach(() => {
   vi.resetModules(); vi.clearAllMocks();
   state.gameEvents.clear(); state.sceneEvents.clear(); state.loop.running = true; state.fixture = false;
-  vi.stubGlobal('document', {});
+  vi.stubGlobal('document', { querySelector: () => null, defaultView: null });
   vi.stubGlobal('location', { protocol: 'http:', hostname: 'localhost', search: '' });
   vi.stubGlobal('sessionStorage', {});
 });
@@ -59,6 +60,17 @@ it('waits until the map has loaded before restoring rooms and sleeps the hidden 
   state.sceneEvents.get('create')!();
   expect(state.loop.running).toBe(false);
   expect(state.ui.setBusy).toHaveBeenLastCalledWith(false);
+  expect(state.controller.restore).toHaveBeenCalledOnce();
+  expect(state.ui.prefillInvite).not.toHaveBeenCalled();
+});
+
+it('opens the join form for an invite link once the map is ready', async () => {
+  vi.stubGlobal('location', { protocol: 'http:', hostname: 'localhost', search: '?room=abc234' });
+  await import('./main.js');
+  state.gameEvents.get('ready')!();
+  expect(state.ui.prefillInvite).not.toHaveBeenCalled();
+  state.sceneEvents.get('create')!();
+  expect(state.ui.prefillInvite).toHaveBeenCalledWith('ABC234');
   expect(state.controller.restore).toHaveBeenCalledOnce();
 });
 

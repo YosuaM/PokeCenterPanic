@@ -277,17 +277,20 @@ describe('LobbyController', () => {
     await controller.create('Red');
     controller.addBot();
     controller.removeBot('bot-2');
+    controller.setBotCharacter('bot-3', 'Meowth');
     expect(room.send).toHaveBeenCalledWith('lobby:addBot', { sequence: 1, roundId: null });
     expect(room.send).toHaveBeenCalledWith('lobby:removeBot', { botId: 'bot-2', sequence: 2, roundId: null });
+    expect(room.send).toHaveBeenCalledWith('lobby:botCharacter',
+      { botId: 'bot-3', character: 'Meowth', sequence: 3, roundId: null });
     controller.sendAbility({ targetId: 'waiting:2', expectedOccupantId: 'patient-1' });
     expect(room.send).not.toHaveBeenCalledWith('ability:use', expect.anything());
     snapshot({ phase: 'running', roundId: 'round-1' });
     controller.sendAbility({ targetId: 'waiting:2', expectedOccupantId: 'patient-1' });
     controller.sendInput(null, false, true);
     expect(room.send).toHaveBeenCalledWith('ability:use', { targetId: 'waiting:2', expectedOccupantId: 'patient-1',
-      sequence: 3, roundId: 'round-1' });
+      sequence: 4, roundId: 'round-1' });
     expect(room.send).toHaveBeenLastCalledWith('player:input', { direction: null, interactHeld: false,
-      abilityHeld: true, sequence: 4, roundId: 'round-1' });
+      abilityHeld: true, sequence: 5, roundId: 'round-1' });
     state(new Map([['host-id', { x: 470, y: 422, facing: 'right', carriedPatientId: '', abilityRemainingMs: 1200 } as never]]));
     expect(view.showPositions).toHaveBeenLastCalledWith([{ id: 'host-id', x: 470, y: 422, facing: 'right',
       carriedPatientId: '', carriedMedicineId: '', abilityRemainingMs: 1200 }]);

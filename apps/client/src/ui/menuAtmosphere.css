@@ -14,10 +14,7 @@
 }
 .menu-backdrop::after { box-shadow: inset 0 0 180px 20px #12102b33; }
 .menu-motion {
-  position: fixed;
-  z-index: 3;
-  top: 104px;
-  left: 24px;
+  margin-left: auto;
   padding: 7px 11px;
   border: 1px solid #ffffff30;
   border-radius: 18px;
@@ -34,5 +31,4 @@ body[data-screen='fixture'] .menu-motion { display: none; }
 @media (max-width: 850px) {
   #menu-atmosphere { left: 38%; top: 50%; transform: translate(-38%, -50%); }
   .menu-backdrop::before { background: linear-gradient(#18112a22, #18112a32 40%, #14112b70); }
-  .menu-motion { position: absolute; top: 80px; left: 22px; }
 }

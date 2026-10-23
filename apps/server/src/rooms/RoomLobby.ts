@@ -157,6 +157,17 @@ export class RoomLobby {
     return accepted;
   }
 
+  /** Gives a bot another Pokémon nobody holds; the caller has already validated the host command. */
+  setBotCharacter(botId: unknown, character: unknown): LobbyResult {
+    if (typeof botId !== 'string' || !this.bots.has(botId)) return reject('Unknown bot');
+    if (!PLAYER_CHARACTERS.includes(character as PlayerCharacter)) return reject('Choose a valid character');
+    const bot = this.state.players.get(botId)!;
+    if (bot.character === character) return accepted;
+    if (!this.freeCharacters().includes(character as PlayerCharacter)) return reject('This Pokémon is already chosen');
+    bot.character = character as PlayerCharacter;
+    return accepted;
+  }
+
   addBot(botId: string): void { this.bots.add(botId); }
 
   removeBot(botId: string): void { this.bots.delete(botId); }
