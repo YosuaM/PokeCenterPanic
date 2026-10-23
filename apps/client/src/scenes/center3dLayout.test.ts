@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { WALK_BOUNDS, MAP_OBSTACLES, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS,
   WAITING_SLOT_POSITIONS } from '@pokecenter/shared';
-import { CAMERA_ELEVATION, CAMERA_HALF_HEIGHT, CAMERA_HALF_WIDTH, CENTER_3D_FOOTPRINTS,
+import { CAMERA_ELEVATION, CAMERA_HALF_HEIGHT, CAMERA_HALF_WIDTH, CAMERA_SHIFT_X, CENTER_3D_FOOTPRINTS,
   CENTER_3D_ROSTER, RECEPTION_3D_SLOTS, STAFF_3D_SPAWNS, cameraPosition,
   WAITING_3D_SLOTS, WORLD_DEPTH, WORLD_WIDTH, orbitFromDrag, worldFootprint,
   worldPosition } from './center3dLayout.js';
@@ -24,19 +24,23 @@ describe('3D center layout', () => {
     expect(camera.y).toBeCloseTo(Math.hypot(camera.x, camera.z));
   });
 
-  it('frames the enlarged shell and sign within the fixed game canvas', () => {
-    const camera = new THREE.OrthographicCamera(-CAMERA_HALF_WIDTH, CAMERA_HALF_WIDTH,
+  it('frames the whole shell and sign inside the canvas for the floating HUD to overlay', () => {
+    const camera = new THREE.OrthographicCamera(-CAMERA_HALF_WIDTH - CAMERA_SHIFT_X, CAMERA_HALF_WIDTH - CAMERA_SHIFT_X,
       CAMERA_HALF_HEIGHT, -CAMERA_HALF_HEIGHT, 0.1, 100);
     const position = cameraPosition();
     camera.position.set(position.x, position.y, position.z);
     camera.lookAt(0, 0.65, 0);
     camera.updateMatrixWorld();
+    // The first waiting seat stays right of the HUD's 170-unit left column on the 960-unit stage.
+    const seat = WAITING_3D_SLOTS[0]!;
+    expect(new THREE.Vector3(seat.x, 0.5, seat.z).project(camera).x).toBeGreaterThan(170 / 480 - 1);
     for (const x of [WALK_BOUNDS.left - 10, WALK_BOUNDS.right + 10]) {
       for (const y of [WALK_BOUNDS.top - 10, WALK_BOUNDS.bottom + 42]) {
         const point = worldPosition({ x, y });
         const projected = new THREE.Vector3(point.x, y < 0 ? 2.36 : 0, point.z).project(camera);
-        expect(Math.abs(projected.x)).toBeLessThan(1);
-        expect(Math.abs(projected.y)).toBeLessThan(0.72);
+        expect(Math.abs(projected.x)).toBeLessThan(0.95);
+        expect(Math.abs(projected.y)).toBeLessThan(0.95);
+        expect(Math.abs(projected.y)).toBeGreaterThan(0.6);
       }
     }
   });

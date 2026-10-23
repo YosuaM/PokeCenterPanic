@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resultsPresentation, roundClock, roundProgressLabel } from './roundPresentation.js';
+import { resultsPresentation, roundClock } from './roundPresentation.js';
 
 describe('round presentation', () => {
   it.each([[360000, '6:00'], [359999, '6:00'], [30000, '0:30'], [1, '0:01'], [0, '0:00'], [-1, '0:00']])(
@@ -15,10 +15,4 @@ describe('round presentation', () => {
     expect(resultsPresentation({ score: 150, admitted: 1, discharged: 1, lost: 0, unfinished: 0, stars: 3,
       bestStreak: 1 }).streak).toBe('Best streak: 1 discharge');
   });
-
-  it.each([[0, '5:00 · SCORE: 40'], [1, '5:00 · SCORE: 40'], [2, '5:00 · SCORE: 40 · STREAK ×2 +10'],
-    [6, '5:00 · SCORE: 40 · STREAK ×6 +50'], [9, '5:00 · SCORE: 40 · STREAK ×9 +50']])(
-    'labels a streak of %s in the HUD', (streak, label) => {
-      expect(roundProgressLabel(300000, 40, streak)).toBe(label);
-    });
 });

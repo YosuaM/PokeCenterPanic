@@ -1,9 +1,9 @@
 # PokéCenter Panic
 **Functional and technical specification**
 
-**Version:** 0.5 — Pokémon specialties, abilities and lobby bots\
+**Version:** 0.6 — Floating in-game HUD\
 **Status:** Implementation baseline; balance values pending playtests\
-**Updated:** 2026-10-22\
+**Updated:** 2026-10-23\
 **Type:** Noncommercial cooperative fan game\
 **Primary platform:** Web browser\
 **Technologies:** Phaser, Three.js, TypeScript, Vite, Node.js, Colyseus
@@ -470,7 +470,7 @@ Outages do not spread, destroy objects, or award points. A round may have no nat
 
 ## 7.1. Camera
 
-The MVP uses one fixed oblique camera showing the entire 3D Pokémon Center and HUD. There is no camera following or scrolling. The shared floor plan remains authoritative for movement, collision, and interactions. The compact clinic spans 1056 × 672 map units, 22 × 14 tiles (x: −48 to 1008; y: −66 to 606), centered on the 960 × 540 logical presentation space so stations read larger on screen. Both drawing buffers adapt to the fitted viewport and device pixel ratio, from 960 × 540 up to a 3840 × 2160 cap; logical camera framing and gameplay coordinates stay fixed. Preserve the view's 16:9 aspect ratio when fitting the browser viewport.
+The MVP uses one fixed oblique camera showing the entire 3D Pokémon Center and HUD. There is no camera following or scrolling. The shared floor plan remains authoritative for movement, collision, and interactions. The compact clinic spans 1056 × 672 map units, 22 × 14 tiles (x: −48 to 1008; y: −66 to 606), framed tightly in the 960 × 540 logical presentation space and offset slightly right so the HUD's left column covers no seats; the HUD floats over the room's margins instead of reserving bands. Both drawing buffers adapt to the fitted viewport and device pixel ratio, from 960 × 540 up to a 3840 × 2160 cap; logical camera framing and gameplay coordinates stay fixed. Preserve the view's 16:9 aspect ratio when fitting the browser viewport.
 
 ## 7.2. First map
 
@@ -573,11 +573,20 @@ Main elements:
 
 Information must remain readable without obscuring too much of the map.
 
-The current gameplay HUD reserves a top band for occupied/reserved waiting seats (out of eight), separate seated/arriving counts, recovery queue size, healing/repair status, and discharged/lost totals. A bottom action panel describes the selected E interaction or rejection; the adjacent patient file shows the selected or carried patient's name, unordered treatment checklist, HP, remaining patience in seconds and percent, and critical/paused states. With no patient selected, it explains how to inspect one. Full occupancy includes incoming reservations.
+The gameplay HUD is a DOM overlay that floats over the room in the lobby's visual language: white rounded cards with a solid drop edge, a rounded bold typeface, ring progress indicators and Pokémon sprite portraits (a letter stands in when local sprites are absent). It shares the renderers' 960 × 540 logical stage and scale, so it stays aligned at every viewport size. The scene publishes one HUD state after every gameplay change and projects world anchors every frame; the HUD derives everything it shows from that state.
 
-A fixed eight-seat roster in the left margin names each waiting patient and shows numeric HP, remaining wait seconds, separate health/patience bars and only pending treatment icons. Reserved arrivals remain in their assigned row; empty or vacated seats show EMPTY. A gold outline connects the focused patient to the roster. World markers use matching seat numbers, compact pending/discharge icons, separate health and patience bars and an explicit critical marker; patients outside waiting show compact HP or READY labels. Full names and care details remain in the patient file. HUD bands use a fixed foreground layer above world labels, with matching clear space in both 3D and 2D. The in-game room code, roster and leave control occupy the right margin. The top band also shows the round clock, score and, from two consecutive discharges, the current streak and its bonus.
+- **Player card (top left):** the local Pokémon's portrait, name, role and main perk, with a ring that fills while its ability is in use.
+- **Shift (top centre):** the round clock in a dark pill, which turns red and beats during the final thirty seconds; the arrival stage (Calm, Busy, Rush, or Last call during the final thirty seconds) from the same schedule the server admits patients with; and pills for score, the current streak and its bonus from two consecutive discharges, discharged and lost totals.
+- **Crew (top right):** each teammate's portrait, name, Bot badge and current activity (carrying, mixing, repairing, using an ability or reconnecting), or its role when idle. An Esc button beside it opens the room menu.
+- **Waiting room (left):** seated and reserved patients ordered by remaining patience, each with portrait, seat number, remaining seconds, numeric HP, pending treatment icons and a patience ring; urgent, ready and arriving states are labelled and the focused patient is outlined in gold. Empty seats collapse into one "+ N free seats" line; the header shows occupancy out of eight, Full when every seat is occupied or reserved, and the recovery queue size.
+- **Slots (bottom left):** the Q ability with its ring and key, or the passive perk for Pokémon without one, and what the player is carrying.
+- **Action prompt (bottom centre):** the selected E interaction with its key and a ring that fills while holding to prepare or repair, any Q ability that applies to the focused patient, the held ability's countdown, or a rejection in red. Unavailable stations explain why in a muted prompt. A help line above it shows the controls or the current first-use tip.
+- **Event feed (bottom right):** brief toasts for outages, repairs, discharges, losses and newly ready patients, expiring after four seconds; each score gain also floats as a number over the discharge point.
+- **World labels:** name tags over every player, a compact marker over each patient, timers or a repair wrench over the healing machines and mixing rings over the medicine tables. The carried or targeted patient gets a focus card with name, HP, status, the treatment checklist, separate health and patience bars, remaining seconds and percent; it is drawn above the panels and kept on screen.
 
-**First-use tips:** the first time the local player can perform each kind of action — pick up a patient, seat one, start healing, prepare a dose, apply medicine, discharge, or repair — a one-line tip replaces the controls line of the action panel. Pressing E on that action dismisses the tip for the rest of the browser session. Tips never appear for rejected actions, never block input and are not synchronized; each player sees their own.
+The room menu holds the room code, roster, leave control and alert sound settings, and opens from the Esc key or button during play. Room zone signs are no longer shown; first-use tips explain each station instead.
+
+**First-use tips:** the first time the local player can perform each kind of action — pick up a patient, seat one, start healing, prepare a dose, apply medicine, discharge, or repair — a one-line tip replaces the controls in the action prompt's help line. Pressing E on that action dismisses the tip for the rest of the browser session. Tips never appear for rejected actions, never block input and are not synchronized; each player sees their own.
 
 ## 8.4. Patient indicators
 
@@ -588,9 +597,9 @@ Display above each patient or in a nearby panel:
 - Remaining patience in seconds; the focused patient also shows a percentage.
 - Explicit critical, healing-pause and discharge-ready states.
 
-The focused checklist names only remaining care with NEEDS, or says ALL TREATMENTS COMPLETE. Muted completed icons retain completion ticks. Seat numbers identify patients and never imply treatment order. Treatment icons form an unordered checklist. A separate discharge icon appears when every required treatment is complete; the patience bar remains visible until the patient leaves.
+The focus card lists required care with completed entries muted and struck through, or says All treatments complete. Seat numbers identify patients and never imply treatment order. Treatment icons form an unordered checklist. A separate discharge icon appears when every required treatment is complete; the patience bar remains visible until the patient leaves.
 
-Critical indicators breathe slowly over a 1.8-second cycle without hiding HP, patience values or treatment names. Discharge-ready arrows and outlines pulse over 2.4 seconds; critical outlines take priority when both states apply. A known patient's transition from pending care to valid discharge creates a 3.2-second visual notice, grouping simultaneous completions. Duplicate snapshots and initially ready/reconnected patients do not replay it; removal or loss cancels obsolete notices. Respect the system reduced-motion setting by keeping cues and notices steady. Notices and transition history clear when play ends.
+Critical labels breathe slowly over a 1.8-second cycle without hiding HP, patience values or treatment names. Discharge-ready icons pulse over 2.4 seconds; critical styling takes priority when both states apply. A known patient's transition from pending care to valid discharge creates a 3.2-second visual notice, grouping simultaneous completions. Duplicate snapshots and initially ready/reconnected patients do not replay it; removal or loss cancels obsolete notices. Respect the system reduced-motion setting by keeping cues and notices steady. Notices and transition history clear when play ends.
 
 Avoid long text during gameplay.
 
@@ -607,7 +616,7 @@ Use sound effects for:
 - Triggering incidents.
 - Ending rounds.
 
-The current patient alerts use original Web Audio sine effects: a short descending pair on critical entry and an ascending three-note cue on valid discharge readiness. Default alert volume is 35%, with mute and a keyboard-accessible volume slider below the waiting roster. Preferences persist locally when storage is available. Visual patient indicators remain sufficient when muted.
+The current patient alerts use original Web Audio sine effects: a short descending pair on critical entry and an ascending three-note cue on valid discharge readiness. Default alert volume is 35%, with mute and a keyboard-accessible volume slider in the room menu. Preferences persist locally when storage is available. Visual patient indicators remain sufficient when muted.
 
 Only transitions of already observed patients produce sound; initial/reconnected snapshots, repeated updates and expired patients stay quiet. Same-kind transitions are grouped, with a 1.25-second per-kind cooldown; critical and ready cues are serialized when both occur together. Browser interaction unlocks audio. Locked, muted, hidden or inactive gameplay never queues old sounds for later replay. Muting, hiding, stopping and leaving release active tones; scene shutdown removes listeners and owned audio nodes without closing Phaser's shared context.
 
@@ -1043,7 +1052,7 @@ Consider these only after confirming that the core loop is fun.
 
 ## 16.1. Decisions fixed for the MVP
 
-| Topic | Version 0.5 decision |
+| Topic | Version 0.6 decision |
 |---|---|
 | Treatment order | Any compatible order; all required treatments must finish before discharge |
 | Patient state | Separate location, medical progress, and lifecycle; discharge readiness is derived |
@@ -1057,6 +1066,7 @@ Consider these only after confirming that the core loop is fun.
 | Scoring incentives | Patience bonus per discharge plus a capped consecutive-discharge streak that a loss resets |
 | Prototype capacity | Two-seat validation in Phase 1; four-seat support and acceptance in Phase 3 |
 | Carrying visuals | Generic stretcher and condition-marked medicine bottle, with no species-pair animations |
+| In-game HUD | Floating DOM overlay on the shared logical stage; tight camera with no reserved HUD bands |
 
 ## 16.2. Work that still needs evidence
 
@@ -1095,4 +1105,4 @@ The priority is to produce a playable prototype for friends quickly, learn from 
 | 0.4 | Replaced the enlarged clinic with a compact 22 × 14 tile layout: central counter with discharge in the middle, two passages through the counter row, PC corner and recovery at its ends, sofas and planters by the entrance, staff spawning behind the counter, and route budgets pinned by tests |
 | 0.5 | Gave each Pokémon a specialty (faster healing, preparation, carrying, repair or walking), added Chansey's Soft-Boiled and Audino's Calm on Q, and let the host fill open seats with server-side bots that play to their Pokémon's specialty |
 
-**End of document — Version 0.5**
+**End of document — Version 0.6**

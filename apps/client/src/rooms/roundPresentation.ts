@@ -1,13 +1,8 @@
-import { streakBonus, type RoundResults } from '@pokecenter/shared';
+import type { RoundResults } from '@pokecenter/shared';
 
 export function roundClock(remainingMs: number): string {
   const seconds = Math.ceil(Math.max(0, remainingMs) / 1000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-}
-
-export function roundProgressLabel(remainingMs: number, score: number, streak: number): string {
-  const label = `${roundClock(remainingMs)} · SCORE: ${score}`;
-  return streak >= 2 ? `${label} · STREAK ×${streak} +${streakBonus(streak)}` : label;
 }
 
 export function resultsPresentation(results: RoundResults): {

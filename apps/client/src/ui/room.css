@@ -23,7 +23,8 @@ a { color: inherit; }
 .menu-backdrop::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #17133338, #1713330a 48%, #17133352), linear-gradient(0deg, #0d1026d9, #1a143c12 45%, #17133138); }
 .menu-backdrop::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 180px 20px #12102b55; }
 body[data-screen='running'] .menu-backdrop, body[data-screen='fixture'] .menu-backdrop { display: none; }
-#game { position: fixed; inset: 0; width: 100%; height: 100%; visibility: hidden; background: #172d46; overflow: hidden; }
+#game { position: fixed; inset: 0; width: 100%; height: 100%; visibility: hidden; overflow: hidden;
+  background: radial-gradient(#ffffff59 2px, transparent 2.5px) 0 0 / 28px 28px, radial-gradient(circle at 50% 45%, #fbe3ea 0, #e9d9f4 55%, #cdbbe8 100%); }
 body[data-screen='running'] #game, body[data-screen='fixture'] #game { visibility: visible; }
 #game canvas { image-rendering: auto; }
 #game > canvas:not(.center-3d-canvas) { position: relative; z-index: 1; }

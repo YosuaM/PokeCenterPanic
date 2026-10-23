@@ -4,8 +4,11 @@ import { WALK_BOUNDS, MAP_OBSTACLES, RECEPTION_SLOT_POSITIONS, SPAWN_POINTS,
 export const WORLD_SCALE = 48;
 export const WORLD_WIDTH = (WALK_BOUNDS.right - WALK_BOUNDS.left) / WORLD_SCALE;
 export const WORLD_DEPTH = (WALK_BOUNDS.bottom - WALK_BOUNDS.top) / WORLD_SCALE;
-export const CAMERA_HALF_WIDTH = 17.4;
+// Tight framing: the HUD floats over the room's margins instead of reserving bands for itself.
+export const CAMERA_HALF_WIDTH = 14.4;
 export const CAMERA_HALF_HEIGHT = CAMERA_HALF_WIDTH * 9 / 16;
+/** Moves the room right of center, in world units, so the HUD's left column covers no seats. */
+export const CAMERA_SHIFT_X = 1.2;
 export const CAMERA_YAW = 0.08;
 export const CAMERA_ELEVATION = Math.PI / 4;
 export const CAMERA_RADIUS = 32;

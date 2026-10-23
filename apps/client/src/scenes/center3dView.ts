@@ -21,7 +21,7 @@ import { MedicineDisposalModel } from './medicineDisposalModel.js';
 import { MedicineTableModel } from './medicineTableModel.js';
 import { HealingMachineModels } from './healingMachineModels.js';
 import { createCenter3DEnvironment } from './center3dEnvironment.js';
-import { CAMERA_HALF_HEIGHT, CAMERA_HALF_WIDTH, WORLD_SCALE, cameraPosition,
+import { CAMERA_HALF_HEIGHT, CAMERA_HALF_WIDTH, CAMERA_SHIFT_X, WORLD_SCALE, cameraPosition,
   worldPosition } from './center3dLayout.js';
 
 export interface Center3DCharacter {
@@ -86,7 +86,7 @@ export function createUprightCharacterPlane(texture: THREE.Texture, yaw: number)
 export class Center3DView {
   readonly canvas: HTMLCanvasElement;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.OrthographicCamera(-CAMERA_HALF_WIDTH, CAMERA_HALF_WIDTH,
+  private readonly camera = new THREE.OrthographicCamera(-CAMERA_HALF_WIDTH - CAMERA_SHIFT_X, CAMERA_HALF_WIDTH - CAMERA_SHIFT_X,
     CAMERA_HALF_HEIGHT, -CAMERA_HALF_HEIGHT, 0.1, 100);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly stopObservingSize: () => void;
@@ -110,7 +110,7 @@ export class Center3DView {
   private manifest: SpriteManifest | null = null;
 
   constructor(private readonly mount: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.stopObservingSize = observeRenderSize(mount, ({ width, height }) => {
       this.renderer.setSize(width, height, false);
     });
@@ -120,7 +120,8 @@ export class Center3DView {
     this.canvas = this.renderer.domElement;
     this.canvas.className = 'center-3d-canvas';
     this.mount.prepend(this.canvas);
-    this.scene.background = new THREE.Color('#12253d');
+    // Transparent: the page backdrop behind #game shows around the room.
+    this.scene.background = null;
     this.scene.add(new THREE.AmbientLight(0xffffff, 1.55));
     const sunlight = new THREE.DirectionalLight(0xffdfb1, 2.2);
     sunlight.position.set(-6, 13, 9);

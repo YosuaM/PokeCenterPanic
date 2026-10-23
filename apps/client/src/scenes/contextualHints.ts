@@ -1,13 +1,13 @@
 export type HintAction = 'pickup' | 'seat' | 'heal' | 'prepare' | 'medicate' | 'discharge' | 'repair';
 
 export const HINT_TEXT: Readonly<Record<HintAction, string>> = {
-  pickup: 'TIP · The patient file lists what this Pokémon still needs',
-  seat: 'TIP · Seat a patient to free your hands for medicine',
-  heal: 'TIP · Healing runs by itself and pauses the wait — keep moving',
-  prepare: 'TIP · Keep holding E and stand still until the dose is ready',
-  medicate: 'TIP · Medicine works on seated patients and finished machines',
-  discharge: 'TIP · Discharges in a row build a streak bonus; a loss resets it',
-  repair: 'TIP · Hold E with empty hands to restore the machine',
+  pickup: 'The card above a patient lists the care it still needs',
+  seat: 'Seat a patient to free your hands for medicine',
+  heal: 'Healing runs by itself and pauses the wait — keep moving',
+  prepare: 'Keep holding E and stand still until the dose is ready',
+  medicate: 'Medicine works on seated patients and finished machines',
+  discharge: 'Discharges in a row build a streak bonus; a loss resets it',
+  repair: 'Hold E with empty hands to restore the machine',
 };
 
 const PATIENT_TARGET = /^(reception|waiting|recovery|healing)(:|$)/;
