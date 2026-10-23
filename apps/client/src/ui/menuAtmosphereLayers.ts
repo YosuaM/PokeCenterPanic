@@ -1,6 +1,8 @@
 import { ART_WIDTH, ART_HEIGHT, CHIMNEY, SMOKE, SMOKE_COUNT, LIGHTS,
   smokePuff, lightStrength } from './menuAtmosphereModel.js';
 import { CLOUD_ART_BANDS, cloudOffset } from './menuCloudsModel.js';
+import { createTreeWind, FOREGROUND_TREE_WIND, REAR_TREE_WIND } from './menuTreeWind.js';
+import type { FoliageRegion } from './menuFoliageModel.js';
 
 export interface AtmosphereArt {
   landscape: CanvasImageSource;
@@ -32,16 +34,19 @@ export function createAtmosphereLayers(document: Document, art: AtmosphereArt): 
   };
   const dispose = () => { disposed = true; surfaces.forEach(canvas => { canvas.width = canvas.height = 0; }); };
   try {
-    const occluder = (image: CanvasImageSource) => {
+    const winds: ((seconds: number) => void)[] = [];
+    const occluder = (image: CanvasImageSource, regions?: readonly FoliageRegion[]) => {
       const { canvas, context } = surface();
       context.drawImage(image, 0, 0);
       const pixels = context.getImageData(0, 0, ART_WIDTH, ART_HEIGHT);
       // Generated interiors have alpha 252–254; make them solid while retaining branch-edge transparency.
       for (let i = 3; i < pixels.data.length; i += 4) if (pixels.data[i]! >= 240) pixels.data[i] = 255;
       context.putImageData(pixels, 0, 0);
+      if (regions) winds.push(createTreeWind(context, pixels, regions));
       return canvas;
     };
-    const clinic = occluder(art.clinic), trees = occluder(art.trees), rearTrees = occluder(art.rearTrees);
+    const clinic = occluder(art.clinic), trees = occluder(art.trees, FOREGROUND_TREE_WIND),
+      rearTrees = occluder(art.rearTrees, REAR_TREE_WIND);
     const halo = surface(96, 96);
     const gradient = halo.context.createRadialGradient(48, 48, 0, 48, 48, 48);
     gradient.addColorStop(0, 'rgba(255,207,103,1)');
@@ -54,6 +59,7 @@ export function createAtmosphereLayers(document: Document, art: AtmosphereArt): 
         if (disposed) return;
         context.save();
         try {
+          winds.forEach(update => update(seconds));
           context.globalAlpha = 1;
           context.globalCompositeOperation = 'source-over';
           context.imageSmoothingEnabled = true;

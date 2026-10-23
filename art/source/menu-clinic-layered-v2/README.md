@@ -11,7 +11,7 @@ Open `menu-clinic-layered-v2.ora` as a layered OpenRaster document, or import th
 | 1 | `01-landscape.png` | Opaque cloudless sky, mountains, distant forest, town and lake; no clinic or framing trees. |
 | 2 | `02-clouds-painted.png` | Three muted, irregular painted cloud banks, independently movable. |
 | 3 | Distant flying Pokémon | Draw here to pass behind the rear grove, clinic and foreground trees. |
-| 4 | `02b-rear-trees.png` | Static rear pine grove behind the clinic; its branches cover Lugia. |
+| 4 | `02b-rear-trees.png` | Rear pine grove behind the clinic; its moving branches cover Lugia. |
 | 5 | `03-clinic-ground.png` | Clinic, chimney, terrace, garden, lights, fences and path, with transparent surrounding space. |
 | 6 | Near flying / walking Pokémon | Draw here to appear in front of the clinic/path and behind framing trees. |
 | 7 | `04-foreground-trees.png` | Left and right tree silhouettes, transparent through the central view and branch gaps. |
@@ -23,7 +23,7 @@ Open `menu-clinic-layered-v2.ora` as a layered OpenRaster document, or import th
 - Clouds loop continuously toward the right, covering the full artwork width every 170, 270 and 420 seconds for the three bands. Draw two identical copies at x = offset − 1672 and x = offset, where offset wraps modulo 1672. The prepared tile has 16 completely transparent columns at each side, complete cloud silhouettes and a natural clear-sky gap between banks. No reversal or crossfade is needed.
 - Smoke is a single transparent plume, not a frame sequence. Animate copies upward and left, expand around the chimney anchor, and fade them out; fade new copies in to avoid popping.
 - Pokémon occlusion comes from drawing the tree layer after the sprites. No skyline/color-selection mask is needed. The image edges retain antialiased alpha; broad interiors are nearly opaque.
-- The trees are one layer for depth compositing. Independent tree sway would require subdividing this layer or adding deformation masks.
+- The rear and foreground tree layers each use local deformation masks in `menuTreeWind.ts`. Eight disjoint patches gently flex crowns and branch tips while pinning attachment points and patch borders. Displacement stays below twelve artwork pixels; trunks and architecture stay fixed. Replacing RGBA patches before drawing keeps occlusion aligned with moving silhouettes.
 - Lights and garden plants remain painted in the clinic layer. Additional light glows can be rendered above it; independently moving individual plants needs another asset pass.
 - Clinic entrance is approximately (563, 615), steps reach approximately (565, 675), and the path exits near (525, 940). These are visual guide points, not verified walking routes.
 - Retain a composed still for reduced motion and loading failure when integrating this pack.

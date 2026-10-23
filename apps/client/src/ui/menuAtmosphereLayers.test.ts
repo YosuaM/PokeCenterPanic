@@ -11,7 +11,8 @@ function setup(failAt = -1) {
       globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: true,
       save: vi.fn(), restore: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn(), fillStyle: '',
       drawImage: vi.fn(), putImageData: vi.fn(),
-      getImageData: () => ({ data: new Uint8ClampedArray([20, 30, 40, 253, 20, 30, 40, 0, 20, 30, 40, 128]) }),
+      getImageData: () => ({ width: ART_WIDTH, data: new Uint8ClampedArray([20, 30, 40, 253, 20, 30, 40, 0, 20, 30, 40, 128]) }),
+      createImageData: (width: number, height: number) => ({ data: new Uint8ClampedArray(width * height * 4) }),
       createRadialGradient: () => ({ addColorStop: vi.fn() }),
     };
     return { width: 0, height: 0, context, getContext: () => context };
@@ -77,7 +78,7 @@ describe('registered scene compositing', () => {
       expect(compositeRed(8)).toBeLessThan(255);
     }
   });
-  it('moves clouds and smoke while keeping architecture and trees fixed', () => {
+  it('moves clouds, smoke and tree patches while keeping architecture and layer placement fixed', () => {
     const s = setup(); const layers = createAtmosphereLayers(s.document, art);
     const context = s.target as unknown as CanvasRenderingContext2D;
     layers.draw(context, 0);
@@ -90,6 +91,12 @@ describe('registered scene compositing', () => {
     expect(birth[6] + (CHIMNEY.y - SMOKE.y) * scale).toBe(CHIMNEY.y);
     s.target.drawImage.mockClear(); layers.draw(context, 5);
     const second = s.target.drawImage.mock.calls;
+    expect(s.canvases[0]!.context.putImageData).toHaveBeenCalledTimes(1);
+    for (const index of [1, 2]) {
+      const updates = s.canvases[index]!.context.putImageData.mock.calls;
+      expect(updates.length).toBeGreaterThan(2);
+      expect(updates.slice(1).every(([, x, y]) => x > 0 && y > 0)).toBe(true);
+    }
     for (const image of [art.landscape, s.canvases[0], s.canvases[1], s.canvases[2]]) {
       expect(second.find(([drawn]) => drawn === image)).toEqual(first.find(([drawn]) => drawn === image));
     }
@@ -97,7 +104,9 @@ describe('registered scene compositing', () => {
     expect(second.find(([drawn]) => drawn === art.smoke)).not.toEqual(birth);
     layers.dispose(); layers.dispose();
     expect(s.canvases.every(c => c.width === 0 && c.height === 0)).toBe(true);
+    const updates = s.canvases[1]!.context.putImageData.mock.calls.length;
     s.target.drawImage.mockClear(); layers.draw(context, 6); expect(s.target.drawImage).not.toHaveBeenCalled();
+    expect(s.canvases[1]!.context.putImageData).toHaveBeenCalledTimes(updates);
   });
   it('releases partial allocations after canvas or pixel read failure', () => {
     for (const failAt of [1, 2, 3, 4]) {
