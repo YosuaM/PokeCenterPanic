@@ -1,28 +1,18 @@
+import { CLOUD_ART_BANDS } from './menuCloudsModel.js';
 import { describe, expect, it, vi } from 'vitest';
-import { createAtmosphereLayers } from './menuAtmosphereLayers.js';
-import { ART_WIDTH, ART_HEIGHT, CLOUDS, SMOKE } from './menuAtmosphereModel.js';
+import { createAtmosphereLayers, type AtmosphereArt } from './menuAtmosphereLayers.js';
+import { ART_WIDTH, CHIMNEY, SMOKE, SMOKE_COUNT } from './menuAtmosphereModel.js';
 
+const art = Object.fromEntries(['landscape', 'clouds', 'rearTrees', 'clinic', 'trees', 'smoke'].map(name => [name, { name }])) as unknown as AtmosphereArt;
 function setup(failAt = -1) {
   const canvases: ReturnType<typeof canvas>[] = [];
   function canvas() {
-    let source = '';
     const context = {
-      globalCompositeOperation: 'source-over', globalAlpha: 1,
-      putImageData: vi.fn(), clearRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(),
-      lineTo: vi.fn(), closePath: vi.fn(), clip: vi.fn(), fillRect: vi.fn(),
-      save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(), fillStyle: '',
+      globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: true,
+      save: vi.fn(), restore: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn(), fillStyle: '',
+      drawImage: vi.fn(), putImageData: vi.fn(),
+      getImageData: () => ({ data: new Uint8ClampedArray([20, 30, 40, 253, 20, 30, 40, 0, 20, 30, 40, 128]) }),
       createRadialGradient: () => ({ addColorStop: vi.fn() }),
-      drawImage: vi.fn<(image: { source?: string }, ...area: number[]) => void>((image) => { if (image.source) source = image.source; }),
-      createImageData: (width: number, height: number) => ({ data: new Uint8ClampedArray(width * height * 4) }),
-      getImageData: () => {
-        const data = new Uint8ClampedArray(ART_WIDTH * ART_HEIGHT * 4);
-        if (source === 'original') {
-          for (const [x, y, r, g, b] of [[200,175,140,130,170], [500,100,130,95,180], [501,100,20,30,65], [600,100,245,245,255]] as const) {
-            data.set([r,g,b,255], (y * ART_WIDTH + x) * 4);
-          }
-        }
-        return { data };
-      },
     };
     return { width: 0, height: 0, context, getContext: () => context };
   }
@@ -31,84 +21,105 @@ function setup(failAt = -1) {
     if (canvases.length === failAt) result.getContext = () => null as unknown as typeof result.context;
     return result;
   } };
-  return { document, canvases, canvas };
+  return { document: document as unknown as Document, canvases, target: canvas().context };
 }
-const original = { source: 'original' } as unknown as CanvasImageSource;
-const plate = { source: 'plate' } as unknown as CanvasImageSource;
 
-describe('independent original-art layers', () => {
-  it('keeps smoke out of cloud sprites and preserves tree/star occlusion', () => {
+describe('registered scene compositing', () => {
+  it('covers Lugia with rear trees and the clinic, and walkers with foreground trees only', () => {
+    const s = setup(); const layers = createAtmosphereLayers(s.document, art);
+    const sky = vi.fn(), ground = vi.fn();
+    layers.draw(s.target as unknown as CanvasRenderingContext2D, 3, { sky, ground });
+    const order = (image: unknown) => s.target.drawImage.mock.invocationCallOrder[
+      s.target.drawImage.mock.calls.findIndex(([drawn]) => drawn === image)]!;
+    expect(order(art.clouds)).toBeLessThan(sky.mock.invocationCallOrder[0]!);
+    expect(sky.mock.invocationCallOrder[0]!).toBeLessThan(order(s.canvases[2]));
+    expect(order(s.canvases[2])).toBeLessThan(order(s.canvases[0]));
+    expect(s.canvases[2]!.context.drawImage).toHaveBeenCalledWith(art.rearTrees, 0, 0);
+    expect(order(s.canvases[0])).toBeLessThan(ground.mock.invocationCallOrder[0]!);
+    expect(ground.mock.invocationCallOrder[0]!).toBeLessThan(order(s.canvases[1]));
+    expect(order(s.canvases[1])).toBeLessThan(order(art.smoke));
+    expect(sky).toHaveBeenCalledExactlyOnceWith(s.target);
+    expect(ground).toHaveBeenCalledExactlyOnceWith(s.target);
+  });
+  it('loops every painted strip without scaling, vertical movement or a wrap gap', () => {
+    const s = setup(); const layers = createAtmosphereLayers(s.document, art);
+    const cycles = CLOUD_ART_BANDS.map(band => band.loopSeconds);
+    for (const time of [0, 85, ...cycles.flatMap(cycle => [cycle - .001, cycle, cycle + .001])]) {
+      s.target.drawImage.mockClear();
+      const sky = vi.fn();
+      layers.draw(s.target as unknown as CanvasRenderingContext2D, time, { sky });
+      const clouds = s.target.drawImage.mock.calls.filter(([image]) => image === art.clouds);
+      expect(clouds).toHaveLength(CLOUD_ART_BANDS.length * 2);
+      CLOUD_ART_BANDS.forEach((band, index) => {
+        const left = clouds[index * 2]!, right = clouds[index * 2 + 1]!;
+        expect(left.slice(1, 5)).toEqual([0, band.top, ART_WIDTH, band.height]);
+        expect(right.slice(1, 5)).toEqual(left.slice(1, 5));
+        expect(left.slice(6)).toEqual([band.top, ART_WIDTH, band.height]);
+        expect(right.slice(6)).toEqual(left.slice(6));
+        expect(left[5] + ART_WIDTH).toBeCloseTo(right[5]);
+        expect(left[5]).toBeLessThanOrEqual(0);
+        expect(right[5] + ART_WIDTH).toBeGreaterThanOrEqual(ART_WIDTH);
+      });
+      const indices = s.target.drawImage.mock.calls.flatMap(([image], i) => image === art.clouds ? [i] : []);
+      expect(indices.every(i => s.target.drawImage.mock.invocationCallOrder[i]! < sky.mock.invocationCallOrder[0]!)).toBe(true);
+    }
+    layers.dispose();
+  });
+  it('makes tree and building interiors opaque without closing branch gaps or hardening soft edges', () => {
+    const s = setup(); createAtmosphereLayers(s.document, art);
+    for (const canvas of s.canvases.slice(0, 3)) {
+      const pixels = canvas.context.putImageData.mock.calls[0]![0].data as Uint8ClampedArray;
+      expect([...pixels]).toEqual([20, 30, 40, 255, 20, 30, 40, 0, 20, 30, 40, 128]);
+      const compositeRed = (index: number) => pixels[index]! * pixels[index + 3]! / 255 + 255 * (1 - pixels[index + 3]! / 255);
+      expect(compositeRed(0)).toBe(20);
+      expect(compositeRed(4)).toBe(255);
+      expect(compositeRed(8)).toBeGreaterThan(20);
+      expect(compositeRed(8)).toBeLessThan(255);
+    }
+  });
+  it('moves clouds and smoke while keeping architecture and trees fixed', () => {
+    const s = setup(); const layers = createAtmosphereLayers(s.document, art);
+    const context = s.target as unknown as CanvasRenderingContext2D;
+    layers.draw(context, 0);
+    const first = [...s.target.drawImage.mock.calls];
+    const smoke = first.filter(([image]) => image === art.smoke);
+    expect(smoke).toHaveLength(SMOKE_COUNT);
+    const birth = smoke[0]!;
+    const scale = birth[7] / SMOKE.width;
+    expect(birth[5] + (CHIMNEY.x - SMOKE.x) * scale).toBe(CHIMNEY.x);
+    expect(birth[6] + (CHIMNEY.y - SMOKE.y) * scale).toBe(CHIMNEY.y);
+    s.target.drawImage.mockClear(); layers.draw(context, 5);
+    const second = s.target.drawImage.mock.calls;
+    for (const image of [art.landscape, s.canvases[0], s.canvases[1], s.canvases[2]]) {
+      expect(second.find(([drawn]) => drawn === image)).toEqual(first.find(([drawn]) => drawn === image));
+    }
+    expect(second.find(([drawn]) => drawn === art.clouds)).not.toEqual(first.find(([drawn]) => drawn === art.clouds));
+    expect(second.find(([drawn]) => drawn === art.smoke)).not.toEqual(birth);
+    layers.dispose(); layers.dispose();
+    expect(s.canvases.every(c => c.width === 0 && c.height === 0)).toBe(true);
+    s.target.drawImage.mockClear(); layers.draw(context, 6); expect(s.target.drawImage).not.toHaveBeenCalled();
+  });
+  it('releases partial allocations after canvas or pixel read failure', () => {
+    for (const failAt of [1, 2, 3, 4]) {
+      const s = setup(failAt);
+      expect(() => createAtmosphereLayers(s.document, art)).toThrow('Atmosphere canvas unavailable');
+      expect(s.canvases.every(c => c.width === 0 && c.height === 0)).toBe(true);
+    }
     const s = setup();
-    const layers = createAtmosphereLayers(s.document as unknown as Document, original, plate);
-    const cloud = s.canvases.find(c => c.width === CLOUDS[0]!.width && c.height === CLOUDS[0]!.height)!;
-    const alpha = (canvas: typeof cloud, x: number, y: number) =>
-      canvas.context.putImageData.mock.calls[0]![0]!.data[(y * canvas.width + x) * 4 + 3];
-    expect(alpha(cloud, 200 - CLOUDS[0]!.x, 175)).toBe(0);
-    expect(alpha(cloud, 500 - CLOUDS[0]!.x, 100)).toBe(255);
-    const smoke = s.canvases.find(c => c.width === SMOKE.width)!;
-    expect(alpha(smoke, 200 - SMOKE.x, 175 - SMOKE.y)).toBe(255);
-    const foreground = s.canvases.filter(c => c.height === 400).at(-2)!;
-    expect(alpha(foreground, 200, 175)).toBe(0);
-    expect(alpha(foreground, 501, 100)).toBe(255);
-    expect(alpha(foreground, 600, 100)).toBe(255);
-    layers.dispose();
-  });
-  it('keeps the scene fixed and never rotates vegetation as rigid sprites', () => {
-    const s = setup(); const target = s.canvas();
-    const layers = createAtmosphereLayers(s.document as unknown as Document, original, plate);
-    layers.draw(target.context as unknown as CanvasRenderingContext2D, 0);
-    const base = target.context.drawImage.mock.calls[0];
-    target.context.drawImage.mockClear(); target.context.rotate.mockClear();
-    layers.draw(target.context as unknown as CanvasRenderingContext2D, 7);
-    expect(target.context.drawImage.mock.calls[0]).toEqual(base);
-    expect(target.context.rotate).not.toHaveBeenCalled();
-    expect(target.context.translate).not.toHaveBeenCalled();
-    expect(s.canvases.every(c => c.context.clip.mock.calls.length === 0)).toBe(true);
-    expect(target.context.globalAlpha).toBe(1);
-    expect(target.context.globalCompositeOperation).toBe('source-over');
-    layers.dispose();
+    const create = s.document.createElement.bind(s.document);
+    s.document.createElement = (() => {
+      const canvas = create('canvas');
+      canvas.getContext('2d')!.getImageData = () => { throw new Error('Pixel access denied'); };
+      return canvas;
+    }) as typeof s.document.createElement;
+    expect(() => createAtmosphereLayers(s.document, art)).toThrow('Pixel access denied');
     expect(s.canvases.every(c => c.width === 0 && c.height === 0)).toBe(true);
   });
-  it('paints flyers in front of the clouds but behind foreground branches and stars', () => {
-    const s = setup(); const target = s.canvas();
-    const layers = createAtmosphereLayers(s.document as unknown as Document, original, plate);
-    const foreground = s.canvases.filter(c => c.height === 400).at(-2)!;
-    const cloudImages = s.canvases.filter(c => CLOUDS.some(r => r.width === c.width && r.height === c.height));
-    const sky = vi.fn((context: CanvasRenderingContext2D) => {
-      expect(context.globalCompositeOperation).toBe('source-over');
-      return null;
-    });
-    layers.draw(target.context as unknown as CanvasRenderingContext2D, 3, sky);
-    expect(sky).toHaveBeenCalledExactlyOnceWith(target.context);
-    const order = (image: unknown) => target.context.drawImage.mock.invocationCallOrder[
-      target.context.drawImage.mock.calls.findIndex(([drawn]) => drawn === image)]!;
-    const skyOrder = sky.mock.invocationCallOrder[0]!;
-    expect(cloudImages.every(cloud => order(cloud) < skyOrder)).toBe(true);
-    expect(skyOrder).toBeLessThan(order(foreground));
-    // Nobody flew, so no scenery is repainted over the sky.
-    expect(target.context.drawImage.mock.calls.some((call) => call.length === 9)).toBe(false);
-    layers.dispose();
-  });
-  it('repaints the scenery below the horizon over the area a flyer covered, clipped to the sky', () => {
-    const s = setup(); const target = s.canvas();
-    const layers = createAtmosphereLayers(s.document as unknown as Document, original, plate);
-    const foreground = s.canvases.filter(c => c.height === 400).at(-2)!;
-    const sky = vi.fn(() => ({ x: -20.5, y: 350.2, width: 100, height: 80 }));
-    layers.draw(target.context as unknown as CanvasRenderingContext2D, 3, sky);
-    const repaint = target.context.drawImage.mock.calls.findIndex((call) => call.length === 9);
-    expect(target.context.drawImage.mock.calls[repaint]!.slice(1)).toEqual([0, 350, 80, 50, 0, 350, 80, 50]);
-    expect(target.context.drawImage.mock.calls[repaint]![0]).toBe(s.canvases.filter(c => c.height === 400).at(-1));
-    const order = target.context.drawImage.mock.invocationCallOrder;
-    expect(sky.mock.invocationCallOrder[0]!).toBeLessThan(order[repaint]!);
-    expect(order[repaint]!).toBeLessThan(order[target.context.drawImage.mock.calls.findIndex(([image]) => image === foreground)]!);
-    target.context.drawImage.mockClear();
-    layers.draw(target.context as unknown as CanvasRenderingContext2D, 3, () => ({ x: 10, y: 420, width: 50, height: 30 }));
-    expect(target.context.drawImage.mock.calls.some((call) => call.length === 9)).toBe(false);
-    layers.dispose();
-  });
-  it('releases allocated surfaces when preparation fails', () => {
-    const s = setup(5);
-    expect(() => createAtmosphereLayers(s.document as unknown as Document, original, plate)).toThrow('Foliage canvas unavailable');
-    expect(s.canvases.every(c => c.width === 0 && c.height === 0)).toBe(true);
+  it('restores canvas state if an actor fails', () => {
+    const s = setup(); const layers = createAtmosphereLayers(s.document, art);
+    expect(() => layers.draw(s.target as unknown as CanvasRenderingContext2D, 2, {
+      sky: () => { throw new Error('Actor failed'); },
+    })).toThrow('Actor failed');
+    expect(s.target.save.mock.calls.length).toBe(s.target.restore.mock.calls.length);
   });
 });

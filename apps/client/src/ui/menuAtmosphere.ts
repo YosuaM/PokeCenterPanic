@@ -1,20 +1,23 @@
 import { ART_WIDTH, ART_HEIGHT } from './menuAtmosphereModel.js';
-import { createAtmosphereLayers, type AtmosphereLayers } from './menuAtmosphereLayers.js';
+import { createAtmosphereLayers, type AtmosphereArt, type AtmosphereLayers } from './menuAtmosphereLayers.js';
 import type { MenuCritters } from './menuCritters.js';
 
-async function loadArt(): Promise<readonly [HTMLImageElement, HTMLImageElement]> {
+export async function loadAtmosphereArt(): Promise<AtmosphereArt> {
   const load = async (name: string) => {
     const image = new Image();
-    image.src = `${import.meta.env.BASE_URL}assets/original/${name}.webp`;
+    image.src = `${import.meta.env.BASE_URL}assets/original/menu-clinic-layered-v2/${name}.webp`;
     await image.decode();
     if (image.naturalWidth !== ART_WIDTH || image.naturalHeight !== ART_HEIGHT) throw new Error('Unexpected artwork dimensions');
     return image;
   };
-  return Promise.all([load('menu-clinic-night'), load('menu-clinic-clean-plate')]);
+  const [landscape, clouds, rearTrees, clinic, trees, smoke] = await Promise.all([
+    load('01-landscape'), load('02-clouds-painted'), load('02b-rear-trees'), load('03-clinic-ground'), load('04-foreground-trees'), load('05-smoke'),
+  ]);
+  return { landscape, clouds, rearTrees, clinic, trees, smoke };
 }
 
 export function initializeMenuAtmosphere(document: Document,
-  load: () => Promise<readonly [CanvasImageSource, CanvasImageSource]> = loadArt,
+  load: () => Promise<AtmosphereArt> = loadAtmosphereArt,
   loadCritters: () => Promise<MenuCritters | null> = () => Promise.resolve(null)): () => void {
   const canvas = document.querySelector<HTMLCanvasElement>('#menu-atmosphere');
   const button = document.querySelector<HTMLButtonElement>('#menu-motion');
@@ -27,8 +30,10 @@ export function initializeMenuAtmosphere(document: Document,
   let layers: AtmosphereLayers | undefined;
   let critters: MenuCritters | null = null;
   const paint = (seconds: number) => {
-    layers!.draw(context, seconds, critters ? (target) => critters!.drawSky(target, seconds) : undefined);
-    critters?.draw(context, seconds);
+    layers!.draw(context, seconds, critters ? {
+      sky: (target) => { critters!.drawSky(target, seconds); },
+      ground: (target) => critters!.draw(target, seconds),
+    } : undefined);
   };
   let disposed = false;
   let paused = false;
@@ -36,6 +41,8 @@ export function initializeMenuAtmosphere(document: Document,
   let elapsed = 0;
   let last: number | undefined;
   let painted = 0;
+  // Slack absorbs timestamp jitter so a 60 Hz display paints every second frame instead of alternating 2 and 3.
+  const frameMs = 1000 / 30 - 4;
   const active = () => !disposed && !document.hidden && !reduced.matches && !paused &&
     document.body.dataset.screen !== 'running' && document.body.dataset.screen !== 'fixture';
   const tick = (now: number) => {
@@ -43,7 +50,7 @@ export function initializeMenuAtmosphere(document: Document,
     if (!active() || !layers) return;
     if (last !== undefined) elapsed += Math.min((now - last) / 1000, .1);
     last = now;
-    if (now - painted >= 1000 / 30) { paint(elapsed); painted = now; }
+    if (now - painted >= frameMs) { paint(elapsed); painted = now; }
     frame = window.requestAnimationFrame(tick);
   };
   const sync = () => {
@@ -62,9 +69,9 @@ export function initializeMenuAtmosphere(document: Document,
   document.addEventListener('visibilitychange', sync);
   reduced.addEventListener('change', sync);
   sync();
-  void load().then(([original, plate]) => {
+  void load().then((art) => {
     if (disposed) return;
-    layers = createAtmosphereLayers(document, original, plate);
+    layers = createAtmosphereLayers(document, art);
     paint(0);
     sync();
   }).catch(() => { if (!disposed) { layers?.dispose(); layers = undefined; sync(); } });

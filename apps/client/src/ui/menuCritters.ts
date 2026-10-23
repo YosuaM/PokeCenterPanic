@@ -8,7 +8,7 @@ type Mode = 'idle' | 'walk' | 'hover';
 type Sheets = Map<string, Partial<Record<Mode, Sheet>>>;
 
 export interface MenuCritters {
-  /** Ground Pokémon, drawn over the finished scene. */
+  /** Ground Pokémon, drawn over the clinic/path and behind foreground trees. */
   draw(context: CanvasRenderingContext2D, seconds: number): void;
   /** Flying Pokémon, drawn in front of the clouds; returns the area painted, or null when nobody flies. */
   drawSky(context: CanvasRenderingContext2D, seconds: number): Region | null;

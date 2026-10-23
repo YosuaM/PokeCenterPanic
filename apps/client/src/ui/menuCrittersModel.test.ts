@@ -46,12 +46,14 @@ describe('critter geometry', () => {
 describe('title-screen critters', () => {
   it('sends a patient from below the artwork up to the door, then fades it inside before the next species', () => {
     const start = patientPose(0)!;
-    expect(start).toMatchObject({ species: 'Pikachu', animation: 'walk', alpha: 1, row: facingRow(-27, -85) });
+    expect(start).toMatchObject({ species: 'Pikachu', animation: 'walk', alpha: 1, row: facingRow(-35, -85) });
     expect(start.y).toBeGreaterThan(ART_HEIGHT);
     const middle = patientPose(PATIENT_WALK_SECONDS / 2)!;
     expect(middle.y).toBeLessThan(start.y);
     expect(middle.y).toBeGreaterThan(PATIENT_ROUTE.at(-1)!.y);
     const door = patientPose(PATIENT_WALK_SECONDS + 0.4)!;
+    expect(door.x).toBe(563); expect(door.y).toBe(615);
+    expect(GREETER).toEqual({ x: 415, y: 690 });
     expect(door).toMatchObject({ animation: 'idle', x: PATIENT_ROUTE.at(-1)!.x, y: PATIENT_ROUTE.at(-1)!.y });
     expect(door.alpha).toBeCloseTo(0.5);
     expect(patientPose(PATIENT_WALK_SECONDS + 2)).toBeNull();
@@ -64,7 +66,7 @@ describe('title-screen critters', () => {
     const patient = patientPose(0)!;
     expect(greeterPose(3, patient)).toMatchObject({ species: 'Chansey', animation: 'idle', x: GREETER.x, y: GREETER.y,
       row: facingRow(patient.x - GREETER.x, patient.y - GREETER.y), clock: 3 });
-    expect(greeterPose(3, null).row).toBe(7);
+    expect(greeterPose(3, null).row).toBe(1);
   });
 
   it('strolls Meowth back and forth with rests at each end', () => {

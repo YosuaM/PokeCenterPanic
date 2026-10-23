@@ -1,0 +1,90 @@
+{
+  "version": 2,
+  "width": 1672,
+  "height": 941,
+  "blendMode": "source-over",
+  "layers": [
+    {
+      "file": "01-landscape.png",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "sha256": "f96cf1ef3ca607bf9f30de8d2a2cf78e76695d4b945ef952b2d54663d13cf6f0"
+    },
+    {
+      "file": "02-clouds-painted.png",
+      "x": 0,
+      "y": 0,
+      "z": 1,
+      "sha256": "9a49271484e656535932971b196245190d46ee878eb4489e96ad18b5acef6f12"
+    },
+    {
+      "file": "02b-rear-trees.png",
+      "x": 0,
+      "y": 0,
+      "z": 2,
+      "sha256": "6059b47ba46c4909b297760d31dffe25aa3aa4cf0bd544a4b7b2d9de8c6ca8cc"
+    },
+    {
+      "file": "03-clinic-ground.png",
+      "x": 0,
+      "y": 0,
+      "z": 3,
+      "sha256": "35e40fd7abf1dbe608343a16a1b444ade29c6ea16449ec291570c15fc912e777"
+    },
+    {
+      "file": "04-foreground-trees.png",
+      "x": 0,
+      "y": 0,
+      "z": 4,
+      "sha256": "a9d53afab992a57f05d2bed387b958e1fcfdfff0ccdcaa63e9feea586a99fe09"
+    },
+    {
+      "file": "05-smoke.png",
+      "x": 0,
+      "y": 0,
+      "z": 5,
+      "sha256": "99a3712a56a351622ff8379516dacda7b4bdb7a49e35adbd89c9654af3a7934f"
+    }
+  ],
+  "characterPlanes": {
+    "distantFlyer": {
+      "after": "02-clouds-painted",
+      "before": "02b-rear-trees"
+    },
+    "nearFlyerOrWalker": {
+      "after": "03-clinic-ground",
+      "before": "04-foreground-trees"
+    }
+  },
+  "chimneyAnchor": {
+    "x": 250,
+    "y": 160
+  },
+  "runtimeIntegrated": true,
+  "cloudLoop": {
+    "direction": "right",
+    "tileWidth": 1672,
+    "transparentGutterPixels": 16,
+    "bands": [
+      {
+        "top": 0,
+        "height": 165,
+        "seconds": 170,
+        "alpha": 1
+      },
+      {
+        "top": 165,
+        "height": 90,
+        "seconds": 270,
+        "alpha": 0.9
+      },
+      {
+        "top": 255,
+        "height": 105,
+        "seconds": 420,
+        "alpha": 0.7
+      }
+    ]
+  }
+}

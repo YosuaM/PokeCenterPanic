@@ -1,86 +1,55 @@
+import { CLOUD_ART_BANDS, cloudOffset as bandOffset } from './menuCloudsModel.js';
 import { describe, expect, it } from 'vitest';
-import { ART_WIDTH, ART_HEIGHT, CLOUDS, SMOKE, cloudPixel, smokePixel,
-  skyOccluder, foregroundPixel, horizonLine, inSky, cloudBandWeight, cloudOffset, smokePuff, lightStrength } from './menuAtmosphereModel.js';
+import { ART_WIDTH, ART_HEIGHT, CHIMNEY, SMOKE, SMOKE_COUNT, SMOKE_SECONDS,
+  smokePuff, lightStrength } from './menuAtmosphereModel.js';
 
-describe('original menu atmosphere motion', () => {
-  it('keeps every source region inside the original artwork', () => {
-    for (const r of [...CLOUDS, SMOKE]) {
-      expect(r.x).toBeGreaterThanOrEqual(0);
-      expect(r.y).toBeGreaterThanOrEqual(0);
-      expect(r.x + r.width).toBeLessThanOrEqual(ART_WIDTH);
-      expect(r.y + r.height).toBeLessThanOrEqual(ART_HEIGHT);
-    }
-
-  });
-  it('extracts clouds and smoke without selecting dark trees or unchanged pixels', () => {
-    expect(cloudPixel([125, 95, 178], [35, 55, 165])).toBe(true);
-    expect(cloudPixel([35, 55, 165], [35, 55, 165])).toBe(false);
-    expect(cloudPixel([20, 32, 65], [10, 20, 50])).toBe(false);
-    expect(smokePixel([130, 118, 160], [20, 30, 60])).toBe(true);
-    expect(smokePixel([140, 85, 178], [20, 30, 60])).toBe(false);
-    expect(smokePixel([20, 32, 65], [10, 20, 50])).toBe(false);
-    expect(skyOccluder([20, 30, 65])).toBe(true);
-    expect(skyOccluder([245, 245, 255])).toBe(true);
-    expect(skyOccluder([40, 55, 170])).toBe(false);
-  });
-  it('starts cloud layers in place and bounds their independent drift', () => {
-    for (let i = 0; i < 3; i++) {
-      expect(cloudOffset(0, i)).toBe(0);
-      expect(Math.abs(cloudOffset(8, i))).toBeGreaterThan(1);
-    }
-    for (let t = 0; t < 300; t += .25) {
-      CLOUDS.forEach((_, i) => expect(Math.abs(cloudOffset(t, i))).toBeLessThanOrEqual(76));
+describe('layered menu motion', () => {
+  it('crosses the entire screen at constant speed and repeats in the same direction', () => {
+    for (const band of CLOUD_ART_BANDS) {
+      const CLOUD_LOOP_SECONDS = band.loopSeconds;
+      const cloudOffset = (time: number) => bandOffset(time, band.loopSeconds);
+      expect(cloudOffset(0)).toBe(0);
+      expect(cloudOffset(CLOUD_LOOP_SECONDS / 2)).toBeCloseTo(ART_WIDTH / 2);
+      expect(cloudOffset(CLOUD_LOOP_SECONDS)).toBe(0);
+      expect(cloudOffset(CLOUD_LOOP_SECONDS * 100)).toBe(0);
+      for (const t of [-1, 0, 15, CLOUD_LOOP_SECONDS - .01, CLOUD_LOOP_SECONDS, 10000]) {
+        const x = cloudOffset(t), next = cloudOffset(t + 1 / 30);
+        expect(x).toBeGreaterThanOrEqual(0); expect(x).toBeLessThan(ART_WIDTH);
+        expect((next - x + ART_WIDTH) % ART_WIDTH).toBeCloseTo(ART_WIDTH / CLOUD_LOOP_SECONDS / 30);
+        expect(cloudOffset(t + CLOUD_LOOP_SECONDS)).toBeCloseTo(x);
+        expect(x - ART_WIDTH).toBeLessThanOrEqual(0);
+        expect(x + ART_WIDTH).toBeGreaterThanOrEqual(ART_WIDTH);
+      }
     }
   });
-  it('covers every sky band continuously and excludes the roof and mountains', () => {
-    for (let y = 0; y < 400; y++) {
-      const sum = CLOUDS.reduce((total, r, i) => total + (y >= r.y && y < r.y+r.height ? cloudBandWeight(y,i) : 0),0);
-      expect(sum).toBeCloseTo(1);
+  it('crops smoke within the canvas and includes its chimney anchor', () => {
+    expect(SMOKE.x).toBeGreaterThanOrEqual(0); expect(SMOKE.y).toBeGreaterThanOrEqual(0);
+    expect(SMOKE.x + SMOKE.width).toBeLessThanOrEqual(ART_WIDTH);
+    expect(SMOKE.y + SMOKE.height).toBeLessThanOrEqual(ART_HEIGHT);
+    expect(CHIMNEY.x).toBeGreaterThan(SMOKE.x);
+    expect(CHIMNEY.x).toBeLessThan(SMOKE.x + SMOKE.width);
+    expect(CHIMNEY.y).toBeLessThanOrEqual(SMOKE.y + SMOKE.height);
+  });
+  it('emits at the new chimney, rises, grows and fades to zero at both loop boundaries', () => {
+    const birth = smokePuff(0, 0), middle = smokePuff(SMOKE_SECONDS / 2, 0);
+    expect(birth).toMatchObject({ ...CHIMNEY, opacity: 0 });
+    expect(middle.y).toBeLessThan(birth.y); expect(middle.x).toBeLessThan(birth.x);
+    expect(middle.scale).toBeGreaterThan(birth.scale); expect(middle.opacity).toBeGreaterThan(.2);
+    expect(smokePuff(SMOKE_SECONDS - .001, 0).opacity).toBeLessThan(.001);
+    expect(smokePuff(SMOKE_SECONDS, 0)).toEqual(birth);
+    for (let t = 0; t < SMOKE_SECONDS * 3; t += .1) {
+      const puffs = Array.from({ length: SMOKE_COUNT }, (_, i) => smokePuff(t, i));
+      expect(puffs.filter(puff => puff.opacity > .1).length).toBeGreaterThan(2);
+      for (const puff of puffs) {
+        expect(puff.opacity).toBeGreaterThanOrEqual(0); expect(puff.opacity).toBeLessThanOrEqual(.32);
+      }
     }
-    for (const [x,y] of [[50,40],[600,190],[900,240],[1160,320],[1360,280]]) expect(inSky(x!,y!)).toBe(true);
-    for (const [x,y] of [[500,240],[780,295],[1010,330],[1300,410]]) expect(inSky(x!,y!)).toBe(false);
-    expect(Math.abs(cloudOffset(3,0))).toBeGreaterThan(7);
-    expect(Math.abs(cloudOffset(40,0)-cloudOffset(40,2))).toBeLessThan(8);
   });
-  it('emits smoke at the chimney, rises, expands, fades and loops without a pop', () => {
-    const birth = smokePuff(0, 0), middle = smokePuff(5, 0), end = smokePuff(9.999, 0);
-    expect(birth).toMatchObject({ x: 226, y: 218, opacity: 0 });
-    expect(middle.y).toBeLessThan(birth.y);
-    expect(middle.scale).toBeGreaterThan(birth.scale);
-    expect(middle.opacity).toBeGreaterThan(0);
-    expect(end.opacity).toBeLessThan(.001);
-    expect(smokePuff(10, 0)).toEqual(birth);
-    expect(smokePuff(0, 1).y).not.toBe(birth.y);
-  });
-  it('keeps light shimmer gentle, continuous and independently phased', () => {
+  it('keeps lamp shimmer restrained and continuous', () => {
     for (let t = 0; t < 100; t += .3) for (let i = 0; i < 8; i++) {
       expect(lightStrength(t, i)).toBeGreaterThan(.01);
       expect(lightStrength(t, i)).toBeLessThan(.18);
       expect(Math.abs(lightStrength(t, i) - lightStrength(t + .033, i))).toBeLessThan(.015);
     }
-    expect(lightStrength(3, 0)).not.toBe(lightStrength(3, 1));
-  });
-});
-
-describe('flyer horizon', () => {
-  it('treats dark and moonlit tree pixels as foreground but not sky, clouds or stars', () => {
-    expect(foregroundPixel([20, 30, 65])).toBe(true);
-    expect(foregroundPixel([70, 80, 125])).toBe(true);
-    expect(foregroundPixel([40, 55, 170])).toBe(false);
-    expect(foregroundPixel([150, 110, 190])).toBe(false);
-    expect(foregroundPixel([245, 245, 255])).toBe(false);
-  });
-
-  it('finds the top of each solid foreground run per column and ignores short specks', () => {
-    const width = 3, height = 40;
-    const pixels = new Uint8ClampedArray(width * height * 4);
-    const paint = (x: number, y: number, rgb: readonly [number, number, number]) => pixels.set([...rgb, 255], (y * width + x) * 4);
-    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) paint(x, y, [40, 55, 170]);
-    for (let y = 3; y < 6; y += 1) paint(0, y, [20, 30, 65]);
-    for (let y = 12; y < height; y += 1) paint(0, y, [20, 30, 65]);
-    for (let y = 20; y < height; y += 1) paint(1, y, [70, 80, 125]);
-    expect(Array.from(horizonLine(pixels, width, height, 10))).toEqual([12, 20, height]);
-    expect(Array.from(horizonLine(pixels, width, 25, 10))).toEqual([12, 25, 25]);
-    expect(Array.from(horizonLine(pixels, width, height, 3))).toEqual([3, 20, height]);
   });
 });

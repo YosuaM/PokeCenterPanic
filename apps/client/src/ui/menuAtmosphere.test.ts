@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { initializeMenuAtmosphere } from './menuAtmosphere.js';
-import { createAtmosphereLayers } from './menuAtmosphereLayers.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { initializeMenuAtmosphere, loadAtmosphereArt } from './menuAtmosphere.js';
+import { createAtmosphereLayers, type AtmosphereArt, type AtmosphereActors } from './menuAtmosphereLayers.js';
 import type { MenuCritters } from './menuCritters.js';
 
 vi.mock('./menuAtmosphereLayers.js', () => ({ createAtmosphereLayers: vi.fn() }));
@@ -14,6 +14,8 @@ class Control extends EventTarget {
   getContext() { return this.context; }
   setAttribute(name: string, value: string) { this.attributes.set(name, value); }
 }
+afterEach(() => vi.unstubAllGlobals());
+const art = Object.fromEntries(['landscape', 'clouds', 'rearTrees', 'clinic', 'trees', 'smoke'].map(key => [key, {}])) as unknown as AtmosphereArt;
 let mutation: () => void;
 const disconnect = vi.fn();
 beforeEach(() => {
@@ -36,22 +38,22 @@ function setup(reducedMotion = false, critters?: () => Promise<MenuCritters | nu
       requestAnimationFrame: (callback: FrameRequestCallback) => { frames.set(++next, callback); return next; },
       cancelAnimationFrame: (id: number) => frames.delete(id) },
   });
-  let resolve!: (art: readonly [CanvasImageSource, CanvasImageSource]) => void;
+  let resolve!: (art: AtmosphereArt) => void;
   let reject!: (error: Error) => void;
-  const loaded = new Promise<readonly [CanvasImageSource, CanvasImageSource]>((yes, no) => { resolve = yes; reject = no; });
-  const layers = { draw: vi.fn(), dispose: vi.fn() };
+  const loaded = new Promise<AtmosphereArt>((yes, no) => { resolve = yes; reject = no; });
+  const layers = { draw: vi.fn((context: CanvasRenderingContext2D, _seconds: number, actors?: AtmosphereActors) => { actors?.sky?.(context); actors?.ground?.(context); }), dispose: vi.fn() };
   vi.mocked(createAtmosphereLayers).mockReturnValue(layers);
   const dispose = initializeMenuAtmosphere(document as unknown as Document, () => loaded, critters);
   const tick = (time: number) => {
     const item = [...frames][0];
     if (item) { frames.delete(item[0]); item[1](time); }
   };
-  const finish = async () => { resolve([{} as CanvasImageSource, {} as CanvasImageSource]); await Promise.resolve(); await Promise.resolve(); };
+  const finish = async () => { resolve(art); await Promise.resolve(); await Promise.resolve(); };
   return { canvas, button, reduced, frames, document, layers, dispose, tick, finish, reject };
 }
 
 describe('menu atmosphere lifecycle', () => {
-  it('draws the Pokémon over the scene at the same time once both have loaded', async () => {
+  it('supplies both Pokémon depth planes at the same animation time once loaded', async () => {
     const critters = { draw: vi.fn(), drawSky: vi.fn() };
     let ready!: (value: MenuCritters | null) => void;
     const s = setup(false, () => new Promise((resolve) => { ready = resolve; }));
@@ -60,9 +62,8 @@ describe('menu atmosphere lifecycle', () => {
     expect(critters.draw).not.toHaveBeenCalled();
     await s.finish();
     expect(critters.draw).toHaveBeenCalledWith(s.canvas.context, 0);
-    const sky = s.layers.draw.mock.lastCall![2] as (context: unknown) => void;
-    sky('target');
-    expect(critters.drawSky).toHaveBeenCalledWith('target', 0);
+    expect(critters.drawSky).toHaveBeenCalledWith(s.canvas.context, 0);
+    expect(s.layers.draw.mock.lastCall![2]).toHaveProperty('ground');
     s.tick(100); s.tick(160);
     const [, time] = s.layers.draw.mock.lastCall!;
     expect(critters.draw).toHaveBeenLastCalledWith(s.canvas.context, time);
@@ -99,7 +100,7 @@ describe('menu atmosphere lifecycle', () => {
     failing.dispose();
   });
 
-  it('keeps the original still visible until ready, then pauses/resumes without a time jump', async () => {
+  it('keeps the layered still visible until ready, then pauses/resumes without a time jump', async () => {
     const s = setup();
     expect(s.canvas.hidden).toBe(true); expect(s.button.hidden).toBe(true);
     await s.finish();
@@ -127,7 +128,7 @@ describe('menu atmosphere lifecycle', () => {
     s.document.body.dataset.screen = 'menu'; mutation(); expect(s.frames.size).toBe(1);
     s.dispose();
   });
-  it('uses the exact original still for reduced motion and reacts to preference changes', async () => {
+  it('uses the exact layered still for reduced motion and reacts to preference changes', async () => {
     const s = setup(true); await s.finish();
     expect(s.canvas.hidden).toBe(true); expect(s.button.hidden).toBe(true); expect(s.frames.size).toBe(0);
     s.reduced.matches = false; s.reduced.dispatchEvent(new Event('change'));
@@ -136,7 +137,7 @@ describe('menu atmosphere lifecycle', () => {
     expect(s.frames.size).toBe(0); expect(s.canvas.hidden).toBe(true);
     s.dispose();
   });
-  it('retains the original on image or layer preparation failure', async () => {
+  it('retains the layered still on image or layer preparation failure', async () => {
     const s = setup(); s.reject(new Error('Missing art')); await Promise.resolve(); await Promise.resolve();
     expect(s.canvas.hidden).toBe(true); expect(s.frames.size).toBe(0); s.dispose();
     const second = setup(); vi.mocked(createAtmosphereLayers).mockImplementationOnce(() => { throw new Error('Canvas failed'); });
@@ -162,5 +163,37 @@ describe('menu atmosphere lifecycle', () => {
   it('tolerates missing elements and unavailable canvas', () => {
     expect(initializeMenuAtmosphere({ querySelector: () => null } as unknown as Document)).toBeTypeOf('function');
     expect(initializeMenuAtmosphere({ querySelector: () => ({ getContext: () => null }), defaultView: {} } as unknown as Document)).toBeTypeOf('function');
+  });
+});
+
+
+describe('layered artwork loading', () => {
+  function images(fail = false, wrongSize = false, missing = '04-foreground') {
+    const loaded: string[] = [];
+    vi.stubGlobal('Image', class {
+      src = '';
+      naturalWidth = wrongSize ? 100 : 1672;
+      naturalHeight = 941;
+      async decode() { loaded.push(this.src); if (fail && this.src.includes(missing)) throw new Error('Missing trees'); }
+    });
+    return loaded;
+  }
+  it('decodes all six registered layers before returning the scene', async () => {
+    const loaded = images();
+    const result = await loadAtmosphereArt();
+    expect(Object.keys(result)).toEqual(['landscape', 'clouds', 'rearTrees', 'clinic', 'trees', 'smoke']);
+    expect(loaded).toHaveLength(6);
+    expect(loaded.some(url => url.endsWith('/02b-rear-trees.webp'))).toBe(true);
+    expect(loaded.some(url => url.endsWith('/02-clouds-painted.webp'))).toBe(true);
+    expect(loaded.every(url => url.includes('/menu-clinic-layered-v2/') && url.endsWith('.webp'))).toBe(true);
+    expect(loaded.some(url => url.includes('clean-plate'))).toBe(false);
+  });
+  it('rejects a missing layer or mismatched dimensions instead of revealing an incomplete scene', async () => {
+    images(true);
+    await expect(loadAtmosphereArt()).rejects.toThrow('Missing trees');
+    images(true, false, '02b-rear-trees');
+    await expect(loadAtmosphereArt()).rejects.toThrow('Missing trees');
+    images(false, true);
+    await expect(loadAtmosphereArt()).rejects.toThrow('Unexpected artwork dimensions');
   });
 });

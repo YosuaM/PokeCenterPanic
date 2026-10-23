@@ -17,15 +17,15 @@ export interface CritterPose {
 
 /** From the bottom of the stone path up to the clinic door. */
 export const PATIENT_ROUTE: readonly Point[] = [
-  { x: 455, y: 975 }, { x: 428, y: 890 }, { x: 400, y: 822 }, { x: 412, y: 762 },
-  { x: 450, y: 712 }, { x: 478, y: 676 }, { x: 492, y: 648 },
+  { x: 525, y: 975 }, { x: 490, y: 890 }, { x: 455, y: 822 }, { x: 467, y: 762 },
+  { x: 510, y: 712 }, { x: 548, y: 675 }, { x: 563, y: 615 },
 ];
 export const PATIENT_SPECIES = ['Pikachu', 'Eevee', 'Charmander', 'Psyduck', 'Squirtle', 'Bulbasaur'] as const;
 export const PATIENT_CYCLE_SECONDS = 20;
 export const PATIENT_WALK_SECONDS = 13;
 const PATIENT_FADE_SECONDS = 0.8;
-export const GREETER: Point = { x: 584, y: 652 };
-export const WANDER: readonly [Point, Point] = [{ x: 302, y: 772 }, { x: 520, y: 868 }];
+export const GREETER: Point = { x: 415, y: 690 };
+export const WANDER: readonly [Point, Point] = [{ x: 365, y: 772 }, { x: 558, y: 868 }];
 const WANDER_WALK_SECONDS = 6;
 const WANDER_REST_SECONDS = 4;
 
@@ -91,7 +91,7 @@ export function patientPose(seconds: number): CritterPose | null {
 
 /** Chansey waits by the door and turns to watch the arriving patient. */
 export function greeterPose(seconds: number, patient: CritterPose | null): CritterPose {
-  const row = patient ? facingRow(patient.x - GREETER.x, patient.y - GREETER.y) : 7;
+  const row = patient ? facingRow(patient.x - GREETER.x, patient.y - GREETER.y) : 1;
   return { species: 'Chansey', animation: 'idle', row, x: GREETER.x, y: GREETER.y, scale: depthScale(GREETER.y), alpha: 1,
     clock: seconds };
 }

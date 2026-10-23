@@ -1,0 +1,13 @@
+# Painted cloud style correction
+
+Generated with the built-in image tool in edit mode. References: `../menu-clinic-night.png` for style and `02-clouds-loop.png` for the layer being replaced. Raw output: `02-clouds-painted-source.png`.
+
+## Prompt
+
+Use case: style-transfer. Image 1 is the EXACT visual style reference: the twilight clinic illustration, especially its small muted clouds. Image 2 is the transparent cloud layer to REPAINT. Produce ONLY a transparent looping cloud layer, canvas 1672x941. Match image 1's restrained low-contrast violet/mauve cloud colors, hand-painted pixel clusters, jagged broken silhouettes and small irregular stratus wisps. Image 2 is too bright, voluminous, glossy and cottony: replace it entirely with thinner flatter scattered cloud strands, at least 50 percent less total cloud coverage, NO white/silver rims, NO peach-gold highlights, NO smooth gradients, NO regular dome/semicircle shapes, NO 3D shading, NO dithering checker pattern. Palette of subdued lavender shadows, dusty mauve and occasional muted pink, like the clouds in image 1. A few lumpy pixel clusters are fine but mainly slender ragged horizontal trails. Plenty of open transparent sky between groups. Technical layout: 3 independent non-overlapping horizontal bands, clouds confined within y30..105, y145..220, and y260..325. Leave y0..25, y110..140, y225..255 and EVERYTHING below y335 fully transparent so bands can move independently without cut silhouettes. Leave x0..100 and x1572..1672 fully transparent at every height. Complete cloud ends gently taper; don't clip any clouds at frame boundaries. Scatter clouds at different x positions in each band, NOT a sprite atlas or boxed icons. Real alpha transparency, no background sky, no stars, no mountains/buildings/trees/smoke, no labels. The output must harmonize quietly with the illustrated clinic, not stand out.
+
+## Registration and runtime
+
+The generated clouds occupy three separated banks. Registered onto a 1672 × 941 transparent canvas, drawing the source at 1640 × 470 with a 16-pixel horizontal inset at the top. This makes the clouds thin wisps and guarantees completely clear side gutters. Export: `02-clouds-painted.png`, WebP quality 90 / alpha quality 100.
+
+Runtime strips: y=0..164 (170 seconds, alpha 1), y=165..254 (270 seconds, alpha 0.9), y=255..359 (420 seconds, alpha 0.7). Each strip uses two adjacent native-size copies and wraps rightward modulo 1672. Source areas between banks contain at most alpha 1 residual pixels; no substantial silhouette crosses the strip boundaries. The composed preview and OpenRaster document use the full layer at normal opacity.

@@ -1,79 +1,47 @@
-import { createFoliageLayers } from './menuFoliage.js';
-import { ART_WIDTH, ART_HEIGHT, CLOUDS, SMOKE, LIGHTS,
-  cloudPixel, smokePixel, skyOccluder, inSky, cloudBandWeight, cloudOffset, smokePuff, lightStrength, horizonLine,
-  type Region, type Pixel } from './menuAtmosphereModel.js';
+import { ART_WIDTH, ART_HEIGHT, CHIMNEY, SMOKE, SMOKE_COUNT, LIGHTS,
+  smokePuff, lightStrength } from './menuAtmosphereModel.js';
+import { CLOUD_ART_BANDS, cloudOffset } from './menuCloudsModel.js';
 
-interface Layer { image: HTMLCanvasElement; region: Region }
+export interface AtmosphereArt {
+  landscape: CanvasImageSource;
+  clouds: CanvasImageSource;
+  rearTrees: CanvasImageSource;
+  clinic: CanvasImageSource;
+  trees: CanvasImageSource;
+  smoke: CanvasImageSource;
+}
+export interface AtmosphereActors {
+  sky?(context: CanvasRenderingContext2D): void;
+  ground?(context: CanvasRenderingContext2D): void;
+}
 export interface AtmosphereLayers {
-  /**
-   * `sky` paints flyers in front of the clouds and returns the area it touched; the scenery below the
-   * horizon is then repainted there so flyers pass behind whole trees.
-   */
-  draw(context: CanvasRenderingContext2D, seconds: number, sky?: (context: CanvasRenderingContext2D) => Region | null): void;
+  draw(context: CanvasRenderingContext2D, seconds: number, actors?: AtmosphereActors): void;
   dispose(): void;
 }
 
-export function createAtmosphereLayers(document: Document, original: CanvasImageSource,
-  plate: CanvasImageSource): AtmosphereLayers {
+export function createAtmosphereLayers(document: Document, art: AtmosphereArt): AtmosphereLayers {
   const surfaces: HTMLCanvasElement[] = [];
-  let foliage: ReturnType<typeof createFoliageLayers> | undefined;
+  let disposed = false;
   const surface = (width = ART_WIDTH, height = ART_HEIGHT) => {
     const canvas = document.createElement('canvas');
     canvas.width = width; canvas.height = height;
     surfaces.push(canvas);
     const context = canvas.getContext('2d');
-    if (!context) throw new Error('Canvas unavailable');
+    if (!context) throw new Error('Atmosphere canvas unavailable');
     return { canvas, context };
   };
+  const dispose = () => { disposed = true; surfaces.forEach(canvas => { canvas.width = canvas.height = 0; }); };
   try {
-    const source = surface();
-    const clean = surface();
-    source.context.drawImage(original, 0, 0, ART_WIDTH, ART_HEIGHT);
-    clean.context.drawImage(plate, 0, 0, ART_WIDTH, ART_HEIGHT);
-    const pixels = source.context.getImageData(0, 0, ART_WIDTH, ART_HEIGHT);
-    const behind = clean.context.getImageData(0, 0, ART_WIDTH, ART_HEIGHT);
-    foliage = createFoliageLayers(document, pixels.data);
-    const rgb = (data: Uint8ClampedArray, index: number): Pixel => [data[index]!, data[index + 1]!, data[index + 2]!];
-    const cutout = (region: Region, select: (a: Pixel, b: Pixel, x: number, y: number) => boolean, feather = 0, residual = false, opacity: (y: number) => number = () => 1): Layer => {
-      const target = surface(region.width, region.height);
-      const image = target.context.createImageData(region.width, region.height);
-      for (let y = 0; y < region.height; y++) for (let x = 0; x < region.width; x++) {
-        const from = ((region.y + y) * ART_WIDTH + region.x + x) * 4;
-        const to = (y * region.width + x) * 4;
-        if (!select(rgb(pixels.data, from), rgb(behind.data, from), region.x + x, region.y + y)) continue;
-        image.data.set(pixels.data.subarray(from, from + 4), to);
-        if (residual) for (let channel = 0; channel < 3; channel++) {
-          const background = behind.data[from + channel]!;
-          image.data[to + channel] = Math.max(0, pixels.data[from + channel]! - background) * 255 / Math.max(1, 255 - background);
-        }
-        image.data[to + 3] = Math.round(image.data[to + 3]! * opacity(region.y + y));
-        if (feather) {
-          const edge = Math.min(x, region.width - x - 1, region.y === 0 ? feather : y, region.height - y - 1);
-          image.data[to + 3] = Math.round(255 * Math.min(1, edge / feather));
-        }
-      }
-      target.context.putImageData(image, 0, 0);
-      return { image: target.canvas, region };
+    const occluder = (image: CanvasImageSource) => {
+      const { canvas, context } = surface();
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, ART_WIDTH, ART_HEIGHT);
+      // Generated interiors have alpha 252–254; make them solid while retaining branch-edge transparency.
+      for (let i = 3; i < pixels.data.length; i += 4) if (pixels.data[i]! >= 240) pixels.data[i] = 255;
+      context.putImageData(pixels, 0, 0);
+      return canvas;
     };
-    const inSmoke = (x: number, y: number) => x >= SMOKE.x && x < SMOKE.x + SMOKE.width &&
-      y >= SMOKE.y && y < SMOKE.y + SMOKE.height;
-    const clouds = CLOUDS.map((region, index) => cutout(region,
-      (a, b, x, y) => inSky(x,y) && !inSmoke(x,y) && !skyOccluder(a) && cloudPixel(a,b),
-      0, true, y => cloudBandWeight(y,index)));
-    const skyRegion = { x: 0, y: 0, width: ART_WIDTH, height: 400 };
-    const skyMask = cutout(skyRegion, (a, _b, x, y) => inSky(x,y) && !skyOccluder(a) && !inSmoke(x,y));
-    const smoke = cutout(SMOKE, smokePixel);
-    const smokeMask = cutout(SMOKE, () => true, 8);
-    const base = surface();
-    base.context.drawImage(source.canvas, 0, 0);
-    base.context.globalCompositeOperation = 'destination-out';
-    for (const { image, region } of [skyMask, smokeMask]) base.context.drawImage(image, region.x, region.y);
-    base.context.globalCompositeOperation = 'destination-over';
-    base.context.drawImage(clean.canvas, 0, 0);
-    // Foreground branches and stars must stay in front of drifting cloud sprites.
-    const occlusion = cutout(skyRegion, (a, _b, x, y) => (!inSky(x,y) || skyOccluder(a)) && !inSmoke(x, y));
-    const horizon = horizonLine(pixels.data, ART_WIDTH, skyRegion.height);
-    const forest = cutout(skyRegion, (_a, _b, x, y) => y >= horizon[x]!);
+    const clinic = occluder(art.clinic), trees = occluder(art.trees), rearTrees = occluder(art.rearTrees);
     const halo = surface(96, 96);
     const gradient = halo.context.createRadialGradient(48, 48, 0, 48, 48, 48);
     gradient.addColorStop(0, 'rgba(255,207,103,1)');
@@ -82,42 +50,50 @@ export function createAtmosphereLayers(document: Document, original: CanvasImage
     halo.context.fillStyle = gradient;
     halo.context.fillRect(0, 0, 96, 96);
     return {
-      draw(context, seconds, sky) {
-        context.clearRect(0, 0, ART_WIDTH, ART_HEIGHT);
-        context.drawImage(base.canvas, 0, 0);
-        context.globalCompositeOperation = 'screen';
-        for (const [index, { image, region }] of clouds.entries()) {
-          context.drawImage(image, region.x + cloudOffset(seconds, index), region.y);
-        }
-        context.globalCompositeOperation = 'source-over';
-        const flown = sky?.(context);
-        if (flown) {
-          const x = Math.max(0, Math.floor(flown.x)), y = Math.max(0, Math.floor(flown.y));
-          const width = Math.min(ART_WIDTH, Math.ceil(flown.x + flown.width)) - x;
-          const height = Math.min(skyRegion.height, Math.ceil(flown.y + flown.height)) - y;
-          if (width > 0 && height > 0) context.drawImage(forest.image, x, y, width, height, x, y, width, height);
-        }
-        context.drawImage(occlusion.image, 0, 0);
-        foliage!.draw(context, seconds);
-        for (let i = 0; i < 8; i++) {
-          const puff = smokePuff(seconds, i);
-          context.globalAlpha = puff.opacity;
-          const width = SMOKE.width * puff.scale, height = SMOKE.height * puff.scale;
-          context.drawImage(smoke.image, puff.x - width * .82, puff.y - height, width, height);
-        }
-        context.globalCompositeOperation = 'screen';
-        LIGHTS.forEach(({ x, y, radius }, index) => {
-          context.globalAlpha = lightStrength(seconds, index);
-          context.drawImage(halo.canvas, x - radius, y - radius, radius * 2, radius * 2);
-        });
-        context.globalAlpha = 1;
-        context.globalCompositeOperation = 'source-over';
+      draw(context, seconds, actors) {
+        if (disposed) return;
+        context.save();
+        try {
+          context.globalAlpha = 1;
+          context.globalCompositeOperation = 'source-over';
+          context.imageSmoothingEnabled = true;
+          context.clearRect(0, 0, ART_WIDTH, ART_HEIGHT);
+          context.drawImage(art.landscape, 0, 0);
+          for (const band of CLOUD_ART_BANDS) {
+            const x = cloudOffset(seconds, band.loopSeconds);
+            context.globalAlpha = band.alpha;
+            for (const left of [x - ART_WIDTH, x]) {
+              context.drawImage(art.clouds, 0, band.top, ART_WIDTH, band.height,
+                left, band.top, ART_WIDTH, band.height);
+            }
+          }
+          context.globalAlpha = 1;
+          const drawActors = (draw?: (context: CanvasRenderingContext2D) => void) => {
+            context.save();
+            try { draw?.(context); } finally { context.restore(); }
+          };
+          drawActors(actors?.sky);
+          context.drawImage(rearTrees, 0, 0);
+          context.drawImage(clinic, 0, 0);
+          context.globalCompositeOperation = 'screen';
+          LIGHTS.forEach(({ x, y, radius }, index) => {
+            context.globalAlpha = lightStrength(seconds, index);
+            context.drawImage(halo.canvas, x - radius, y - radius, radius * 2, radius * 2);
+          });
+          context.globalAlpha = 1;
+          context.globalCompositeOperation = 'source-over';
+          drawActors(actors?.ground);
+          context.drawImage(trees, 0, 0);
+          for (let i = 0; i < SMOKE_COUNT; i++) {
+            const puff = smokePuff(seconds, i);
+            context.globalAlpha = puff.opacity;
+            context.drawImage(art.smoke, SMOKE.x, SMOKE.y, SMOKE.width, SMOKE.height,
+              puff.x - (CHIMNEY.x - SMOKE.x) * puff.scale, puff.y - (CHIMNEY.y - SMOKE.y) * puff.scale,
+              SMOKE.width * puff.scale, SMOKE.height * puff.scale);
+          }
+        } finally { context.restore(); }
       },
-      dispose() { foliage?.dispose(); surfaces.forEach(canvas => { canvas.width = canvas.height = 0; }); },
+      dispose,
     };
-  } catch (error) {
-    foliage?.dispose();
-    surfaces.forEach(canvas => { canvas.width = canvas.height = 0; });
-    throw error;
-  }
+  } catch (error) { dispose(); throw error; }
 }
