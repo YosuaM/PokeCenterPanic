@@ -230,7 +230,7 @@ export function createCenter3DEnvironment(scene: THREE.Scene): Center3DEnvironme
         (bench + 1) * WAITING_SEATS_PER_BENCH)) {
         stationShape(obstacleIndex, slot.x, 0.45, slot.z, 0.92, 0.07, 0.87,
           colors.cream, 0.035);
-        stationShape(obstacleIndex, slot.x, 0.5, slot.z - 0.29, 0.66, 0.06, 0.2,
+        stationShape(obstacleIndex, slot.x, 0.5, waiting.z + waiting.depth / 2 - 0.2, 0.66, 0.06, 0.2,
           colors.tealLight, 0.025);
       }
     }

@@ -35,6 +35,8 @@ export interface Center3DCharacter {
   carried: boolean;
   patienceRatio?: number;
   faintProgress?: number;
+  /** Sitting still on a waiting sofa: holds its pose and only fidgets now and then. */
+  seated?: boolean;
 }
 
 interface CharacterSprite {
@@ -50,6 +52,51 @@ interface CharacterSprite {
 }
 
 const PMD_WORLD_SCALE = 2.5 / 48;
+/**
+ * Where a lying patient rests relative to the stretcher centre: toward the pillow end (-x), onto the
+ * front half of the mattress (+z) and slightly into the cushion, so it lies on it instead of hovering.
+ */
+export const STRETCHER_LYING_OFFSET = new THREE.Vector3(-0.1, -0.06, 0.3);
+const STRETCHER_LYING_SCALE = 0.85;
+const STRETCHER_LYING_MAX_WIDTH = 1.45;
+
+/** Lying patients shrink a little, and wide poses more, so their bodies fit on the mattress. */
+export function stretcherLyingScale(frameWidth: number): number {
+  return Math.min(STRETCHER_LYING_SCALE, STRETCHER_LYING_MAX_WIDTH / spriteWorldSize(frameWidth, 1).width);
+}
+export const SEATED_IDLE_REST_MS = 5_000;
+const SEATED_IDLE_JITTER_MS = 2_500;
+
+/** Walk while moving, lie down on a stretcher, otherwise idle; skips sheets that failed to load. */
+export function characterAnimation(species: SpeciesSprite | undefined, loaded: (image: string) => boolean,
+  moving: boolean, carried: boolean): SpriteAnimation | undefined {
+  if (carried && species?.laying && loaded(species.laying.image)) return species.laying;
+  return moving && species?.walk && loaded(species.walk.image) ? species.walk : species?.idle;
+}
+
+/** Frame of a looping PMD animation at a point in time. */
+export function animationFrame(animation: Pick<SpriteAnimation, 'durations'>, timeMs: number): number {
+  const durations = animation.durations.map((duration) => duration * 1000 / 60);
+  const total = durations.reduce((sum, duration) => sum + duration, 0);
+  let elapsed = ((timeMs % total) + total) % total;
+  for (const [index, duration] of durations.entries()) {
+    if (elapsed < duration) return index;
+    elapsed -= duration;
+  }
+  return 0;
+}
+
+/**
+ * Seated patients rest on the first idle frame and play the idle loop once per cycle; the cycle
+ * length and start depend on the patient so a full waiting room never moves in unison.
+ */
+export function seatedIdleFrame(animation: Pick<SpriteAnimation, 'durations'>, timeMs: number, id: string): number {
+  const seed = [...id].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 7);
+  const idleMs = animation.durations.reduce((sum, duration) => sum + duration, 0) * 1000 / 60;
+  const cycle = idleMs + SEATED_IDLE_REST_MS + seed % SEATED_IDLE_JITTER_MS;
+  const phase = (Math.max(0, timeMs) + seed) % cycle;
+  return phase < idleMs ? animationFrame(animation, phase) : 0;
+}
 
 export function spriteWorldSize(width: number, height: number): { width: number; height: number } {
   return { width: width * PMD_WORLD_SCALE, height: height * PMD_WORLD_SCALE };
@@ -200,6 +247,8 @@ export class Center3DView {
       const padding = new THREE.Vector3(0, visual.footOffset, 0).applyQuaternion(visual.sprite.quaternion);
       visual.sprite.position.sub(padding);
       if (!entity.carried) visual.sprite.position.y -= distress.drop;
+      // The rest offset sways with the stretcher so the patient stays glued to the same spot of mattress.
+      else if (!entity.isPlayer) visual.sprite.position.add(STRETCHER_LYING_OFFSET.clone().applyQuaternion(visual.stretcher.quaternion));
     }
     for (const [id, visual] of this.characters) {
       if (present.has(id)) continue;
@@ -375,7 +424,8 @@ export class Center3DView {
 
   private drawCharacter(visual: CharacterSprite, entity: Center3DCharacter, timeMs: number): void {
     const species = this.manifest?.species.find((entry) => entry.name === entity.species);
-    const animation = this.pickAnimation(species, entity.moving);
+    const animation = characterAnimation(species, (image) => this.images.has(image), entity.moving,
+      entity.carried && !entity.isPlayer);
     const image = animation && this.images.get(animation.image);
     if (!animation || !image) {
       if (visual.frameKey !== `${entity.species}:fallback`) {
@@ -384,9 +434,12 @@ export class Center3DView {
       }
       return;
     }
-    const frame = this.frameAtTime(animation, timeMs);
+    const frame = entity.seated && !entity.moving ? seatedIdleFrame(animation, timeMs, entity.id) :
+      animationFrame(animation, timeMs);
     const row = animationRow(entity.facing, animation.directions);
-    const key = `${animation.image}:${row}:${frame}`;
+    const lying = entity.carried && !entity.isPlayer;
+    const scale = lying ? stretcherLyingScale(animation.frameWidth) : 1;
+    const key = `${animation.image}:${row}:${frame}:${scale}`;
     if (visual.frameKey === key) return;
     this.resizeCharacterTexture(visual, animation.frameWidth, animation.frameHeight);
     const context = visual.canvas.getContext('2d')!;
@@ -396,10 +449,10 @@ export class Center3DView {
       0, 0, animation.frameWidth, animation.frameHeight);
     const pixels = context.getImageData(0, 0, animation.frameWidth, animation.frameHeight).data;
     visual.footOffset = visibleBottomPadding(pixels, animation.frameWidth,
-      animation.frameHeight) * PMD_WORLD_SCALE;
+      animation.frameHeight) * PMD_WORLD_SCALE * scale;
     visual.sprite.position.y = entity.elevation - visual.footOffset;
     const size = spriteWorldSize(animation.frameWidth, animation.frameHeight);
-    visual.sprite.scale.set(size.width, size.height, 1);
+    visual.sprite.scale.set(size.width * scale, size.height * scale, 1);
     visual.texture.needsUpdate = true;
     visual.frameKey = key;
   }
@@ -416,20 +469,5 @@ export class Center3DView {
     visual.sprite.material.map = visual.texture;
     visual.sprite.material.needsUpdate = true;
     previous.dispose();
-  }
-
-  private pickAnimation(species: SpeciesSprite | undefined, moving: boolean): SpriteAnimation | undefined {
-    return moving && species?.walk && this.images.has(species.walk.image) ? species.walk : species?.idle;
-  }
-
-  private frameAtTime(animation: SpriteAnimation, timeMs: number): number {
-    const durations = animation.durations.map((duration) => duration * 1000 / 60);
-    const total = durations.reduce((sum, duration) => sum + duration, 0);
-    let elapsed = timeMs % total;
-    for (const [index, duration] of durations.entries()) {
-      if (elapsed < duration) return index;
-      elapsed -= duration;
-    }
-    return 0;
   }
 }

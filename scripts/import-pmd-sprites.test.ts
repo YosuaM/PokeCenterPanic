@@ -5,7 +5,7 @@ vi.mock('node:fs/promises', () => files);
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-it('imports validated selection sheets only for player species alongside the existing Idle and Walk cache', async () => {
+it('imports selection sheets for player species and stretcher poses for patients alongside Idle and Walk', async () => {
   vi.resetModules(); vi.clearAllMocks();
   vi.spyOn(process.stdout, 'write').mockReturnValue(true);
   vi.spyOn(process.stderr, 'write').mockReturnValue(true);
@@ -14,7 +14,8 @@ it('imports validated selection sheets only for player species alongside the exi
     <FrameHeight>24</FrameHeight><Durations><Duration>4</Duration><Duration>8</Duration></Durations></Anim>`;
   const request = vi.fn(async (url: string) => {
     if (url.endsWith('AnimData.xml')) {
-      return new Response(definition('Idle') + definition('Walk') + definition('Dance') + definition('Rotate'));
+      return new Response(definition('Idle') + definition('Walk') + definition('Dance') + definition('Rotate') +
+        (url.includes('/0054/') ? definition('Sleep') : definition('Laying')));
     }
     if (url.endsWith('credits.txt')) return new Response('Fixture artist');
     if (url.endsWith('0052/Dance-Anim.png')) return new Response(null, { status: 404 });
@@ -37,7 +38,13 @@ it('imports validated selection sheets only for player species alongside the exi
     if (playerIds.includes(species.id)) {
       expect(species.selection.image).toBe(`${species.id}/${species.id === '0052' ? 'Rotate' : 'Dance'}-Anim.png`);
       expect(writes.some(([path]) => path.endsWith(species.selection.image))).toBe(true);
-    } else expect(species.selection).toBeUndefined();
+      expect(species.laying).toBeUndefined();
+    } else {
+      expect(species.selection).toBeUndefined();
+      expect(species.laying.image).toBe(`${species.id}/${species.id === '0054' ? 'Sleep' : 'Laying'}-Anim.png`);
+      expect(writes.some(([path]) => path.endsWith(species.laying.image))).toBe(true);
+    }
   }
   expect(request.mock.calls.filter(([url]) => /(?:Dance|Rotate)-Anim.png$/.test(url))).toHaveLength(5);
+  expect(request.mock.calls.filter(([url]) => /(?:Laying|Sleep)-Anim.png$/.test(url))).toHaveLength(6);
 });

@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { TransportStretcherMotion } from './transportStretcherMotion.js';
 import { TransportStretcherModels, TRANSPORT_STRETCHER_ELEVATION } from './transportStretcherModels.js';
-import { Center3DView, characterElevation, type Center3DCharacter } from './center3dView.js';
+import { Center3DView, STRETCHER_LYING_OFFSET, characterElevation, type Center3DCharacter } from './center3dView.js';
 import { worldPosition } from './center3dLayout.js';
 
 async function asset() {
@@ -128,7 +128,10 @@ describe('transport stretchers', () => {
     for (let frame = 1; frame <= 60; frame++) {
       patient.point.x += 1;
       view.syncCharacters([patient], frame * 1000 / 60);
-      const anchor = group.getObjectByName('TransportAnchor')!.getWorldPosition(new THREE.Vector3());
+      // The patient rests at a fixed spot of the mattress, offset from the anchor and swaying with it.
+      group.updateMatrixWorld(true);
+      const node = group.getObjectByName('TransportAnchor')!;
+      const anchor = node.parent!.localToWorld(node.position.clone().add(STRETCHER_LYING_OFFSET));
       const feet = visual.sprite.position.clone().add(
         new THREE.Vector3(0, visual.footOffset, 0).applyQuaternion(visual.sprite.quaternion));
       expect(feet.distanceTo(anchor)).toBeLessThan(0.00001);

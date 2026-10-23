@@ -42,9 +42,10 @@ export const WAITING_BENCHES: readonly MapObstacle[] = [
   { x: -28, y: 520, width: 240, height: 76 },
   { x: 748, y: 520, width: 240, height: 76 },
 ];
+// Sofas face into the room: patients sit at each cushion's centre, in front of the back against the wall.
 export const WAITING_SLOT_POSITIONS: readonly Point[] = WAITING_BENCHES.flatMap((bench) =>
   Array.from({ length: WAITING_SEATS_PER_BENCH }, (_, index) =>
-    ({ x: bench.x + 39 + index * 54, y: bench.y + 32 })));
+    ({ x: bench.x + 39 + index * 54, y: bench.y + 29 })));
 export const WAITING_INTERACTION_POINTS: readonly Point[] =
   WAITING_SLOT_POSITIONS.map(({ x, y }) => ({ x, y: y - 60 }));
 

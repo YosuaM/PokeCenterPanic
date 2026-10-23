@@ -452,6 +452,44 @@ describe('MapScene', () => {
     scene.setPatients([]);
     expect(hudState().focusedPatientId).toBe('');
   });
+  it('keeps a carried patient lying with its head toward the pillow whichever way the carrier turns', () => {
+    const { scene } = setup();
+    const view = { project: vi.fn((point: { x: number; y: number }) => point),
+      setTarget: vi.fn(), syncCharacters: vi.fn(), syncMedicines: vi.fn(), render: vi.fn() };
+    Object.assign(scene, { center3D: view });
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0, character: 'Machoke' }], 'red');
+    scene.setPatients([{ id: 'patient', species: 'Squirtle', requiredTreatments: 1, completedTreatments: 0,
+      initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active', location: 'carrier',
+      slotIndex: -1, carrierId: 'red' }]);
+    for (const facing of ['left', 'up', 'right', 'down'] as const) {
+      scene.setAuthoritativePositions([{ id: 'red', x: 480, y: 375, facing, carriedPatientId: 'patient' }]);
+      scene.update(50, 16);
+      expect(view.syncCharacters.mock.lastCall![0]).toContainEqual(
+        expect.objectContaining({ id: 'patient:patient', carried: true, facing: 'down' }));
+    }
+  });
+
+  it('seats waiting patients facing into the room and marks them as resting', () => {
+    const { scene } = setup();
+    const view = { project: vi.fn((point: { x: number; y: number }) => point),
+      setTarget: vi.fn(), syncCharacters: vi.fn(), syncMedicines: vi.fn(), render: vi.fn() };
+    Object.assign(scene, { center3D: view });
+    const seated = { id: 'seated', species: 'Eevee' as const, requiredTreatments: 1, completedTreatments: 0,
+      initialPatienceMs: 90000, remainingPatienceMs: 90000, lifecycle: 'active' as const,
+      location: 'waiting' as const, slotIndex: 2, carrierId: '' };
+    scene.setPatients([seated, { ...seated, id: 'machine', location: 'healingMachine', slotIndex: 0 }]);
+    scene.update(50, 50);
+    expect(view.syncCharacters).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'patient:seated', facing: 'up', seated: true, moving: false }),
+      expect.objectContaining({ id: 'patient:machine', facing: 'down', seated: false }),
+    ], 50);
+    scene.setPatients([{ ...seated, travelKind: 'arriving', travelElapsedMs: 1000 }]);
+    scene.update(100, 50);
+    expect(view.syncCharacters).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'patient:seated', seated: false, moving: true }),
+    ], 100);
+  });
+
   it('anchors walking arrivals and departures from authoritative travel', () => {
     const { scene, anchors } = setup();
     const view = { project: vi.fn((point: { x: number; y: number }) => point),
@@ -663,6 +701,29 @@ describe('MapScene', () => {
     })));
     expect(sprite.mock.calls.map((call) => call[2])).toEqual(names.map((name) => `${name}:idle`));
   });
+  it('lays a carried patient down with its head on the 2D stretcher pillow and loads that pose', () => {
+    const sheet = (id: string, name: string) => ({ frameWidth: 24, frameHeight: 24, durations: [12], directions: 8,
+      image: `${id}/${name}-Anim.png` });
+    const manifest: SpriteManifest = { source: 'fixture', species: [
+      { name: 'Pikachu', id: '0025', credits: 'Artist', idle: sheet('0025', 'Idle'), laying: sheet('0025', 'Laying') },
+      { name: 'Chansey', id: '0113', credits: 'Artist', idle: sheet('0113', 'Idle') },
+    ] };
+    const { scene, sprite } = setup(manifest);
+    expect(vi.mocked(scene.load.spritesheet)).toHaveBeenCalledWith('Pikachu:laying',
+      '/assets/external/pmd/0025/Laying-Anim.png', { frameWidth: 24, frameHeight: 24 });
+    scene.setPlayers([{ id: 'red', name: 'Red', slot: 0, character: 'Chansey' }], 'red');
+    scene.setAuthoritativePositions([{ id: 'red', x: 470, y: 178, facing: 'right', carriedPatientId: 'patient' }]);
+    scene.setPatients([{ id: 'patient', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 0,
+      initialPatienceMs: 90_000, remainingPatienceMs: 90_000, lifecycle: 'active', location: 'carrier',
+      slotIndex: -1, carrierId: 'red' }]);
+    const patientSprite = sprite.mock.results.find(({ value }) => value.key === 'Pikachu:idle')!.value;
+    expect(patientSprite.play).toHaveBeenLastCalledWith('Pikachu:laying:down');
+    scene.update(50, 70);
+    // The carrier faces right, but the patient keeps the row whose head rests on the pillow.
+    expect(patientSprite.play).toHaveBeenLastCalledWith('Pikachu:laying:down');
+    expect(patientSprite.play).not.toHaveBeenCalledWith('Pikachu:laying:right');
+  });
+
   it('keeps differently sized PMD frames at native pixel scale', () => {
     const manifest: SpriteManifest = { source: 'fixture', species: [
       { name: 'Pikachu', id: '0025', credits: 'Artist', idle: { frameWidth: 40,

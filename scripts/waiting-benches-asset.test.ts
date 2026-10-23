@@ -51,8 +51,17 @@ describe('waiting benches GLB', () => {
       const position = asset.scene.getObjectByName(`WaitingAnchor${seat + 1}`)!.getWorldPosition(new Vector3());
       expect(position.x).toBeCloseTo((WAITING_SLOT_POSITIONS[seat]!.x - bench.x - bench.width / 2) / TILE_SIZE);
       expect(position.y).toBeCloseTo(0.5);
-      expect(position.z).toBeCloseTo(-6/48);
+      expect(position.z).toBeCloseTo((WAITING_SLOT_POSITIONS[seat]!.y - bench.y - bench.height / 2) / TILE_SIZE);
     }
+  });
+
+  it('faces into the room: back against the wall side, seat lights toward the staff', () => {
+    asset.scene.updateMatrixWorld(true);
+    const centre = (name: string) => new Box3().setFromObject(asset.scene.getObjectByName(name)!).getCenter(new Vector3());
+    const anchor = asset.scene.getObjectByName('WaitingAnchor1')!.getWorldPosition(new Vector3());
+    expect(centre('SofaLavenderDeep').z).toBeGreaterThan(anchor.z + 0.2);
+    expect(centre('WaitingGlow1').z).toBeLessThan(anchor.z - 0.2);
+    expect(centre('SofaLavender').z).toBeCloseTo(anchor.z, 1);
   });
 
   it('stays within the mesh, triangle and download budgets', () => {

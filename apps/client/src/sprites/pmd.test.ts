@@ -35,6 +35,17 @@ describe('PMD sprite metadata', () => {
     }
   });
 
+  it('accepts an optional Laying or Sleep stretcher pose and rejects other sheets', () => {
+    for (const name of ['Laying', 'Sleep'] as const) {
+      const layingXml = xml.replace('<Name>Idle</Name>', `<Name>${name}</Name>`);
+      const laying = validateAnimation(layingXml, name, png(32, 24), `0025/${name}-Anim.png`)!;
+      const species = { name: 'Pikachu', id: '0025', credits: 'Fixture artist', idle: { ...laying, image: '0025/Idle-Anim.png' } };
+      expect(parseSpriteManifest({ source: 'fixture', species: [{ ...species, laying }] }).species[0]!.laying).toEqual(laying);
+      expect(() => parseSpriteManifest({ source: 'fixture', species: [{ ...species, laying: { ...laying, image: '0025/Hop-Anim.png' } }] }))
+        .toThrow('Malformed PMD sprite manifest entry');
+    }
+  });
+
   it('supports all six patient species and maps the four player slots deterministically', () => {
     expect(Object.keys(PATIENT_SPRITES)).toEqual([
       'Pikachu', 'Bulbasaur', 'Charmander', 'Squirtle', 'Eevee', 'Psyduck',

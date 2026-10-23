@@ -20,7 +20,7 @@ export interface SpriteAnimation {
   image: string;
 }
 
-export type SpriteAnimationName = 'Idle' | 'Walk' | 'Dance' | 'Rotate';
+export type SpriteAnimationName = 'Idle' | 'Walk' | 'Dance' | 'Rotate' | 'Laying' | 'Sleep';
 
 export interface SpeciesSprite {
   id: string;
@@ -29,6 +29,8 @@ export interface SpeciesSprite {
   idle: SpriteAnimation;
   walk?: SpriteAnimation;
   selection?: SpriteAnimation;
+  /** Pose for patients carried on a stretcher. */
+  laying?: SpriteAnimation;
 }
 
 export interface SpriteManifest {
@@ -123,7 +125,9 @@ export function parseSpriteManifest(value: unknown): SpriteManifest {
       !validAnimation(species.idle, species.id, 'Idle') ||
       (species.walk && !validAnimation(species.walk, species.id, 'Walk')) ||
       (species.selection && !validAnimation(species.selection, species.id, 'Dance') &&
-        !validAnimation(species.selection, species.id, 'Rotate'))) {
+        !validAnimation(species.selection, species.id, 'Rotate')) ||
+      (species.laying && !validAnimation(species.laying, species.id, 'Laying') &&
+        !validAnimation(species.laying, species.id, 'Sleep'))) {
       throw new Error('Malformed PMD sprite manifest entry');
     }
   }

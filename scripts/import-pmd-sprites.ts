@@ -1,9 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PLAYER_SPRITES, SPRITE_IDS, validateAnimation, type SpeciesSprite, type SpriteManifest } from
+import { PATIENT_SPRITES, PLAYER_SPRITES, SPRITE_IDS, validateAnimation, type SpeciesSprite, type SpriteManifest } from
   '../apps/client/src/sprites/pmd.js';
-import { loadSelectionAnimation } from './pmd-selection-animation.js';
+import { loadLayingAnimation, loadSelectionAnimation } from './pmd-selection-animation.js';
 
 const root = fileURLToPath(new URL('../apps/client/public/assets/external/pmd/', import.meta.url));
 const source = 'https://github.com/PMDCollab/SpriteCollab';
@@ -43,14 +43,18 @@ async function main(): Promise<void> {
     const selection = PLAYER_SPRITES.some((character) => character === name) ?
       await loadSelectionAnimation(xml, id, (animation) => fetchResource(`${base}/${animation}-Anim.png`),
         (message) => process.stderr.write(`${name}: ${message}\n`)) : undefined;
+    const laying = name in PATIENT_SPRITES ?
+      await loadLayingAnimation(xml, id, (animation) => fetchResource(`${base}/${animation}-Anim.png`),
+        (message) => process.stderr.write(`${name}: ${message}\n`)) : undefined;
     await mkdir(directory, { recursive: true });
     await writeFile(join(directory, 'Idle-Anim.png'), idleBytes);
     if (walk && walkBytes) await writeFile(join(directory, 'Walk-Anim.png'), walkBytes);
     if (selection) await writeFile(join(root, selection.animation.image), selection.bytes);
+    if (laying) await writeFile(join(root, laying.animation.image), laying.bytes);
     await writeFile(join(directory, 'credits.txt'), `${credits}\n`);
     species.push({ id, name, credits, idle, ...(walk ? { walk } : {}),
-      ...(selection ? { selection: selection.animation } : {}) });
-    process.stdout.write(`${name}: idle${walk ? ', walk' : ''}${selection ? ', selection' : ''}\n`);
+      ...(selection ? { selection: selection.animation } : {}), ...(laying ? { laying: laying.animation } : {}) });
+    process.stdout.write(`${name}: idle${walk ? ', walk' : ''}${selection ? ', selection' : ''}${laying ? ', laying' : ''}\n`);
   }
   const manifest: SpriteManifest = { source, species };
   await writeFile(join(root, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);

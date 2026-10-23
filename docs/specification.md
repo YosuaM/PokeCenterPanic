@@ -486,7 +486,7 @@ Furniture and character sizes are unchanged; the map test suite pins the passage
 
 Essential elements:
 
-- Entrance leading to eight waiting-room seats across two four-seat sofas; the central counter has a separate discharge point.
+- Entrance leading to eight waiting-room seats across two four-seat sofas that face into the room, their backs against the front wall; the central counter has a separate discharge point.
 - Eight waiting slots and the pickup-only recovery area.
 - Two healing machines.
 - Medicine table with two preparation points and one disposal point.
@@ -600,6 +600,10 @@ Display above each patient or in a nearby panel:
 The focus card lists required care with completed entries muted and struck through, or says All treatments complete. Seat numbers identify patients and never imply treatment order. Treatment icons form an unordered checklist. A separate discharge icon appears when every required treatment is complete; the patience bar remains visible until the patient leaves.
 
 Critical labels breathe slowly over a 1.8-second cycle without hiding HP, patience values or treatment names. Discharge-ready icons pulse over 2.4 seconds; critical styling takes priority when both states apply. A known patient's transition from pending care to valid discharge creates a 3.2-second visual notice, grouping simultaneous completions. Duplicate snapshots and initially ready/reconnected patients do not replay it; removal or loss cancels obsolete notices. Respect the system reduced-motion setting by keeping cues and notices steady. Notices and transition history clear when play ends.
+
+Patients carried on a stretcher lie down using their PMD Laying pose (Sleep when a species has none, Idle if neither sheet is cached). The stretcher never turns, and patients keep the pose row whose head points to its pillow end whichever way the carrier walks. They rest on the front half of the mattress toward the pillow, slightly sunk into it and shrunk to fit its length, swaying with the stretcher.
+
+Seated patients sit at the centre of their cushion facing into the room, like their sofa. They hold their first idle frame and play the idle animation only once every five to seven and a half seconds, staggered per patient so a full waiting room never moves in unison; walking and other locations keep the continuous animation.
 
 Avoid long text during gameplay.
 
@@ -1104,5 +1108,6 @@ The priority is to produce a playable prototype for friends quickly, learn from 
 | 0.3 | Activated the timed two-treatment and patience schedule; added the four-patient guided opening, the discharge streak bonus with best streak in results, and first-use contextual tips |
 | 0.4 | Replaced the enlarged clinic with a compact 22 × 14 tile layout: central counter with discharge in the middle, two passages through the counter row, PC corner and recovery at its ends, sofas and planters by the entrance, staff spawning behind the counter, and route budgets pinned by tests |
 | 0.5 | Gave each Pokémon a specialty (faster healing, preparation, carrying, repair or walking), added Chansey's Soft-Boiled and Audino's Calm on Q, and let the host fill open seats with server-side bots that play to their Pokémon's specialty |
+| 0.6 | Replaced the in-game panels with a floating DOM HUD over a tighter camera; turned the waiting sofas to face the room, centred seated patients on their cushions and limited their idle animation to occasional loops; carried patients lie down on the stretcher |
 
 **End of document — Version 0.6**

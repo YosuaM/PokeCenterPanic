@@ -24,8 +24,9 @@ import { patientDistress } from './patientDistress.js';
 import { visualFixture, type VisualFixture } from './visualFixtures.js';
 import { Center3DView, characterElevation, type Center3DCharacter } from './center3dView.js';
 import { animationRow, parseSpriteManifest, patientRenderPosition, playerSpriteSpecies,
-  spriteMotion, type SpriteAnimation, type SpriteManifest } from '../sprites/pmd.js';
+  spriteMotion, type SpeciesSprite, type SpriteAnimation, type SpriteManifest } from '../sprites/pmd.js';
 
+const STRETCHER_FACING: Direction = 'down';
 const PATIENT_SLOT_TARGET = /^(?:(?:reception|waiting):\d+|recovery)$/;
 const ACTIONABLE_LABEL = /^(?:Pick up |Place|Discharge patient|Apply |Discard medicine|Hold E:|Preparing )/;
 const PLAYER_COLORS = [0x4cc9c0, 0xf29c75, 0xb2a0f7, 0xf5ce69];
@@ -35,6 +36,13 @@ const PATIENT_LABEL_HEIGHT = 1.45;
 const MACHINE_LABEL_HEIGHT = 1.1;
 const PREPARATION_LABEL_HEIGHT = 1.9;
 const DISCHARGE_LABEL_HEIGHT = 2.2;
+
+type SheetName = 'idle' | 'walk' | 'laying';
+
+/** PMD sheets the scene loads for a species, keyed by their animation role. */
+function spriteSheets(species: SpeciesSprite): [SheetName, SpriteAnimation | undefined][] {
+  return [['idle', species.idle], ['walk', species.walk], ['laying', species.laying]];
+}
 
 interface Avatar {
   /** Phaser body for the 2D fallback; the 3D view draws characters itself. */
@@ -467,14 +475,16 @@ export class MapScene extends Phaser.Scene {
         healingMachines: HEALING_MACHINE_POSITIONS,
       }, this.avatars.get(patient.carrierId)?.position);
       if (!point) continue;
-      const facing = travel?.facing ?? (carried ?
-        this.authoritativePositions.get(patient.carrierId)?.facing ?? 'down' : 'down');
+      const seated = !travel && patient.location === 'waiting';
+      // Seated patients face into the room, like the sofas they sit on; carried ones keep the PMD
+      // lying row whose head points left, onto the stretcher pillow, whichever way the carrier turns.
+      const facing = travel?.facing ?? (carried ? STRETCHER_FACING : seated ? 'up' : 'down');
       if (this.center3D) {
         const elevation = travel?.elevation ?? characterElevation(patient.location);
         entities.push({ id: `patient:${patient.id}`, species: patient.species, point,
           elevation, facing, moving: travel?.moving ?? false, isPlayer: false,
           carried, patienceRatio: patientPatienceRatio(patient),
-          faintProgress: this.faintProgress(patient, time) });
+          faintProgress: this.faintProgress(patient, time), seated });
         patientAnchors.set(patient.id, this.center3D.project(point, elevation + PATIENT_LABEL_HEIGHT));
         continue;
       }
@@ -483,7 +493,7 @@ export class MapScene extends Phaser.Scene {
       if (marker && (travel || carried)) {
         marker.container.setPosition(screen.x, screen.y - (carried ? 28 : 0));
         marker.container.setDepth(point.y + (carried ? 1 : 0));
-        if (marker.sprite) this.playSprite(marker.sprite, patient.species, facing, travel?.moving ?? false);
+        if (marker.sprite) this.playSprite(marker.sprite, patient.species, facing, travel?.moving ?? false, carried);
       }
       const faint = this.faintProgress(patient, time);
       if (marker && faint !== undefined) {
@@ -668,6 +678,8 @@ export class MapScene extends Phaser.Scene {
       const stretcher = carried ? this.textures.exists('stretcher') ? this.add.image(0, 9, 'stretcher') :
         this.add.rectangle(0, 9, 42, 16, 0xe7e3d3).setStrokeStyle(2, 0x593a30) : null;
       const sprite = this.createSprite(patient.species, 0, carried ? 8 : 12);
+      if (sprite && patient.location === 'waiting' && !patient.travelKind) this.playSprite(sprite, patient.species, 'up', false);
+      if (sprite && carried) this.playSprite(sprite, patient.species, 'down', false, true);
       const body = sprite ?? this.add.rectangle(0, carried ? 0 : -12, carried ? 40 : 28, carried ? 19 : 25,
         carried ? 0xe7e3d3 : 0xf6c76a).setStrokeStyle(2, 0x593a30);
       const screen = mapViewportPoint(position);
@@ -746,7 +758,7 @@ export class MapScene extends Phaser.Scene {
       return;
     }
     for (const species of this.spriteManifest.species) {
-      for (const [name, animation] of [['idle', species.idle], ['walk', species.walk]] as const) {
+      for (const [name, animation] of spriteSheets(species)) {
         if (!animation) continue;
         this.load.spritesheet(`${species.name}:${name}`, `/assets/external/pmd/${animation.image}`,
           { frameWidth: animation.frameWidth, frameHeight: animation.frameHeight });
@@ -762,7 +774,7 @@ export class MapScene extends Phaser.Scene {
       if (this.center3D) {
         const images = new Map<string, CanvasImageSource>();
         for (const species of this.spriteManifest?.species ?? []) {
-          for (const [name, animation] of [['idle', species.idle], ['walk', species.walk]] as const) {
+          for (const [name, animation] of spriteSheets(species)) {
             if (!animation || !this.textures.exists(`${species.name}:${name}`)) continue;
             const source = this.textures.get(`${species.name}:${name}`).source[0]?.image;
             if (source instanceof HTMLImageElement || source instanceof HTMLCanvasElement) {
@@ -781,7 +793,7 @@ export class MapScene extends Phaser.Scene {
 
   private registerAnimations(): void {
     for (const species of this.spriteManifest?.species ?? []) {
-      for (const [name, animation] of [['idle', species.idle], ['walk', species.walk]] as const) {
+      for (const [name, animation] of spriteSheets(species)) {
         if (!animation || !this.textures.exists(`${species.name}:${name}`)) continue;
         this.textures.get(`${species.name}:${name}`).setFilter(Phaser.Textures.FilterMode.NEAREST);
         for (const facing of ['down', 'right', 'up', 'left'] as const) {
@@ -805,14 +817,15 @@ export class MapScene extends Phaser.Scene {
     return sprite;
   }
 
-  private spriteAnimation(species: string, name: 'idle' | 'walk'): SpriteAnimation | undefined {
+  private spriteAnimation(species: string, name: SheetName): SpriteAnimation | undefined {
     return this.spriteManifest?.species.find((entry) => entry.name === species)?.[name];
   }
 
   private playSprite(sprite: Phaser.GameObjects.Sprite, species: string, facing: Direction,
-    moving: boolean): void {
-    const name = moving && this.spriteAnimation(species, 'walk') &&
-      this.textures.exists(`${species}:walk`) ? 'walk' : 'idle';
+    moving: boolean, laying = false): void {
+    const available = (name: SheetName) => Boolean(this.spriteAnimation(species, name)) &&
+      this.textures.exists(`${species}:${name}`);
+    const name = laying && available('laying') ? 'laying' : moving && available('walk') ? 'walk' : 'idle';
     const key = `${species}:${name}:${facing}`;
     if (this.anims.exists(key) && sprite.anims.currentAnim?.key !== key) sprite.play(key);
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { loadSelectionAnimation } from './pmd-selection-animation.js';
+import { loadLayingAnimation, loadSelectionAnimation } from './pmd-selection-animation.js';
 
 const definition = (name: string) => `<Anim><Name>${name}</Name><FrameWidth>16</FrameWidth>
 <FrameHeight>24</FrameHeight><Durations><Duration>4</Duration><Duration>8</Duration></Durations></Anim>`;
@@ -51,5 +51,16 @@ describe('selection animation import', () => {
     request.mockClear();
     expect(await loadSelectionAnimation(definition('Idle'), '0531', request, report)).toBeUndefined();
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it('imports the Laying stretcher pose, falling back to Sleep for species without one', async () => {
+    const request = vi.fn(async () => png());
+    const report = vi.fn();
+    expect((await loadLayingAnimation(definition('Laying') + definition('Sleep'), '0025', request, report))?.animation.image)
+      .toBe('0025/Laying-Anim.png');
+    expect(request).toHaveBeenCalledExactlyOnceWith('Laying');
+    expect((await loadLayingAnimation(definition('Sleep'), '0054', request, report))?.animation.image).toBe('0054/Sleep-Anim.png');
+    expect(await loadLayingAnimation(definition('Idle'), '0054', request, report)).toBeUndefined();
+    expect(report).not.toHaveBeenCalled();
   });
 });
