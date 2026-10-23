@@ -1,11 +1,15 @@
 import { createFoliageLayers } from './menuFoliage.js';
 import { ART_WIDTH, ART_HEIGHT, CLOUDS, SMOKE, LIGHTS,
-  cloudPixel, smokePixel, skyOccluder, inSky, cloudBandWeight, cloudOffset, smokePuff, lightStrength,
+  cloudPixel, smokePixel, skyOccluder, inSky, cloudBandWeight, cloudOffset, smokePuff, lightStrength, horizonLine,
   type Region, type Pixel } from './menuAtmosphereModel.js';
 
 interface Layer { image: HTMLCanvasElement; region: Region }
 export interface AtmosphereLayers {
-  draw(context: CanvasRenderingContext2D, seconds: number): void;
+  /**
+   * `sky` paints flyers in front of the clouds and returns the area it touched; the scenery below the
+   * horizon is then repainted there so flyers pass behind whole trees.
+   */
+  draw(context: CanvasRenderingContext2D, seconds: number, sky?: (context: CanvasRenderingContext2D) => Region | null): void;
   dispose(): void;
 }
 
@@ -68,6 +72,8 @@ export function createAtmosphereLayers(document: Document, original: CanvasImage
     base.context.drawImage(clean.canvas, 0, 0);
     // Foreground branches and stars must stay in front of drifting cloud sprites.
     const occlusion = cutout(skyRegion, (a, _b, x, y) => (!inSky(x,y) || skyOccluder(a)) && !inSmoke(x, y));
+    const horizon = horizonLine(pixels.data, ART_WIDTH, skyRegion.height);
+    const forest = cutout(skyRegion, (_a, _b, x, y) => y >= horizon[x]!);
     const halo = surface(96, 96);
     const gradient = halo.context.createRadialGradient(48, 48, 0, 48, 48, 48);
     gradient.addColorStop(0, 'rgba(255,207,103,1)');
@@ -76,7 +82,7 @@ export function createAtmosphereLayers(document: Document, original: CanvasImage
     halo.context.fillStyle = gradient;
     halo.context.fillRect(0, 0, 96, 96);
     return {
-      draw(context, seconds) {
+      draw(context, seconds, sky) {
         context.clearRect(0, 0, ART_WIDTH, ART_HEIGHT);
         context.drawImage(base.canvas, 0, 0);
         context.globalCompositeOperation = 'screen';
@@ -84,6 +90,13 @@ export function createAtmosphereLayers(document: Document, original: CanvasImage
           context.drawImage(image, region.x + cloudOffset(seconds, index), region.y);
         }
         context.globalCompositeOperation = 'source-over';
+        const flown = sky?.(context);
+        if (flown) {
+          const x = Math.max(0, Math.floor(flown.x)), y = Math.max(0, Math.floor(flown.y));
+          const width = Math.min(ART_WIDTH, Math.ceil(flown.x + flown.width)) - x;
+          const height = Math.min(skyRegion.height, Math.ceil(flown.y + flown.height)) - y;
+          if (width > 0 && height > 0) context.drawImage(forest.image, x, y, width, height, x, y, width, height);
+        }
         context.drawImage(occlusion.image, 0, 0);
         foliage!.draw(context, seconds);
         for (let i = 0; i < 8; i++) {

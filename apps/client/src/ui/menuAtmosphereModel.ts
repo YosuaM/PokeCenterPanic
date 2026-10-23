@@ -47,6 +47,29 @@ export function skyOccluder([r, g, b]: Pixel): boolean {
   return (r < 65 && g < 100 && b < 112) || (r < g && b < g * 1.8 && b < 180) ||
     (r > 195 && g > 195 && b > 205);
 }
+/** Dark tree and roof pixels, including the moonlit blue edges that read as sky by hue alone. */
+export function foregroundPixel([r, g, b]: Pixel): boolean {
+  return (r < 65 && g < 100 && b < 112) || (r < g && b < g * 1.8 && b < 180) || (b < r * 1.35 + 40 && r < 120 && b < 150);
+}
+
+/**
+ * Per column, the first row of a solid foreground run: everything at or below it hides flyers, so they
+ * pass behind whole tree silhouettes instead of showing through their bluish edges. Columns without
+ * foreground above `limit` return `limit`.
+ */
+export function horizonLine(pixels: Uint8ClampedArray, width: number, limit: number, run = 10): Int16Array {
+  const horizon = new Int16Array(width).fill(limit);
+  for (let x = 0; x < width; x += 1) {
+    let length = 0;
+    for (let y = 0; y < limit; y += 1) {
+      const index = (y * width + x) * 4;
+      if (!foregroundPixel([pixels[index]!, pixels[index + 1]!, pixels[index + 2]!])) { length = 0; continue; }
+      if (++length >= run) { horizon[x] = y - run + 1; break; }
+    }
+  }
+  return horizon;
+}
+
 export function cloudOffset(seconds: number, index: number): number {
   const phase = index * .7;
   return Math.sin(seconds * .035) * 70 + (Math.sin(seconds * .055 + phase) - Math.sin(phase)) * 3;

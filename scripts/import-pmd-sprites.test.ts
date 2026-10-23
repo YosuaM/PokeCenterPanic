@@ -15,7 +15,7 @@ it('imports selection sheets for player species and stretcher poses for patients
   const request = vi.fn(async (url: string) => {
     if (url.endsWith('AnimData.xml')) {
       return new Response(definition('Idle') + definition('Walk') + definition('Dance') + definition('Rotate') +
-        (url.includes('/0054/') ? definition('Sleep') : definition('Laying')));
+        definition('Hover') + (url.includes('/0054/') ? definition('Sleep') : definition('Laying')));
     }
     if (url.endsWith('credits.txt')) return new Response('Fixture artist');
     if (url.endsWith('0052/Dance-Anim.png')) return new Response(null, { status: 404 });
@@ -30,7 +30,7 @@ it('imports selection sheets for player species and stretcher poses for patients
   await vi.waitFor(() => expect(files.writeFile.mock.calls.some(([path]) => String(path).endsWith('manifest.json'))).toBe(true));
   const writes = files.writeFile.mock.calls;
   const manifest = JSON.parse(String(writes.find(([path]) => path.endsWith('manifest.json'))![1]));
-  expect(manifest.species).toHaveLength(10);
+  expect(manifest.species).toHaveLength(11);
   for (const species of manifest.species) {
     expect(species.idle.image).toBe(`${species.id}/Idle-Anim.png`);
     expect(species.walk.image).toBe(`${species.id}/Walk-Anim.png`);
@@ -39,6 +39,12 @@ it('imports selection sheets for player species and stretcher poses for patients
       expect(species.selection.image).toBe(`${species.id}/${species.id === '0052' ? 'Rotate' : 'Dance'}-Anim.png`);
       expect(writes.some(([path]) => path.endsWith(species.selection.image))).toBe(true);
       expect(species.laying).toBeUndefined();
+    } else if (species.name === 'Lugia') {
+      expect(species.id).toBe('0249');
+      expect(species.selection).toBeUndefined();
+      expect(species.laying).toBeUndefined();
+      expect(species.hover.image).toBe('0249/Hover-Anim.png');
+      expect(writes.some(([path]) => path.endsWith('0249/Hover-Anim.png'))).toBe(true);
     } else {
       expect(species.selection).toBeUndefined();
       expect(species.laying.image).toBe(`${species.id}/${species.id === '0054' ? 'Sleep' : 'Laying'}-Anim.png`);
@@ -47,4 +53,7 @@ it('imports selection sheets for player species and stretcher poses for patients
   }
   expect(request.mock.calls.filter(([url]) => /(?:Dance|Rotate)-Anim.png$/.test(url))).toHaveLength(5);
   expect(request.mock.calls.filter(([url]) => /(?:Laying|Sleep)-Anim.png$/.test(url))).toHaveLength(6);
+  // Only scenery flyers fetch the wing-flapping sheet.
+  expect(request.mock.calls.filter(([url]) => url.endsWith('Hover-Anim.png')).map(([url]) => url))
+    .toEqual([expect.stringContaining('/0249/Hover-Anim.png')]);
 });

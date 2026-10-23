@@ -12,7 +12,7 @@ function setup(failAt = -1) {
       lineTo: vi.fn(), closePath: vi.fn(), clip: vi.fn(), fillRect: vi.fn(),
       save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(), fillStyle: '',
       createRadialGradient: () => ({ addColorStop: vi.fn() }),
-      drawImage: vi.fn((image: { source?: string }) => { if (image.source) source = image.source; }),
+      drawImage: vi.fn<(image: { source?: string }, ...area: number[]) => void>((image) => { if (image.source) source = image.source; }),
       createImageData: (width: number, height: number) => ({ data: new Uint8ClampedArray(width * height * 4) }),
       getImageData: () => {
         const data = new Uint8ClampedArray(ART_WIDTH * ART_HEIGHT * 4);
@@ -47,7 +47,7 @@ describe('independent original-art layers', () => {
     expect(alpha(cloud, 500 - CLOUDS[0]!.x, 100)).toBe(255);
     const smoke = s.canvases.find(c => c.width === SMOKE.width)!;
     expect(alpha(smoke, 200 - SMOKE.x, 175 - SMOKE.y)).toBe(255);
-    const foreground = s.canvases.filter(c => c.height === 400).at(-1)!;
+    const foreground = s.canvases.filter(c => c.height === 400).at(-2)!;
     expect(alpha(foreground, 200, 175)).toBe(0);
     expect(alpha(foreground, 501, 100)).toBe(255);
     expect(alpha(foreground, 600, 100)).toBe(255);
@@ -68,6 +68,43 @@ describe('independent original-art layers', () => {
     expect(target.context.globalCompositeOperation).toBe('source-over');
     layers.dispose();
     expect(s.canvases.every(c => c.width === 0 && c.height === 0)).toBe(true);
+  });
+  it('paints flyers in front of the clouds but behind foreground branches and stars', () => {
+    const s = setup(); const target = s.canvas();
+    const layers = createAtmosphereLayers(s.document as unknown as Document, original, plate);
+    const foreground = s.canvases.filter(c => c.height === 400).at(-2)!;
+    const cloudImages = s.canvases.filter(c => CLOUDS.some(r => r.width === c.width && r.height === c.height));
+    const sky = vi.fn((context: CanvasRenderingContext2D) => {
+      expect(context.globalCompositeOperation).toBe('source-over');
+      return null;
+    });
+    layers.draw(target.context as unknown as CanvasRenderingContext2D, 3, sky);
+    expect(sky).toHaveBeenCalledExactlyOnceWith(target.context);
+    const order = (image: unknown) => target.context.drawImage.mock.invocationCallOrder[
+      target.context.drawImage.mock.calls.findIndex(([drawn]) => drawn === image)]!;
+    const skyOrder = sky.mock.invocationCallOrder[0]!;
+    expect(cloudImages.every(cloud => order(cloud) < skyOrder)).toBe(true);
+    expect(skyOrder).toBeLessThan(order(foreground));
+    // Nobody flew, so no scenery is repainted over the sky.
+    expect(target.context.drawImage.mock.calls.some((call) => call.length === 9)).toBe(false);
+    layers.dispose();
+  });
+  it('repaints the scenery below the horizon over the area a flyer covered, clipped to the sky', () => {
+    const s = setup(); const target = s.canvas();
+    const layers = createAtmosphereLayers(s.document as unknown as Document, original, plate);
+    const foreground = s.canvases.filter(c => c.height === 400).at(-2)!;
+    const sky = vi.fn(() => ({ x: -20.5, y: 350.2, width: 100, height: 80 }));
+    layers.draw(target.context as unknown as CanvasRenderingContext2D, 3, sky);
+    const repaint = target.context.drawImage.mock.calls.findIndex((call) => call.length === 9);
+    expect(target.context.drawImage.mock.calls[repaint]!.slice(1)).toEqual([0, 350, 80, 50, 0, 350, 80, 50]);
+    expect(target.context.drawImage.mock.calls[repaint]![0]).toBe(s.canvases.filter(c => c.height === 400).at(-1));
+    const order = target.context.drawImage.mock.invocationCallOrder;
+    expect(sky.mock.invocationCallOrder[0]!).toBeLessThan(order[repaint]!);
+    expect(order[repaint]!).toBeLessThan(order[target.context.drawImage.mock.calls.findIndex(([image]) => image === foreground)]!);
+    target.context.drawImage.mockClear();
+    layers.draw(target.context as unknown as CanvasRenderingContext2D, 3, () => ({ x: 10, y: 420, width: 50, height: 30 }));
+    expect(target.context.drawImage.mock.calls.some((call) => call.length === 9)).toBe(false);
+    layers.dispose();
   });
   it('releases allocated surfaces when preparation fails', () => {
     const s = setup(5);

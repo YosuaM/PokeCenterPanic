@@ -144,8 +144,8 @@ export class RoomInterface {
     this.panel.setAttribute('aria-busy', String(busy));
     for (const control of [this.name, this.code, this.createTab, this.joinTab,
       this.create.querySelector('button')!, this.join.querySelector('button')!]) control.disabled = busy;
-    this.create.querySelector('button span')!.textContent = busy ? 'Connecting…' : 'Create room';
-    this.join.querySelector('button span')!.textContent = busy ? 'Connecting…' : 'Join room';
+    this.create.querySelector('button span:last-child')!.textContent = busy ? 'Connecting…' : 'Create room';
+    this.join.querySelector('button span:last-child')!.textContent = busy ? 'Connecting…' : 'Join room';
     if (busy) this.showStatus('Connecting to your care crew…');
   }
 

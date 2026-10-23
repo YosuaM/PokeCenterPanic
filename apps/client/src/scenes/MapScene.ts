@@ -25,7 +25,7 @@ import { patientDistress } from './patientDistress.js';
 import { visualFixture, type VisualFixture } from './visualFixtures.js';
 import { Center3DView, characterElevation, type Center3DCharacter } from './center3dView.js';
 import { animationRow, parseSpriteManifest, patientRenderPosition, playerSpriteSpecies,
-  spriteMotion, type SpeciesSprite, type SpriteAnimation, type SpriteManifest } from '../sprites/pmd.js';
+  isScenerySpecies, spriteMotion, type SpeciesSprite, type SpriteAnimation, type SpriteManifest } from '../sprites/pmd.js';
 
 const STRETCHER_FACING: Direction = 'down';
 const PATIENT_SLOT_TARGET = /^(?:(?:reception|waiting):\d+|recovery)$/;
@@ -765,6 +765,7 @@ export class MapScene extends Phaser.Scene {
       return;
     }
     for (const species of this.spriteManifest.species) {
+      if (isScenerySpecies(species.name)) continue;
       for (const [name, animation] of spriteSheets(species)) {
         if (!animation) continue;
         this.load.spritesheet(`${species.name}:${name}`, `/assets/external/pmd/${animation.image}`,

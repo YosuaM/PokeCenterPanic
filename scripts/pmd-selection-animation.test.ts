@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { loadLayingAnimation, loadSelectionAnimation } from './pmd-selection-animation.js';
+import { loadHoverAnimation, loadLayingAnimation, loadSelectionAnimation } from './pmd-selection-animation.js';
 
 const definition = (name: string) => `<Anim><Name>${name}</Name><FrameWidth>16</FrameWidth>
 <FrameHeight>24</FrameHeight><Durations><Duration>4</Duration><Duration>8</Duration></Durations></Anim>`;
@@ -62,5 +62,16 @@ describe('selection animation import', () => {
     expect((await loadLayingAnimation(definition('Sleep'), '0054', request, report))?.animation.image).toBe('0054/Sleep-Anim.png');
     expect(await loadLayingAnimation(definition('Idle'), '0054', request, report)).toBeUndefined();
     expect(report).not.toHaveBeenCalled();
+  });
+
+  it('imports Hover for flyers and reports an unavailable sheet without failing', async () => {
+    const report = vi.fn();
+    const request = vi.fn(async () => png());
+    expect((await loadHoverAnimation(definition('Hover'), '0249', request, report))?.animation.image).toBe('0249/Hover-Anim.png');
+    expect(request).toHaveBeenCalledExactlyOnceWith('Hover');
+    expect(await loadHoverAnimation(definition('Walk'), '0249', request, report)).toBeUndefined();
+    const missing = vi.fn(async () => { throw new Error('404'); });
+    expect(await loadHoverAnimation(definition('Hover'), '0249', missing, report)).toBeUndefined();
+    expect(report).toHaveBeenCalledWith(expect.stringContaining('Optional Hover animation unavailable'));
   });
 });

@@ -707,10 +707,13 @@ describe('MapScene', () => {
     const manifest: SpriteManifest = { source: 'fixture', species: [
       { name: 'Pikachu', id: '0025', credits: 'Artist', idle: sheet('0025', 'Idle'), laying: sheet('0025', 'Laying') },
       { name: 'Chansey', id: '0113', credits: 'Artist', idle: sheet('0113', 'Idle') },
+      { name: 'Lugia', id: '0249', credits: 'Artist', idle: sheet('0249', 'Idle'), walk: sheet('0249', 'Walk') },
     ] };
     const { scene, sprite } = setup(manifest);
     expect(vi.mocked(scene.load.spritesheet)).toHaveBeenCalledWith('Pikachu:laying',
       '/assets/external/pmd/0025/Laying-Anim.png', { frameWidth: 24, frameHeight: 24 });
+    // Title-screen scenery never loads into the clinic.
+    expect(vi.mocked(scene.load.spritesheet).mock.calls.some(([key]) => String(key).startsWith('Lugia'))).toBe(false);
     scene.setPlayers([{ id: 'red', name: 'Red', slot: 0, character: 'Chansey' }], 'red');
     scene.setAuthoritativePositions([{ id: 'red', x: 470, y: 178, facing: 'right', carriedPatientId: 'patient' }]);
     scene.setPatients([{ id: 'patient', species: 'Pikachu', requiredTreatments: 1, completedTreatments: 0,

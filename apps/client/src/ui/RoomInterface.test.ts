@@ -324,7 +324,7 @@ describe('room interface', () => {
     ui.setBusy(true);
     expect(element('#player-name').disabled).toBe(true);
     expect(element('#join-tab').disabled).toBe(true);
-    expect(element('#create-room').querySelector('button span').textContent).toBe('Connecting…');
+    expect(element('#create-room').querySelector('button span:last-child').textContent).toBe('Connecting…');
     submit('#create-room');
     submit('#join-room');
     click('#join-tab');

@@ -16,6 +16,13 @@ export async function loadLayingAnimation(xml: string, id: string,
   return loadFirstAnimation(xml, id, ['Laying', 'Sleep'], fetchSheet, report);
 }
 
+/** Wing-flapping flight for title-screen scenery that flies. */
+export async function loadHoverAnimation(xml: string, id: string,
+  fetchSheet: (name: 'Hover') => Promise<Uint8Array>,
+  report: (message: string) => void): Promise<LoadedAnimation> {
+  return loadFirstAnimation(xml, id, ['Hover'], fetchSheet, report);
+}
+
 async function loadFirstAnimation<Name extends SpriteAnimationName>(xml: string, id: string, names: readonly Name[],
   fetchSheet: (name: Name) => Promise<Uint8Array>, report: (message: string) => void): Promise<LoadedAnimation> {
   for (const name of names) {

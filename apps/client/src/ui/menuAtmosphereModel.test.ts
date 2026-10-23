@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ART_WIDTH, ART_HEIGHT, CLOUDS, SMOKE, cloudPixel, smokePixel,
-  skyOccluder, inSky, cloudBandWeight, cloudOffset, smokePuff, lightStrength } from './menuAtmosphereModel.js';
+  skyOccluder, foregroundPixel, horizonLine, inSky, cloudBandWeight, cloudOffset, smokePuff, lightStrength } from './menuAtmosphereModel.js';
 
 describe('original menu atmosphere motion', () => {
   it('keeps every source region inside the original artwork', () => {
@@ -59,5 +59,28 @@ describe('original menu atmosphere motion', () => {
       expect(Math.abs(lightStrength(t, i) - lightStrength(t + .033, i))).toBeLessThan(.015);
     }
     expect(lightStrength(3, 0)).not.toBe(lightStrength(3, 1));
+  });
+});
+
+describe('flyer horizon', () => {
+  it('treats dark and moonlit tree pixels as foreground but not sky, clouds or stars', () => {
+    expect(foregroundPixel([20, 30, 65])).toBe(true);
+    expect(foregroundPixel([70, 80, 125])).toBe(true);
+    expect(foregroundPixel([40, 55, 170])).toBe(false);
+    expect(foregroundPixel([150, 110, 190])).toBe(false);
+    expect(foregroundPixel([245, 245, 255])).toBe(false);
+  });
+
+  it('finds the top of each solid foreground run per column and ignores short specks', () => {
+    const width = 3, height = 40;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    const paint = (x: number, y: number, rgb: readonly [number, number, number]) => pixels.set([...rgb, 255], (y * width + x) * 4);
+    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) paint(x, y, [40, 55, 170]);
+    for (let y = 3; y < 6; y += 1) paint(0, y, [20, 30, 65]);
+    for (let y = 12; y < height; y += 1) paint(0, y, [20, 30, 65]);
+    for (let y = 20; y < height; y += 1) paint(1, y, [70, 80, 125]);
+    expect(Array.from(horizonLine(pixels, width, height, 10))).toEqual([12, 20, height]);
+    expect(Array.from(horizonLine(pixels, width, 25, 10))).toEqual([12, 25, 25]);
+    expect(Array.from(horizonLine(pixels, width, height, 3))).toEqual([3, 20, height]);
   });
 });

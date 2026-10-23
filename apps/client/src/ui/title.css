@@ -1,0 +1,62 @@
+/* Title screen: a big logo over the living clinic scene and one welcome card, in the spirit of PokéBonk's menu. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+body[data-screen='menu'] .brand, body[data-screen='menu'] .edition { display: none; }
+body[data-screen='menu'] .site-header { justify-content: flex-end; gap: 10px; }
+
+body[data-screen='menu'] .entry-layout { grid-template-columns: minmax(0, 1fr) 430px; align-items: center; }
+body[data-screen='menu'] .hero { align-self: start; padding-top: clamp(0px, 4vh, 40px); }
+body[data-screen='menu'] .game-logo { position: relative; width: min(100%, 700px); }
+.beta-sticker { position: absolute; right: 4%; bottom: 10%; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 4px 4px;
+  border: 3px solid #fff; border-radius: 99px; background: #fff; color: #37324f; box-shadow: 0 4px 0 #1b13334d;
+  font-size: 13px; font-weight: 900; line-height: 1.2; transform: rotate(-7deg); }
+.beta-sticker b { padding: 2px 8px; border-radius: 99px; background: #f4767c; color: #fff; font-size: 11px; letter-spacing: .06em; }
+body[data-screen='menu'] .hero-description { margin-top: 2px; font-size: 18px; font-weight: 900; letter-spacing: .01em;
+  -webkit-text-stroke: 5px #2a1f47; paint-order: stroke fill; text-shadow: 0 4px 0 #2a1f47aa; }
+
+/* Welcome card */
+body[data-screen='menu'] .entry-card { border: 4px solid #fff; border-radius: 26px; box-shadow: 0 8px 0 #2a1f4c66, 0 24px 60px #17102c77; }
+body[data-screen='menu'] .card-topline { min-height: 0; padding: 14px 20px; }
+body[data-screen='menu'] .card-topline h2 { font-size: 23px; }
+body[data-screen='menu'] .card-content { padding: 18px 20px 14px; }
+body[data-screen='menu'] .entry-tabs { margin-top: 14px; }
+body[data-screen='menu'] .room-perks { gap: 6px; margin: 14px 0 16px; }
+body[data-screen='menu'] .room-perks li { min-height: 40px; padding: 7px 12px; background: #f3effa; font-size: 12px; }
+.room-perks .perk-icon { width: 24px; height: 24px; border-radius: 0; background: none; object-fit: contain; image-rendering: pixelated;
+  filter: drop-shadow(0 2px 0 #00000022); }
+body[data-screen='menu'] .primary-button { gap: 12px; min-height: 58px; font-size: 20px; }
+.button-ball { position: relative; display: inline-block; flex: none; width: 24px; height: 24px; border: 2px solid #3b2333; border-radius: 50%;
+  background: linear-gradient(#ff6b6b 0 45%, #3b2333 45% 55%, #fff 55%); box-shadow: 0 2px 0 #b84a5a; }
+.button-ball::after { content: ''; position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; border: 2px solid #3b2333;
+  border-radius: 50%; background: #fff; transform: translate(-50%, -50%); }
+.primary-button:hover:enabled .button-ball { animation: ball-wobble .5s ease-in-out; }
+@keyframes ball-wobble { 25% { transform: rotate(-18deg); } 75% { transform: rotate(14deg); } }
+.card-note { display: flex; align-items: center; gap: 7px; margin: 14px 0 0; color: #8c819a; font-size: 10px; }
+
+/* Footer: fan-game notice in small print, like a game's legal line */
+body[data-screen='menu'] .site-footer { justify-content: center; }
+body[data-screen='menu'] .footer-tagline { max-width: 560px; margin: 0 auto; font-size: 10px; line-height: 1.5; text-align: center; }
+.footer-tagline .text-button { padding: 0; color: #ffd36a; font-size: inherit; text-decoration: underline; }
+
+@media (max-width: 1100px) {
+  body[data-screen='menu'] .entry-layout { grid-template-columns: minmax(0, 1fr) 400px; }
+  body[data-screen='menu'] .hero-description { font-size: 15px; }
+}
+@media (max-width: 850px) {
+  body[data-screen='menu'] .entry-layout { grid-template-columns: 1fr; }
+  body[data-screen='menu'] .hero { padding-top: 0; }
+  body[data-screen='menu'] .game-logo { width: min(80%, 340px); }
+  .beta-sticker { right: -4%; bottom: 6%; font-size: 10px; }
+  .beta-sticker b { font-size: 9px; }
+  body[data-screen='menu'] .hero-description { font-size: 13px; -webkit-text-stroke-width: 4px; }
+  body[data-screen='menu'] .entry-card { width: min(430px, 100%); }
+  body[data-screen='menu'] .footer-tagline { display: block; max-width: 210px; margin-left: auto; margin-right: 0; font-size: 8px; text-align: right; }
+}
+@media (max-height: 520px) and (min-width: 560px) {
+  body[data-screen='menu'] .entry-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 380px); }
+  body[data-screen='menu'] .hero { align-self: center; padding-top: 0; }
+  body[data-screen='menu'] .room-perks { display: none; }
+  body[data-screen='menu'] .site-footer { display: none; }
+}
+body[data-screen='menu'] .menu-motion { padding: 11px 16px; border: 2px solid #ffffff66; border-radius: 22px; background: #241e40b3;
+  font-size: 12px; font-weight: 900; box-shadow: 0 3px 0 #201b3940; }
+@media (max-width: 850px) { body[data-screen='menu'] .menu-motion { padding: 8px 12px; font-size: 10px; } }

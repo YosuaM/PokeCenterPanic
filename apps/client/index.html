@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#262044" />
     <title>PokéCenter Panic</title>
     <link rel="stylesheet" href="/src/ui/room.css" />
+    <link rel="stylesheet" href="/src/ui/title.css" />
     <link rel="stylesheet" href="/src/ui/lobby.css" />
     <link rel="stylesheet" href="/src/ui/hud.css" />
     <link rel="stylesheet" href="/src/ui/menuAtmosphere.css" />
@@ -25,35 +26,31 @@
       <div id="screen-stage" class="screen-stage">
         <div id="room-menu" class="entry-layout">
           <div class="hero">
-            <p class="hero-kicker">A CO-OP POKÉMON FAN GAME</p>
-            <h1 class="game-logo"><img src="/assets/original/pokecenter-panic-logo.webp" width="1774" height="887" alt="PokéCenter Panic" fetchpriority="high" decoding="async" /></h1>
-            <p class="hero-description">Big hearts. Tiny patients. Total chaos.<br>Your next shift starts with friends.</p>
-            <div class="game-facts"><span><b>1–4</b> players</span><span><b>6 min</b> per shift</span><span><b>∞</b> good teamwork</span></div>
+            <h1 class="game-logo"><img src="/assets/original/pokecenter-panic-logo.webp" width="1774" height="887" alt="PokéCenter Panic" fetchpriority="high" decoding="async" /><span class="beta-sticker" aria-hidden="true"><b>BETA</b> v0.1</span></h1>
           </div>
 
           <section class="entry-card" aria-labelledby="entry-title">
             <div class="card-topline"><span class="header-icon" aria-hidden="true">✚</span><h2 id="entry-title">Welcome to the team!</h2></div>
             <div class="card-content">
-              <label for="player-name">Your name <span class="field-note">No sign-up needed!</span></label>
+              <label for="player-name">Your name</label>
               <input id="player-name" name="nickname" form="create-room" maxlength="16" autocomplete="nickname" placeholder="Enter your name…" pattern=".*\S.*" required aria-describedby="name-hint" />
-              <p id="name-hint" class="input-hint">Pick a name your team will recognise. Up to 16 characters.</p>
+              <p id="name-hint" class="visually-hidden">Up to 16 characters, no sign-up needed.</p>
               <div class="entry-tabs" role="tablist" aria-label="Room options">
                 <button id="create-tab" type="button" role="tab" aria-selected="true" aria-controls="create-room">Create a room</button>
                 <button id="join-tab" type="button" role="tab" aria-selected="false" aria-controls="join-room" tabindex="-1">Join a room</button>
               </div>
               <form id="create-room" role="tabpanel" aria-labelledby="create-tab">
-                <ul class="room-perks"><li><span class="perk-icon coral" aria-hidden="true">✚</span><span>Your own private Pokémon Center.</span></li><li><span class="perk-icon purple" aria-hidden="true">♟</span><span>Invite up to 3 friends, or fill seats with bots.</span></li><li><span class="perk-icon gold" aria-hidden="true">★</span><span>Team up for a frantic six-minute shift!</span></li></ul>
-                <button class="primary-button" type="submit"><span>Create room</span><span aria-hidden="true">➜</span></button>
+                <ul class="room-perks"><li><img class="perk-icon" src="/assets/original/icon-heal.png" width="16" height="16" alt="" /><span>Your own private Pokémon Center.</span></li><li><img class="perk-icon" src="/assets/original/icon-ready.png" width="16" height="16" alt="" /><span>Invite up to 3 friends, or fill seats with bots.</span></li><li><img class="perk-icon" src="/assets/original/medicine-bottle.png" width="20" height="28" alt="" /><span>Team up for a frantic six-minute shift!</span></li></ul>
+                <button class="primary-button" type="submit"><span class="button-ball" aria-hidden="true"></span><span>Create room</span></button>
               </form>
               <form id="join-room" role="tabpanel" aria-labelledby="join-tab" hidden>
                 <label for="room-code-input">Room code</label>
                 <input id="room-code-input" class="code-input" minlength="6" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC234" required aria-describedby="code-hint" />
                 <p id="code-hint" class="input-hint">Enter the six-character code from your host.</p>
-                <button class="primary-button" type="submit"><span>Join room</span><span aria-hidden="true">→</span></button>
+                <button class="primary-button" type="submit"><span class="button-ball" aria-hidden="true"></span><span>Join room</span></button>
               </form>
-              <p class="privacy-note">Just you, your friends, and a little medical mayhem.</p>
+              <p class="card-note"><span class="status-dot"></span> 1–4 players · six-minute shifts · solo welcome</p>
             </div>
-            <div class="card-bottomline"><span class="status-dot"></span> Solo shifts welcome. Good teamwork encouraged!</div>
           </section>
         </div>
 
@@ -115,7 +112,7 @@
         </div>
       </div>
       <p id="room-status" role="status" aria-live="polite"></p>
-      <footer class="site-footer"><span class="footer-tagline">An unofficial, noncommercial Pokémon fan game. Made for playing together.</span><div><button class="text-button" type="button" data-dialog="credits-dialog">Credits</button><span class="version">BETA v0.1</span></div></footer>
+      <footer class="site-footer"><p class="footer-tagline">PokéCenter Panic is an unofficial, noncommercial fan game. Pokémon names and characters belong to their respective owners. <button class="text-button" type="button" data-dialog="credits-dialog">Credits</button></p></footer>
     </section>
     <section id="patient-audio" aria-label="Patient alert sounds"><button id="patient-audio-toggle" type="button" aria-label="Patient alert sounds" aria-pressed="true">SOUND ON</button><input id="patient-audio-volume" type="range" min="0" max="100" value="35" aria-label="Alert volume" /></section>
 
@@ -128,7 +125,7 @@
     </dialog>
     <dialog id="credits-dialog" aria-labelledby="credits-title">
       <form method="dialog"><button class="dialog-close text-button" aria-label="Close credits">✕</button></form>
-      <p class="eyebrow">MADE WITH CARE</p><h2 id="credits-title">A little credit.</h2><p>PokéCenter Panic is a noncommercial cooperative fan game. Pokémon names and characters belong to their respective owners.</p><p>Original software is licensed under <a href="https://github.com/YosuaM/PokeCenterPanic/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">GNU GPL v3 only</a>. Clinic geometry, menu artwork, and patient alert sounds are original project work.</p><p>Local PMD sprites are sourced from <a href="https://github.com/PMDCollab/SpriteCollab" target="_blank" rel="noopener noreferrer">PMD Collab</a>. Selected Idle/Walk/Rotate credits: <b>CHUNSOFT</b> (Pikachu, Bulbasaur, Charmander, Squirtle, Eevee, Psyduck, Chansey, Machoke, Meowth); <b>baronessfaron</b> (Audino; prior record: JFain).</p><p class="input-hint">Third-party sprite rights require review before public distribution. See the project's <a href="https://github.com/YosuaM/PokeCenterPanic/blob/main/docs/asset-sources.md" target="_blank" rel="noopener noreferrer">asset sources and credits</a>.</p>
+      <p class="eyebrow">MADE WITH CARE</p><h2 id="credits-title">A little credit.</h2><p>PokéCenter Panic is a noncommercial cooperative fan game. Pokémon names and characters belong to their respective owners.</p><p>Original software is licensed under <a href="https://github.com/YosuaM/PokeCenterPanic/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">GNU GPL v3 only</a>. Clinic geometry, menu artwork, and patient alert sounds are original project work.</p><p>Local PMD sprites are sourced from <a href="https://github.com/PMDCollab/SpriteCollab" target="_blank" rel="noopener noreferrer">PMD Collab</a>. Selected Idle/Walk/Rotate credits: <b>CHUNSOFT</b> (Pikachu, Bulbasaur, Charmander, Squirtle, Eevee, Psyduck, Chansey, Machoke, Meowth, Lugia); <b>baronessfaron</b> (Audino; prior record: JFain).</p><p class="input-hint">Third-party sprite rights require review before public distribution. See the project's <a href="https://github.com/YosuaM/PokeCenterPanic/blob/main/docs/asset-sources.md" target="_blank" rel="noopener noreferrer">asset sources and credits</a>.</p>
     </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>

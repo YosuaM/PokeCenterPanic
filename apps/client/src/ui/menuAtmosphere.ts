@@ -1,5 +1,6 @@
 import { ART_WIDTH, ART_HEIGHT } from './menuAtmosphereModel.js';
 import { createAtmosphereLayers, type AtmosphereLayers } from './menuAtmosphereLayers.js';
+import type { MenuCritters } from './menuCritters.js';
 
 async function loadArt(): Promise<readonly [HTMLImageElement, HTMLImageElement]> {
   const load = async (name: string) => {
@@ -13,7 +14,8 @@ async function loadArt(): Promise<readonly [HTMLImageElement, HTMLImageElement]>
 }
 
 export function initializeMenuAtmosphere(document: Document,
-  load: () => Promise<readonly [CanvasImageSource, CanvasImageSource]> = loadArt): () => void {
+  load: () => Promise<readonly [CanvasImageSource, CanvasImageSource]> = loadArt,
+  loadCritters: () => Promise<MenuCritters | null> = () => Promise.resolve(null)): () => void {
   const canvas = document.querySelector<HTMLCanvasElement>('#menu-atmosphere');
   const button = document.querySelector<HTMLButtonElement>('#menu-motion');
   const window = document.defaultView;
@@ -23,6 +25,11 @@ export function initializeMenuAtmosphere(document: Document,
   canvas.width = ART_WIDTH; canvas.height = ART_HEIGHT;
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   let layers: AtmosphereLayers | undefined;
+  let critters: MenuCritters | null = null;
+  const paint = (seconds: number) => {
+    layers!.draw(context, seconds, critters ? (target) => critters!.drawSky(target, seconds) : undefined);
+    critters?.draw(context, seconds);
+  };
   let disposed = false;
   let paused = false;
   let frame = 0;
@@ -36,7 +43,7 @@ export function initializeMenuAtmosphere(document: Document,
     if (!active() || !layers) return;
     if (last !== undefined) elapsed += Math.min((now - last) / 1000, .1);
     last = now;
-    if (now - painted >= 1000 / 30) { layers.draw(context, elapsed); painted = now; }
+    if (now - painted >= 1000 / 30) { paint(elapsed); painted = now; }
     frame = window.requestAnimationFrame(tick);
   };
   const sync = () => {
@@ -58,9 +65,14 @@ export function initializeMenuAtmosphere(document: Document,
   void load().then(([original, plate]) => {
     if (disposed) return;
     layers = createAtmosphereLayers(document, original, plate);
-    layers.draw(context, 0);
+    paint(0);
     sync();
   }).catch(() => { if (!disposed) { layers?.dispose(); layers = undefined; sync(); } });
+  void loadCritters().then((loaded) => {
+    if (disposed || !loaded) return;
+    critters = loaded;
+    if (layers) paint(elapsed);
+  }).catch(() => {});
   return () => {
     if (disposed) return;
     disposed = true;

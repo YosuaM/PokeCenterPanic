@@ -6,12 +6,13 @@ import { MapScene } from './scenes/MapScene.js';
 import { visualFixture } from './scenes/visualFixtures.js';
 import { RoomInterface } from './ui/RoomInterface.js';
 import { initializeMenuAtmosphere } from './ui/menuAtmosphere.js';
+import { loadMenuCritters } from './ui/menuCritters.js';
 import { CharacterPortraits } from './ui/characterPortraits.js';
 import { invitedCode } from './ui/lobbyModel.js';
 import { ScreenFit } from './ui/screenFit.js';
 
 const game = new Phaser.Game(GAME_CONFIG);
-const disposeAtmosphere = initializeMenuAtmosphere(document);
+const disposeAtmosphere = initializeMenuAtmosphere(document, undefined, () => loadMenuCritters(document));
 import.meta.hot?.dispose(disposeAtmosphere);
 const screenFit = new ScreenFit(document.querySelector<HTMLElement>('#screen-stage')!, document.defaultView);
 import.meta.hot?.dispose(() => screenFit.destroy());

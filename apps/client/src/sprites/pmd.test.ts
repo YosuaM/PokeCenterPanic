@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { animationRow, parseAnimationXml, parseSpriteManifest, patientRenderPosition,
-  playerSpriteSpecies, pngDimensions, spriteMotion, validateAnimation, PATIENT_SPRITES,
+  playerSpriteSpecies, pngDimensions, spriteMotion, validateAnimation, isScenerySpecies, PATIENT_SPRITES,
   type SpriteManifest } from './pmd.js';
 import type { PatientRecord } from '@pokecenter/shared';
 
@@ -44,6 +44,18 @@ describe('PMD sprite metadata', () => {
       expect(() => parseSpriteManifest({ source: 'fixture', species: [{ ...species, laying: { ...laying, image: '0025/Hop-Anim.png' } }] }))
         .toThrow('Malformed PMD sprite manifest entry');
     }
+  });
+
+  it('accepts an optional Hover flight sheet and rejects a mislabelled one', () => {
+    const hoverXml = xml.replace('<Name>Idle</Name>', '<Name>Hover</Name>');
+    const hover = validateAnimation(hoverXml, 'Hover', png(32, 24), '0249/Hover-Anim.png')!;
+    const species = { name: 'Lugia', id: '0249', credits: 'Fixture artist', idle: { ...hover, image: '0249/Idle-Anim.png' } };
+    expect(parseSpriteManifest({ source: 'fixture', species: [{ ...species, hover }] }).species[0]!.hover).toEqual(hover);
+    expect(() => parseSpriteManifest({ source: 'fixture', species: [{ ...species, hover: { ...hover, image: '0249/Walk-Anim.png' } }] }))
+      .toThrow('Malformed PMD sprite manifest entry');
+    expect(isScenerySpecies('Lugia')).toBe(true);
+    expect(isScenerySpecies('Pikachu')).toBe(false);
+    expect(isScenerySpecies('toString')).toBe(false);
   });
 
   it('supports all six patient species and maps the four player slots deterministically', () => {

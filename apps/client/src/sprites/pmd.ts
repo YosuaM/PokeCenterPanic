@@ -8,9 +8,16 @@ export const PATIENT_SPRITES = {
 
 export const PLAYER_SPRITES = PLAYER_CHARACTERS;
 
+/** Pokémon that only decorate the title screen, never the clinic. */
+export const SCENERY_SPRITES = { Lugia: '0249' } as const;
+
 export const SPRITE_IDS: Record<string, string> = {
-  ...PATIENT_SPRITES, Chansey: '0113', Audino: '0531', Machoke: '0067', Meowth: '0052',
+  ...PATIENT_SPRITES, Chansey: '0113', Audino: '0531', Machoke: '0067', Meowth: '0052', ...SCENERY_SPRITES,
 };
+
+export function isScenerySpecies(name: string): boolean {
+  return Object.hasOwn(SCENERY_SPRITES, name);
+}
 
 export interface SpriteAnimation {
   frameWidth: number;
@@ -20,7 +27,7 @@ export interface SpriteAnimation {
   image: string;
 }
 
-export type SpriteAnimationName = 'Idle' | 'Walk' | 'Dance' | 'Rotate' | 'Laying' | 'Sleep';
+export type SpriteAnimationName = 'Idle' | 'Walk' | 'Dance' | 'Rotate' | 'Laying' | 'Sleep' | 'Hover';
 
 export interface SpeciesSprite {
   id: string;
@@ -31,6 +38,8 @@ export interface SpeciesSprite {
   selection?: SpriteAnimation;
   /** Pose for patients carried on a stretcher. */
   laying?: SpriteAnimation;
+  /** Wing-flapping flight for title-screen flyers. */
+  hover?: SpriteAnimation;
 }
 
 export interface SpriteManifest {
@@ -127,7 +136,8 @@ export function parseSpriteManifest(value: unknown): SpriteManifest {
       (species.selection && !validAnimation(species.selection, species.id, 'Dance') &&
         !validAnimation(species.selection, species.id, 'Rotate')) ||
       (species.laying && !validAnimation(species.laying, species.id, 'Laying') &&
-        !validAnimation(species.laying, species.id, 'Sleep'))) {
+        !validAnimation(species.laying, species.id, 'Sleep')) ||
+      (species.hover && !validAnimation(species.hover, species.id, 'Hover'))) {
       throw new Error('Malformed PMD sprite manifest entry');
     }
   }

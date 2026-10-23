@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeMenuAtmosphere } from './menuAtmosphere.js';
 import { createAtmosphereLayers } from './menuAtmosphereLayers.js';
+import type { MenuCritters } from './menuCritters.js';
 
 vi.mock('./menuAtmosphereLayers.js', () => ({ createAtmosphereLayers: vi.fn() }));
 class Control extends EventTarget {
@@ -23,7 +24,7 @@ beforeEach(() => {
     disconnect = disconnect;
   });
 });
-function setup(reducedMotion = false) {
+function setup(reducedMotion = false, critters?: () => Promise<MenuCritters | null>) {
   const canvas = new Control(), button = new Control();
   const reduced = Object.assign(new EventTarget(), { matches: reducedMotion });
   const frames = new Map<number, FrameRequestCallback>();
@@ -40,7 +41,7 @@ function setup(reducedMotion = false) {
   const loaded = new Promise<readonly [CanvasImageSource, CanvasImageSource]>((yes, no) => { resolve = yes; reject = no; });
   const layers = { draw: vi.fn(), dispose: vi.fn() };
   vi.mocked(createAtmosphereLayers).mockReturnValue(layers);
-  const dispose = initializeMenuAtmosphere(document as unknown as Document, () => loaded);
+  const dispose = initializeMenuAtmosphere(document as unknown as Document, () => loaded, critters);
   const tick = (time: number) => {
     const item = [...frames][0];
     if (item) { frames.delete(item[0]); item[1](time); }
@@ -50,6 +51,54 @@ function setup(reducedMotion = false) {
 }
 
 describe('menu atmosphere lifecycle', () => {
+  it('draws the Pokémon over the scene at the same time once both have loaded', async () => {
+    const critters = { draw: vi.fn(), drawSky: vi.fn() };
+    let ready!: (value: MenuCritters | null) => void;
+    const s = setup(false, () => new Promise((resolve) => { ready = resolve; }));
+    ready(critters);
+    await Promise.resolve(); await Promise.resolve();
+    expect(critters.draw).not.toHaveBeenCalled();
+    await s.finish();
+    expect(critters.draw).toHaveBeenCalledWith(s.canvas.context, 0);
+    const sky = s.layers.draw.mock.lastCall![2] as (context: unknown) => void;
+    sky('target');
+    expect(critters.drawSky).toHaveBeenCalledWith('target', 0);
+    s.tick(100); s.tick(160);
+    const [, time] = s.layers.draw.mock.lastCall!;
+    expect(critters.draw).toHaveBeenLastCalledWith(s.canvas.context, time);
+    expect(s.layers.draw.mock.invocationCallOrder.at(-1)).toBeLessThan(critters.draw.mock.invocationCallOrder.at(-1)!);
+    s.dispose();
+  });
+
+  it('paints critters that arrive after the art, and ignores a missing sprite cache or a late load after disposal', async () => {
+    const late = { draw: vi.fn(), drawSky: vi.fn() };
+    let ready!: (value: MenuCritters | null) => void;
+    const s = setup(false, () => new Promise((resolve) => { ready = resolve; }));
+    await s.finish();
+    ready(late);
+    await Promise.resolve(); await Promise.resolve();
+    expect(late.draw).toHaveBeenCalledOnce();
+    s.dispose();
+    const absent = setup(false, () => Promise.resolve(null));
+    await absent.finish();
+    absent.tick(100);
+    expect(absent.layers.draw).toHaveBeenCalled();
+    expect(absent.layers.draw.mock.lastCall![2]).toBeUndefined();
+    absent.dispose();
+    const disposed = { draw: vi.fn(), drawSky: vi.fn() };
+    let resolveLate!: (value: MenuCritters | null) => void;
+    const gone = setup(false, () => new Promise((resolve) => { resolveLate = resolve; }));
+    await gone.finish();
+    gone.dispose();
+    resolveLate(disposed);
+    await Promise.resolve(); await Promise.resolve();
+    expect(disposed.draw).not.toHaveBeenCalled();
+    const failing = setup(false, () => Promise.reject(new Error('offline')));
+    await failing.finish();
+    expect(failing.layers.draw).toHaveBeenCalled();
+    failing.dispose();
+  });
+
   it('keeps the original still visible until ready, then pauses/resumes without a time jump', async () => {
     const s = setup();
     expect(s.canvas.hidden).toBe(true); expect(s.button.hidden).toBe(true);
